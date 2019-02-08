@@ -31,8 +31,10 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.Stack;
 
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.binary.Base64;
+import org.sakaiproject.tool.api.SessionManager;
 import org.w3c.dom.DOMException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -121,6 +123,7 @@ public class DiscussionForumServiceImpl  implements DiscussionForumService, Enti
 	private ContentHostingService contentHostingService;
 	private AuthzGroupService authzGroupService;
 	private EntityManager entityManager;
+	@Setter private SessionManager sessionManager;
 	private SiteService siteService;
 	private ToolManager toolManager;
 	
@@ -432,9 +435,9 @@ public class DiscussionForumServiceImpl  implements DiscussionForumService, Enti
 		{
 			log.debug("transfer copy mc items by transferCopyEntities");
 
-			//List fromDfList = dfManager.getDiscussionForumsByContextId(fromContext);
 			List fromDfList = dfManager.getDiscussionForumsWithTopicsMembershipNoAttachments(fromContext);
 			List existingForums = dfManager.getDiscussionForumsByContextId(toContext);
+			String currentUserId = sessionManager.getCurrentSessionUserId();
 			int numExistingForums = existingForums.size();
 
 			if (fromDfList != null && !fromDfList.isEmpty()) {
@@ -444,7 +447,7 @@ public class DiscussionForumServiceImpl  implements DiscussionForumService, Enti
 
 					DiscussionForum newForum = forumManager.createDiscussionForum();
 					if(newForum != null){
-					
+
 						newForum.setTitle(fromForum.getTitle());
 
 						if (fromForum.getShortDescription() != null && fromForum.getShortDescription().length() > 0) {
@@ -505,29 +508,8 @@ public class DiscussionForumServiceImpl  implements DiscussionForumService, Enti
 							}
 						}   
 
-						// get/add the gradebook assignment associated with the forum settings
-						GradebookService gradebookService = (org.sakaiproject.service.gradebook.shared.GradebookService) 
-						ComponentManager.get("org.sakaiproject.service.gradebook.GradebookService");
-						String gradebookUid;
-						// if this code is called from a quartz job, like SIS, then getCurrentPlacement() will return null.
-						// so just use the fromContext which gives the site id.
-						if (toolManager.getCurrentPlacement() != null)
-						{
-							gradebookUid = toolManager.getCurrentPlacement().getContext();
-						}
-						else
-						{
-							gradebookUid = fromContext;
-						}
-
-						if (gradebookService.isGradebookDefined(gradebookUid))
-						{
-							String fromAssignmentTitle = fromForum.getDefaultAssignName();
-							if (gradebookService.isAssignmentDefined(gradebookUid, fromAssignmentTitle))
-							{
-								newForum.setDefaultAssignName(fromAssignmentTitle);
-							}
-						}
+						//add the gradebook assignment associated with the forum settings
+						newForum.setDefaultAssignName(fromForum.getDefaultAssignName());
 
 						// save the forum, since this is copying over a forum, send "false" for parameter otherwise
 						//it will create a default forum as well
@@ -536,12 +518,12 @@ public class DiscussionForumServiceImpl  implements DiscussionForumService, Enti
 
 						if (!getImportAsDraft())
 						{
-							forumManager.saveDiscussionForum(newForum, newForum.getDraft());
+							newForum = forumManager.saveDiscussionForum(newForum, newForum.getDraft(), false, currentUserId);
 						}
 						else
 						{
-							newForum.setDraft(Boolean.valueOf("true"));
-							forumManager.saveDiscussionForum(newForum, true);
+							newForum.setDraft(Boolean.TRUE);
+							newForum = forumManager.saveDiscussionForum(newForum, true, false, currentUserId);
 						}
 						
 						//add the ref's for the old and new forum
@@ -605,17 +587,10 @@ public class DiscussionForumServiceImpl  implements DiscussionForumService, Enti
 									}			
 								}
 
-								// get/add the gradebook assignment associated with the topic	
-								if (gradebookService.isGradebookDefined(gradebookUid))
-								{
-									String fromAssignmentTitle = fromTopic.getDefaultAssignName();
-									if (gradebookService.isAssignmentDefined(gradebookUid, fromAssignmentTitle))
-									{
-										newTopic.setDefaultAssignName(fromAssignmentTitle);
-									}
-								}
+								//add the gradebook assignment associated with the topic	
+								newTopic.setDefaultAssignName(fromTopic.getDefaultAssignName());
 
-								forumManager.saveDiscussionForumTopic(newTopic, newForum.getDraft());
+								forumManager.saveDiscussionForumTopic(newTopic, newForum.getDraft(), currentUserId, false);
 								
 								//add the ref's for the old and new topic
 								transversalMap.put("forum_topic/" + fromTopicId, "forum_topic/" + newTopic.getId());
@@ -946,12 +921,12 @@ public class DiscussionForumServiceImpl  implements DiscussionForumService, Enti
 														dfForum.setArea(area);
 														if (!getImportAsDraft())
 														{
-															forumManager.saveDiscussionForum(dfForum, dfForum.getDraft());
+															dfForum = forumManager.saveDiscussionForum(dfForum, dfForum.getDraft());
 														}
 														else
 														{
 															dfForum.setDraft(Boolean.valueOf("true"));
-															forumManager.saveDiscussionForum(dfForum, true);
+															dfForum = forumManager.saveDiscussionForum(dfForum, true);
 														}
 													}
 													hasTopic = true;
@@ -1088,8 +1063,8 @@ public class DiscussionForumServiceImpl  implements DiscussionForumService, Enti
 		try {			
 			ContentResource oldAttachment = contentHostingService.getResource(attachmentId);
 			ContentResource attachment = contentHostingService.addAttachmentResource(
-				oldAttachment.getProperties().getProperty(
-						ResourceProperties.PROP_DISPLAY_NAME), toContext, toolManager.getTool(
+				Validator.escapeResourceName(oldAttachment.getProperties().getProperty(
+						ResourceProperties.PROP_DISPLAY_NAME)), toContext, toolManager.getTool(
 						"sakai.forums").getTitle(), oldAttachment.getContentType(),
 						oldAttachment.getContent(), oldAttachment.getProperties());
 			Attachment thisDFAttach = dfManager.createDFAttachment(
@@ -1321,6 +1296,7 @@ public class DiscussionForumServiceImpl  implements DiscussionForumService, Enti
 			Set<Entry<String, String>> entrySet = (Set<Entry<String, String>>) transversalMap.entrySet();
 
 			List existingForums = dfManager.getDiscussionForumsByContextId(toContext);
+			String currentUserId = sessionManager.getCurrentSessionUserId();
 
 			if (existingForums != null && !existingForums.isEmpty()) 
 			{
@@ -1339,9 +1315,14 @@ public class DiscussionForumServiceImpl  implements DiscussionForumService, Enti
 						}
 					}
 					
+					if(fromForum.getDefaultAssignName()!=null && transversalMap.get("gb/"+fromForum.getDefaultAssignName()) != null){
+						fromForum.setDefaultAssignName(transversalMap.get("gb/"+fromForum.getDefaultAssignName()).substring(3));
+						updateForum = true;
+					}
+
 					if(updateForum){
 						//update forum
-						dfManager.saveForum(fromForum);
+						fromForum = dfManager.saveForum(fromForum, fromForum.getDraft(), toContext, false, currentUserId);
 					}
 					
 					List topics = fromForum.getTopics();
@@ -1349,8 +1330,8 @@ public class DiscussionForumServiceImpl  implements DiscussionForumService, Enti
 						//check topics too:
 						for(int currTopic = 0; currTopic < topics.size(); currTopic++){
 							boolean updateTopic = false;
-							DiscussionTopic topic = (DiscussionTopic) topics.get(currTopic);
-							
+							DiscussionTopic topic = dfManager.getTopicById(((DiscussionTopic) topics.get(currTopic)).getId());
+
 							//check long Desc:
 							String tLongDesc = topic.getExtendedDescription();
 							if(tLongDesc != null){
@@ -1360,10 +1341,15 @@ public class DiscussionForumServiceImpl  implements DiscussionForumService, Enti
 									updateTopic = true;
 								}
 							}
-							
+
+							if(topic.getDefaultAssignName()!=null && transversalMap.get("gb/"+topic.getDefaultAssignName()) != null){
+								topic.setDefaultAssignName(transversalMap.get("gb/"+topic.getDefaultAssignName()).substring(3));
+								updateTopic = true;
+							}
+
 							if(updateTopic){
 								//update forum
-								dfManager.saveTopic(topic);
+								dfManager.saveTopic(topic, topic.getDraft(), false, currentUserId);
 							}
 						}						
 					}
@@ -1375,7 +1361,7 @@ public class DiscussionForumServiceImpl  implements DiscussionForumService, Enti
 	private String replaceAllRefs(String msgBody, Set<Entry<String, String>> entrySet){
 		if(msgBody != null){
 			msgBody = LinkMigrationHelper.migrateAllLinks(entrySet, msgBody);
-			}	
+		}	
 		return msgBody;		
 	}
 

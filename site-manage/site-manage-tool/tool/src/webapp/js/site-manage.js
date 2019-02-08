@@ -567,15 +567,15 @@ utils.endDialog = function(ev, dialogTarget){
 utils.checkEnableUnjoin = function()
 {
     var disabled = $( ".joinable:checked" ).length > 0 ? false : true;
-    $( "#reset" ).prop( "disabled", disabled );
-    $( "#unjoin" ).prop( "disabled", disabled );
+    $( ".reset" ).prop( "disabled", disabled );
+    $( ".unjoin" ).prop( "disabled", disabled );
     if( disabled )
     {
-        $( "#unjoin" ).removeClass( "active" );
+        $( ".unjoin" ).removeClass( "active" );
     }
     else
     {
-        $( "#unjoin" ).addClass( "active" );
+        $( ".unjoin" ).addClass( "active" );
     }
 };
 
@@ -680,7 +680,7 @@ var setupCategTools = function(){
         var msg = $('#removalAlertMessage').val();
         var yesMsg = $('#removalAlertYesMessage').val();
         var noMsg = $('#removalAlertNoMessage').val();
-        $('<li id=\"alertBox\"><span style="padding:10px 2px">' + msg + '</span><span style="padding:10px 2px"><a href=\"#\" id=\"alertBoxYes\">' + yesMsg + '</a>&nbsp;|&nbsp;<a href=\"#\" id=\"alertBoxNo\">' + noMsg + '</a></span></li>').insertAfter('#' + target);
+        $('<li id=\"alertBox\"><span>' + msg + '</span><span><a href=\"#\" id=\"alertBoxYes\">' + yesMsg + '</a>&nbsp;|&nbsp;<a href=\"#\" id=\"alertBoxNo\">' + noMsg + '</a></span></li>').insertAfter('#' + target);
 
         $('#alertBox a#alertBoxYes').on('click', function(){
             $(this).closest('li').prev('li').remove();
@@ -1353,6 +1353,20 @@ function setupImportSitesForm($form) {
         });
     });
 };
+
+function updateParticipants(buttonElement)
+{
+    SPNR.disableControlsAndSpin(buttonElement, null);
+    document.participantForm.submit();
+    return false;
+}
+
+function cancel(url, buttonElement)
+{
+    SPNR.disableControlsAndSpin(buttonElement, null);
+    location = encodeURI(url);
+    return false;
+}
 
 $(document).ready(function() {
     var $form = $("form[name='importSitesForm']");

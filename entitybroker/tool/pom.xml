@@ -16,7 +16,7 @@
     <parent>
         <artifactId>entitybroker</artifactId>
         <groupId>org.sakaiproject</groupId>
-        <version>13-SNAPSHOT</version><!--entitybroker.version-->
+        <version>20-SNAPSHOT</version><!--entitybroker.version-->
     </parent>
 
     <dependencies>
@@ -36,7 +36,7 @@
         <!-- external dependencies -->
         <dependency>
             <groupId>javax.servlet</groupId>
-            <artifactId>servlet-api</artifactId>
+            <artifactId>javax.servlet-api</artifactId>
         </dependency>
         <!-- oAuth dependency -->
         <dependency>

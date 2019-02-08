@@ -194,7 +194,7 @@ public class ChatManagerImpl extends HibernateDaoSupport implements ChatManager,
                     .build();
             heartbeatMap = CacheBuilder.newBuilder()
             		//.recordStats()
-            		.expireAfterAccess(pollInterval*2, TimeUnit.MILLISECONDS)
+            		.expireAfterWrite(1, TimeUnit.HOURS)
             		.build();
             
             timezoneCache = CacheBuilder.newBuilder()
@@ -307,7 +307,7 @@ public class ChatManagerImpl extends HibernateDaoSupport implements ChatManager,
             return;
 
         checkPermission(ChatFunctions.CHAT_FUNCTION_DELETE_CHANNEL, channel.getContext());
-        getHibernateTemplate().delete(channel);
+        getHibernateTemplate().delete(getHibernateTemplate().merge(channel));
 
         sendDeleteChannel(channel);
     }
@@ -666,7 +666,7 @@ public class ChatManagerImpl extends HibernateDaoSupport implements ChatManager,
         if(!getCanDelete(message))
             checkPermission(ChatFunctions.CHAT_FUNCTION_DELETE_ANY, message.getChatChannel().getContext());
 
-        getHibernateTemplate().delete(message);
+        getHibernateTemplate().delete(getHibernateTemplate().merge(message));
 
         sendDeleteMessage(message);
     }
@@ -995,7 +995,7 @@ public class ChatManagerImpl extends HibernateDaoSupport implements ChatManager,
         ZonedDateTime ldt = ZonedDateTime.ofInstant(item.getMessageDate().toInstant(), ZoneId.of(getUserTimeZone()));
         Locale locale = rl.getLocale();
         
-        String newText = body + ", " + user.getDisplayName() + ", " + ldt.format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withLocale(locale));
+        String newText = body + ", " + user.getDisplayName(item.getChatChannel().getContext()) + ", " + ldt.format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withLocale(locale));
         return newText;
     }
 
@@ -1109,11 +1109,11 @@ public class ChatManagerImpl extends HibernateDaoSupport implements ChatManager,
                     String displayName = us.getUserDisplayId();
                     String userId = us.getUserId();
                     try {
-                        displayName = userDirectoryService.getUser(us.getUserId()).getDisplayName();
+                        displayName = userDirectoryService.getUser(us.getUserId()).getDisplayName(siteId);
                         //if user stored in heartbeat is different to the presence one
                         if(!userId.equals(sessionUserId)) {
                             userId += ":"+sessionUserId;
-                            displayName += " (" + userDirectoryService.getUser(sessionUserId).getDisplayName() + ")";
+                            displayName += " (" + userDirectoryService.getUser(sessionUserId).getDisplayName(siteId) + ")";
                         }
                     }catch(Exception e){
                         log.error("Error getting user "+sessionUserId, e);
@@ -1362,7 +1362,7 @@ public class ChatManagerImpl extends HibernateDaoSupport implements ChatManager,
             ret = TransferableChatMessage.HeartBeat(channelId, sessionKey);
             heartbeatMap.get(channelId, () -> {
                 return CacheBuilder.newBuilder()
-                        .expireAfterWrite(pollInterval*2, TimeUnit.MILLISECONDS)
+                        .expireAfterWrite(1, TimeUnit.HOURS)
                         .build();
             }).put(sessionId, ret);
         } catch(Exception e){
@@ -1382,8 +1382,16 @@ public class ChatManagerImpl extends HibernateDaoSupport implements ChatManager,
             return false;
         }
 
-        //thanks to the cache auto-expiration system, not updated hearbeats will be automatically removed
-        return (heartbeatMap.getIfPresent(channelId).getIfPresent(sessionId) != null);
+        // Check to see how active the user has been
+        TransferableChatMessage userHeartbeat = heartbeatMap.getIfPresent(channelId).getIfPresent(sessionId);
+        if (userHeartbeat == null || userHeartbeat.getTimestamp() < 1L) {
+            return false;
+        }
+
+        long timeDiff = ((new Date()).getTime()) - userHeartbeat.getTimestamp();
+        log.debug("Heartbeat diff for {} is {}; interval={}", sessionId, timeDiff, pollInterval*2);
+        // Safari seems to back off on setTimeout calls when in background for 60 seconds
+        return timeDiff <= 60000 + (pollInterval*2);
     }
     
     private void sendToCluster(TransferableChatMessage message){

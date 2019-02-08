@@ -272,7 +272,7 @@
 						<h:panelGroup styleClass="col-xs-12 col-md-9 valueColumn" layout="block">
 							<h:panelGroup>
 								<h:panelGroup rendered="#{OrganizerSignupMBean.meetingWrapper.meeting.recurrenceId !=null}">
-									<h:graphicImage title="#{msgs.event_tool_tips_recurrence}" value="/images/recurrence.gif"  alt="recurrence" style="border:none" />
+									<h:graphicImage title="#{msgs.event_tool_tips_recurrence}" value="/images/recurrence.gif" alt="#{msgs.event_tool_tips_recurrence}" style="border:none" />
 									<h:outputText value="&nbsp;" escape="false"/>
 								</h:panelGroup>
 								<h:outputText value="#{OrganizerSignupMBean.meetingWrapper.meeting.title}" styleClass="longtext"/>
@@ -290,7 +290,7 @@
 						<h:panelGroup styleClass="col-xs-12 col-md-9 valueColumn" layout="block">
 							<h:panelGroup>
 								<h:panelGroup rendered="#{OrganizerSignupMBean.meetingWrapper.meeting.recurrenceId !=null}">
-									<h:graphicImage title="#{msgs.event_tool_tips_recurrence}" value="/images/recurrence.gif"  alt="recurrence" style="border:none" />
+									<h:graphicImage title="#{msgs.event_tool_tips_recurrence}" value="/images/recurrence.gif" alt="#{msgs.event_tool_tips_recurrence}" style="border:none" />
 									<h:outputText value="&nbsp;" escape="false"/>
 								</h:panelGroup>
 								<h:outputText value="#{OrganizerSignupMBean.meetingWrapper.meeting.title}" styleClass="longtext"/>
@@ -441,11 +441,11 @@
 							<h:panelGrid columns="1" styleClass="published_siteGroupTable">
 								<h:panelGroup>
 									<h:outputLabel  id="imageOpen_publishedSiteGroup" style="display:none" styleClass="activeTag" onclick="showDetails('meeting:imageOpen_publishedSiteGroup','meeting:imageClose_publishedSiteGroup','meeting:publishedSiteGroups');">
-										<h:graphicImage value="/images/open.gif"  alt="open" title="Click to hide details." style="border:none" styleClass="openCloseImageIcon"/>
+										<h:graphicImage value="/images/open.gif" alt="#{msgs.event_tool_tips_hide_details}" title="#{msgs.event_tool_tips_hide_details}" style="border:none" styleClass="openCloseImageIcon"/>
 										<h:outputText value="#{msgs.event_hide_site_group_detail}" escape="false" />
 									</h:outputLabel>
 									<h:outputLabel id="imageClose_publishedSiteGroup" styleClass="activeTag" onclick="showDetails('meeting:imageOpen_publishedSiteGroup','meeting:imageClose_publishedSiteGroup','meeting:publishedSiteGroups');">
-										<h:graphicImage value="/images/closed.gif" alt="close" title="Click to show details." style="border:none" styleClass="openCloseImageIcon"/>
+										<h:graphicImage value="/images/closed.gif" alt="#{msgs.event_tool_tips_show_details}" title="#{msgs.event_tool_tips_show_details}" style="border:none" styleClass="openCloseImageIcon"/>
 										<h:outputText value="#{msgs.event_show_site_group_detail}" escape="false" />
 									</h:outputLabel>
 								</h:panelGroup>
@@ -520,11 +520,11 @@
 						</h:panelGroup>							
 						<h:panelGroup>	
 		   	    				<h:outputLabel  id="imageOpen_meetingInfoDetail"  styleClass="activeTag" onclick="showDetails('meeting:imageOpen_meetingInfoDetail','meeting:imageClose_meetingInfoDetail','meetingInfoDetails');setMeetingCollapseInfo(true);">
-			   	    				<h:graphicImage value="/images/openTop.gif"  alt="open" title="#{msgs.event_tool_tips_hide_details}" style="border:none; vertical-align: bottom;" styleClass="openCloseImageIcon"/>
+			   	    				<h:graphicImage value="/images/openTop.gif" alt="#{msgs.event_tool_tips_hide_details}" title="#{msgs.event_tool_tips_hide_details}" style="border:none; vertical-align: bottom;" styleClass="openCloseImageIcon"/>
 			   	    				<h:outputText value="#{msgs.event_hide_meetingIfo_detail}" escape="false" />
 		   	    				</h:outputLabel>
 		   	    				<h:outputLabel id="imageClose_meetingInfoDetail" style="display:none" styleClass="activeTag" onclick="showDetails('meeting:imageOpen_meetingInfoDetail','meeting:imageClose_meetingInfoDetail','meetingInfoDetails');setMeetingCollapseInfo(false);">
-		   	    					<h:graphicImage value="/images/closed.gif" alt="close" title="#{msgs.event_tool_tips_show_details}" style="border:none" styleClass="openCloseImageIcon"/>
+		   	    					<h:graphicImage value="/images/closed.gif" alt="#{msgs.event_tool_tips_show_details}" title="#{msgs.event_tool_tips_show_details}" style="border:none" styleClass="openCloseImageIcon"/>
 		   	    					<h:outputText value="#{msgs.event_show_meetingIfo_detail}" escape="false" />
 		   	    				</h:outputLabel>
 		   	    				<h:inputHidden id="meetingInfoCollapseExpand" value="#{OrganizerSignupMBean.collapsedMeetingInfo}"/>
@@ -542,6 +542,7 @@
 					 columnClasses="orgTimeslotCol,orgMaxAttsCol,orgSlotStatusCol,orgGroupSync,orgWaiterStatusCol"	
 					 rowClasses="oddRow,evenRow"
 					 styleClass="signupTable" style="width:98%">
+							<!-- TS start and end times -->
 							<h:column>		   
 								<f:facet name="header">
 									<h:outputText value="#{msgs.tab_time_slot}" style="padding-left:15px;"/>
@@ -597,11 +598,11 @@
 											<h:panelGrid columns="1"  >
 												<h:panelGroup >
 													<h:commandLink id="lockTimeslot" action="#{OrganizerSignupMBean.processLockTsAction}" rendered="#{!timeSlotWrapper.timeSlot.locked}" title="#{msgs.event_tool_tips_lock_label}">
-														<h:graphicImage value="/images/lock.gif"  alt="lock this time slot" style="border:none" styleClass="openCloseImageIcon"/>
+														<h:graphicImage value="/images/lock.gif" alt="" style="border:none" styleClass="openCloseImageIcon"/>
 														<h:outputText value="#{msgs.event_lock_timeslot_label}" style="white-space: nowrap;" escape="false"/>
 													</h:commandLink>
 													<h:commandLink id="lockedTimeslot" action="#{OrganizerSignupMBean.processLockTsAction}" rendered="#{timeSlotWrapper.timeSlot.locked}" title="#{msgs.event_tool_tips_unlock_label}">
-														<h:graphicImage value="/images/lock.gif"  alt="unlock this time slot" style="border:none" styleClass="openCloseImageIcon"/>
+														<h:graphicImage value="/images/lock.gif" alt="" style="border:none" styleClass="openCloseImageIcon"/>
 														<h:outputText value="#{msgs.event_unlock_timeslot_label}" escape="false"/>
 													</h:commandLink>
 												</h:panelGroup>
@@ -609,11 +610,11 @@
 												<h:panelGroup >
 													<h:commandLink id="cancelTimeslot" action="#{OrganizerSignupMBean.initiateCancelTimeslot}" rendered="#{!timeSlotWrapper.timeSlot.canceled}"
 													  onmousedown="confirmTsCancel(this,'#{msgs.confirm_cancel}');" title="#{msgs.event_tool_tips_cancel_label}">
-														<h:graphicImage value="/images/cancelled.gif"  alt="cancel this time slot" style="border:none" styleClass="openCloseImageIcon"/>
+														<h:graphicImage value="/images/cancelled.gif" alt="" style="border:none" styleClass="openCloseImageIcon"/>
 														<h:outputText value="#{msgs.event_cancel_timeslot_label}" style="white-space: nowrap;" escape="false"/>
 													</h:commandLink>
 													<h:commandLink id="restoreTimeslot" action="#{OrganizerSignupMBean.restoreTimeslot}" rendered="#{timeSlotWrapper.timeSlot.canceled}" title="#{msgs.event_tool_tips_restore_timeslot_label}">
-														<h:graphicImage value="/images/cancelled.gif"  alt="restore" style="border:none" styleClass="openCloseImageIcon"/>
+														<h:graphicImage value="/images/cancelled.gif" alt="" style="border:none" styleClass="openCloseImageIcon"/>
 														<h:outputText value="#{msgs.event_restore_timeslot_label}" escape="false"/>
 													</h:commandLink>
 												</h:panelGroup>
@@ -623,6 +624,7 @@
 									</h:panelGrid>
 					   		</h:column>
 					   		
+					   		<!-- TS max no attendee -->
 					   		<h:column>		   
 								<f:facet name="header">
 									<h:outputText value="#{msgs.tab_max_attendee}"/>
@@ -631,6 +633,7 @@
 						   		<h:outputText value="#{msgs.event_unlimited}" rendered="#{timeSlotWrapper.timeSlot.unlimitedAttendee}"/>
 					   		</h:column>
 					   		
+					   		<!-- TS attendee list -->
 					   		<h:column>		   
 								<f:facet name="header">
 									<h:panelGroup>
@@ -691,6 +694,8 @@
 																rendered="#{attendeeWrapper.attendeeEmail==null}"/>
 							   							<h:outputText value="&nbsp;" escape="false" />
 						   							</h:panelGroup>
+						   							
+						   							<!-- Attendee Name & Comment -->
 						   							<h:panelGroup>
 							   							<h:commandLink id="view_comment" action="#{OrganizerSignupMBean.viewAttendeeComment}">
 							   								<f:param id="timeslotId" name="timeslotId" value="#{timeSlotWrapper.timeSlot.id}"/>
@@ -698,7 +703,11 @@
 							   								<h:outputText value="#{attendeeWrapper.displayName}" title="#{attendeeWrapper.commentForTooltips}" style="cursor:pointer;" rendered="#{attendeeWrapper.signupAttendee.attendeeUserId !=null}"/>
 							   								<h:graphicImage title="Click to view/edit attendee's comment" value="/images/comment.gif" width="18" height="18" alt="#{msgs.event_view_comment_page_title}" style="border:none" styleClass="openCloseImageIcon" rendered="#{attendeeWrapper.comment}" />
 							   							</h:commandLink>
+							   							<br />
+							   							<h:outputText id="attendeeInscriptionTime" rendered="#{OrganizerSignupMBean.getDisplayTimeFromInstant(attendeeWrapper.signupAttendee.inscriptionTime) != ''}" 
+							   								style="font-size: 90%;" value="(#{OrganizerSignupMBean.getDisplayTimeFromInstant(attendeeWrapper.signupAttendee.inscriptionTime)})" escape="false"/>
 						   							</h:panelGroup>
+						   							
 						   						</h:panelGrid>
 						   						
 								   				<h:panelGroup id="editPanel" style="display: none;">
@@ -755,39 +764,38 @@
 					   					<h:panelGroup id="addAttendee" rendered="#{!OrganizerSignupMBean.meetingWrapper.meeting.meetingExpired}">
 					   						<%-- TODO add spacer only if the attendees exist in atleast one timeslot --%>
 					   						<h:graphicImage value="/images/spacer.gif" width="20" height="16" alt="" style="border:none"/>
-						   					<h:outputLink value="javascript:showHideAddPanel('#{timeSlotWrapper.positionInTSlist}');" styleClass="addAttendee">
-						   						<h:graphicImage value="/images/add.png" alt="" title="#{msgs.event_tool_tips_add}" style="border:none" styleClass="openCloseImageIcon"/>
+						   					<h:outputLink value="javascript:showHideAddPanel('#{timeSlotWrapper.positionInTSlist}');" title="#{msgs.event_tool_tips_add}" styleClass="addAttendee">
+						   						<f:verbatim>
+						   							<span class="fa fa-plus" aria-hidden="true"></span>
+						   						</f:verbatim>
 						   						<h:outputText value="#{msgs.event_add_attendee}" escape="false" />
 						   					</h:outputLink>
 						   				</h:panelGroup>
-							   				
-						   				<h:panelGroup id="addPanel" style="display: none;" >
-						   					<h:panelGrid id="addNewAttendeeTable" columns="2">
-							   					<h:graphicImage value="/images/spacer.gif" width="16" height="16" alt="" style="border:none"/>
-							   					<h:panelGrid id="selectAttendees" columns="2">
-						   							
-						   							<h:outputText value="#{msgs.attendee_select}" escape="false" rendered="#{!OrganizerSignupMBean.eidInputMode}"/>
-						   							<h:outputText value="#{msgs.attendee_enterEid}" escape="false" rendered="#{OrganizerSignupMBean.eidInputMode}"/>
-						   							
-						   							<h:panelGroup rendered="#{!OrganizerSignupMBean.eidInputMode}">
-							   							<h:selectOneMenu  id="newAttendeeList" binding="#{OrganizerSignupMBean.addNewAttendeeUserEidOrEmail}" >
-						   									<f:selectItems value="#{OrganizerSignupMBean.allAttendees}" />
-						   								</h:selectOneMenu>
-						   							</h:panelGroup>
-						   							<h:inputText  id="addAttendeeEidOrEmailInput" size="20" value="#{OrganizerSignupMBean.userInputEidOrEmail}" rendered="#{OrganizerSignupMBean.eidInputMode}" />
-					   								
-					   								<h:panelGroup>
-						   						    	<h:commandButton id="addPanel_okBtn" value="#{msgs.ok_button}" action="#{OrganizerSignupMBean.addAttendee}"/>
-						   								<h:commandButton id="addPanel_cancelBtn" value="#{msgs.cancel_button}" action="doNothing" onclick="clearPanels(); return false;"/>
-						   							</h:panelGroup>
-						   							
-						   							<%--  pad last column --%>
-						   							<h:outputText value="&nbsp;" escape="false" />
-						   							
-						   						</h:panelGrid>
-					   						</h:panelGrid>
-						   				</h:panelGroup>
-						   				
+
+										<h:panelGroup id="addPanel" styleClass="addPanel" style="display: none;">
+											<h:panelGroup id="addNewAttendeeTable" layout="block">
+												<h:panelGroup styleClass="form-group row" rendered="#{!OrganizerSignupMBean.eidInputMode}" layout="block">
+													<h:outputLabel value="#{msgs.attendee_select}" for="newAttendeeList" escape="false" styleClass="col-lg-4" />
+													<h:panelGroup styleClass="col-lg-8" layout="block">
+														<h:selectOneMenu id="newAttendeeList" binding="#{OrganizerSignupMBean.addNewAttendeeUserEidOrEmail}">
+															<f:selectItems value="#{OrganizerSignupMBean.allAttendees}" />
+														</h:selectOneMenu>
+													</h:panelGroup>
+												</h:panelGroup>
+
+												<h:panelGroup styleClass="form-group row" rendered="#{OrganizerSignupMBean.eidInputMode}" layout="block">
+													<h:outputLabel value="#{msgs.attendee_enterEid}" for="addAttendeeEidOrEmailInput" escape="false" styleClass="col-lg-4" />
+													<h:panelGroup styleClass="col-lg-8" layout="block">
+														<h:inputText id="addAttendeeEidOrEmailInput" size="20" value="#{OrganizerSignupMBean.userInputEidOrEmail}" />
+													</h:panelGroup>
+												</h:panelGroup>
+
+												<h:panelGroup>
+													<h:commandButton id="addPanel_okBtn" value="#{msgs.ok_button}" action="#{OrganizerSignupMBean.addAttendee}" />
+													<h:commandButton id="addPanel_cancelBtn" value="#{msgs.cancel_button}" action="doNothing" onclick="clearPanels(); return false;" />
+												</h:panelGroup>
+											</h:panelGroup>
+										</h:panelGroup>
 						   			</h:panelGrid>
 						   		</h:panelGroup>	
 					   		</h:column>
@@ -813,10 +821,11 @@
 									</h:panelGroup>
 								</f:facet>
 								<h:panelGroup style="margin-left: 1px;">
-								   		<h:graphicImage value="/images/addDisabled.png" alt="#{msgs.event_action_disabled_alt}" title="#{msgs.event_tool_tips_action_option_disabled_label}" style="border:none" />
-								   		<h:outputText value="#{msgs.event_add_attendee}" title="#{msgs.event_tool_tips_action_option_disabled_label}" escape="false" styleClass="disabledAddAttendee" style="color:gray;"/>
+							   		<h:outputText value="#{msgs.event_add_attendee} #{msgs.event_action_disabled}" title="#{msgs.event_tool_tips_action_option_disabled_label}" escape="false" styleClass="disabledAddAttendee" />
 								</h:panelGroup>
 							</h:column>  						   						   		
+					   		
+					   		<!-- TS waiting list -->
 					   		<h:column rendered="#{OrganizerSignupMBean.meetingWrapper.meeting.allowWaitList}">		   
 								<f:facet name="header">
 									<h:outputText value="#{msgs.tab_waiting_list}" escape="false"/>
@@ -848,26 +857,29 @@
 																	styleClass="openCloseImageIcon"
 																	rendered="#{waiterWrapper.attendeeEmail ==null}"/>
 																	<h:outputText value="&nbsp;" escape="false"/>
-															</h:panelGroup>	
+															</h:panelGroup>
 									   						<h:panelGroup>
 									   							<h:outputText value="#{waiterWrapper.displayName}" escape="false"/>
-									   						</h:panelGroup>				   					
+									   							<br />
+									   							<h:outputText id="waiterInscriptionTime" rendered="#{OrganizerSignupMBean.getDisplayTimeFromInstant(waiterWrapper.signupAttendee.inscriptionTime) != ''}"
+									   								style="font-size: 90%;" value="(#{OrganizerSignupMBean.getDisplayTimeFromInstant(waiterWrapper.signupAttendee.inscriptionTime)})" escape="false"/>
+									   						</h:panelGroup>
 									   					</h:panelGrid>		  
 									   				</h:column>				   		
 									   			</h:dataTable>
 									   			
 									   			<h:panelGroup id="addWaiter" rendered="#{!OrganizerSignupMBean.meetingWrapper.meeting.meetingExpired}">
-									   				<h:outputLink rendered="#{!timeSlotWrapper.timeSlot.available}" value="javascript:showHideAddWaiterPanel('#{timeSlotWrapper.positionInTSlist}');" styleClass="addWaiter">
-									   					<h:graphicImage value="/images/spacer.gif" width="4" height="16" alt="" style="border:none"/>
-								   						<h:graphicImage value="/images/add.png" alt="#{msgs.event_action_disabled_alt}"  title="#{msgs.event_tool_tips_add}" style="border:none"  styleClass="openCloseImageIcon"/>
+									   				<h:outputLink rendered="#{!timeSlotWrapper.timeSlot.available}" value="javascript:showHideAddWaiterPanel('#{timeSlotWrapper.positionInTSlist}');" styleClass="addWaiter" title="#{msgs.event_tool_tips_add}">
+								   						<f:verbatim>
+								   							<span class="fa fa-plus" aria-hidden="true"></span>
+								   						</f:verbatim>
 								   						<h:outputText value="#{msgs.event_add_attendee}" escape="false" />	
 								   					</h:outputLink>
 								   					<h:panelGroup rendered="#{timeSlotWrapper.timeSlot.available}" style="margin-left: 2px;">
-								   						<h:graphicImage value="/images/addDisabled.png"  alt="#{msgs.event_action_disabled_alt}" title="#{msgs.event_tool_tips_action_disabled_label}" style="border:none" />
-								   						<h:outputText value="#{msgs.event_add_attendee}" escape="false" styleClass="disabledAddAttendee"/>
+								   						<h:outputText value="#{msgs.event_add_attendee} #{msgs.event_action_disabled}" title="#{msgs.event_tool_tips_action_disabled_label}" escape="false" styleClass="disabledAddAttendee"/>
 								   					</h:panelGroup>
 								   				</h:panelGroup>
-								   				
+	
 								   				<h:panelGroup id="addWaiterPanel" style="display: none;">
 								   					<h:panelGrid columns="1" >
 								   							<h:panelGroup>
@@ -957,7 +969,4 @@
 			 
   		</sakai:view_content>	
 	</sakai:view_container>
-	<f:verbatim>
-
-	</f:verbatim>
 </f:view> 

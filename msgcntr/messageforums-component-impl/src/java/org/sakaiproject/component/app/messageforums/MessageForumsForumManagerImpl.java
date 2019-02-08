@@ -33,8 +33,11 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import lombok.extern.slf4j.Slf4j;
+import lombok.Getter;
+import lombok.Setter;
 import org.hibernate.Query;
 import org.hibernate.collection.internal.PersistentSet;
+import org.sakaiproject.hibernate.HibernateUtils;
 import org.springframework.orm.hibernate4.HibernateCallback;
 import org.springframework.orm.hibernate4.support.HibernateDaoSupport;
 
@@ -68,6 +71,8 @@ import org.sakaiproject.component.app.messageforums.dao.hibernate.util.comparato
 import org.sakaiproject.event.api.EventTrackingService;
 import org.sakaiproject.exception.IdUnusedException;
 import org.sakaiproject.id.api.IdManager;
+import org.sakaiproject.rubrics.logic.RubricsConstants;
+import org.sakaiproject.rubrics.logic.RubricsService;
 import org.sakaiproject.site.api.Site;
 import org.sakaiproject.site.api.ToolConfiguration;
 import org.sakaiproject.site.api.SiteService;
@@ -81,6 +86,23 @@ import org.sakaiproject.tool.api.ToolManager;
  */
 @Slf4j
 public class MessageForumsForumManagerImpl extends HibernateDaoSupport implements MessageForumsForumManager {
+
+    @Getter @Setter
+    private ServerConfigurationService serverConfigurationService;
+    @Getter @Setter
+    private IdManager idManager;
+    @Getter @Setter
+    private SessionManager sessionManager;
+    @Getter @Setter
+    private EventTrackingService eventTrackingService;
+    @Getter @Setter
+    private RubricsService rubricsService;
+    @Getter @Setter
+    private SiteService siteService;
+    @Getter @Setter
+    private ToolManager toolManager;
+    @Getter @Setter
+    private MessageForumsTypeManager typeManager;
 
     private static final String QUERY_FOR_PRIVATE_TOPICS = "findPrivateTopicsByForumId";
 
@@ -102,7 +124,6 @@ public class MessageForumsForumManagerImpl extends HibernateDaoSupport implement
     private static final String QUERY_BY_FORUM_ID_AND_TOPICS = "findForumByIdWithTopics";
     private static final String QUERY_BY_TYPE_AND_CONTEXT_WITH_ALL_INFO = "findForumByTypeAndContextWithAllInfo";
     private static final String QUERY_BY_TYPE_AND_CONTEXT_WITH_ALL_TOPICS_MEMBERSHIP = "findForumByTypeAndContextWithTopicsMemberhips";
-
            
     private static final String QUERY_TOPIC_WITH_MESSAGES_AND_ATTACHMENTS = "findTopicByIdWithMessagesAndAttachments";        
     private static final String QUERY_TOPIC_WITH_MESSAGES = "findTopicByIdWithMessages";  
@@ -116,7 +137,7 @@ public class MessageForumsForumManagerImpl extends HibernateDaoSupport implement
             
     private static final String QUERY_BY_TOPIC_ID = "findTopicById";
     private static final String QUERY_OPEN_BY_TOPIC_AND_PARENT = "findOpenTopicAndParentById";
-    private static final String QUERY_PRIVATE_BY_TOPIC_AND_PARENT = "findPrivateTopicAndParentById";    
+    private static final String QUERY_PRIVATE_BY_TOPIC_AND_PARENT = "findPrivateTopicAndParentById";
 
     private static final String QUERY_BY_TOPIC_UUID = "findTopicByUuid";
 
@@ -130,80 +151,20 @@ public class MessageForumsForumManagerImpl extends HibernateDaoSupport implement
     private static final String QUERY_GET_NUM_MOD_TOPICS_WITH_MOD_PERM_BY_PERM_LEVEL_NAME = "findNumModeratedTopicsForSiteByUserByMembershipWithPermissionLevelName";
     
     private static final String QUERY_GET_FORUM_BY_ID_WITH_TOPICS_AND_ATT_AND_MSGS = "findForumByIdWithTopicsAndAttachmentsAndMessages";
-    
-    //public static Comparator FORUM_CREATED_DATE_COMPARATOR;
-    
+
     /** Sorts the forums by the sort index and if the same index then order by the creation date */
     public static final Comparator FORUM_SORT_INDEX_CREATED_DATE_COMPARATOR_DESC = new ForumBySortIndexAscAndCreatedDateDesc();
 
-    private IdManager idManager;
-
-    private SessionManager sessionManager;
-
-    private ServerConfigurationService serverConfigurationService;
     private Boolean DEFAULT_AUTO_MARK_READ = false; 
 
-    private MessageForumsTypeManager typeManager;
-
     public MessageForumsForumManagerImpl() {}
-
-    private EventTrackingService eventTrackingService;
-    
-    private SiteService siteService;
-    private ToolManager toolManager;
     
     public void init() {
        log.info("init()");
        DEFAULT_AUTO_MARK_READ = serverConfigurationService.getBoolean("msgcntr.forums.default.auto.mark.threads.read", false);
     }
 
-    public EventTrackingService getEventTrackingService() {
-        return eventTrackingService;
-    }
-
-    public void setEventTrackingService(EventTrackingService eventTrackingService) {
-        this.eventTrackingService = eventTrackingService;
-    }
-
-    public MessageForumsTypeManager getTypeManager() {
-        return typeManager;
-    }
-
-    public void setTypeManager(MessageForumsTypeManager typeManager) {
-        this.typeManager = typeManager;
-    }
-
-    public void setSessionManager(SessionManager sessionManager) {
-        this.sessionManager = sessionManager;
-    }
-
-    public void setIdManager(IdManager idManager) {
-        this.idManager = idManager;
-    }
-
-    public void setServerConfigurationService(
-			ServerConfigurationService serverConfigurationService) {
-        this.serverConfigurationService = serverConfigurationService;
-    }
-
-    public IdManager getIdManager() {
-        return idManager;
-    }
-
-    public SessionManager getSessionManager() {
-        return sessionManager;
-    }
-    
-    public void setToolManager(ToolManager toolManager) {
-        this.toolManager = toolManager;
-    }
-
-    public void setSiteService(SiteService siteService) {
-        this.siteService = siteService;
-    }
-
-    public void initializeTopicsForForum(BaseForum forum){
-      
+    public void initializeTopicsForForum(BaseForum forum){      
       getHibernateTemplate().initialize(forum);
       getHibernateTemplate().initialize(forum.getTopicsSet());
     }
@@ -221,18 +182,18 @@ public class MessageForumsForumManagerImpl extends HibernateDaoSupport implement
 
     Topic tempTopic = null;
     Set resultSet = new HashSet();      
-    List temp = (ArrayList) getHibernateTemplate().execute(hcb);
+    List temp = getHibernateTemplate().execute(hcb);
     for (Iterator i = temp.iterator(); i.hasNext();)
     {
       Object[] results = (Object[]) i.next();        
           
       if (results != null) {
         if (results[0] instanceof Topic) {
-          tempTopic = (Topic)results[0];
-          tempTopic.setBaseForum((BaseForum)results[1]);            
+          tempTopic = (Topic) HibernateUtils.unproxy(results[0]);
+          tempTopic.setBaseForum((BaseForum) HibernateUtils.unproxy(results[1]));
         } else {
-          tempTopic = (Topic)results[1];
-          tempTopic.setBaseForum((BaseForum)results[0]);
+          tempTopic = (Topic) HibernateUtils.unproxy(results[1]);
+          tempTopic.setBaseForum((BaseForum) HibernateUtils.unproxy(results[0]));
         }
         resultSet.add(tempTopic);
       }
@@ -260,11 +221,11 @@ public class MessageForumsForumManagerImpl extends HibernateDaoSupport implement
           
       if (results != null) {
         if (results[0] instanceof Topic) {
-          tempTopic = (Topic)results[0];
-          tempTopic.setBaseForum((BaseForum)results[1]);            
+          tempTopic = (Topic) HibernateUtils.unproxy(results[0]);
+          tempTopic.setBaseForum((BaseForum) HibernateUtils.unproxy(results[1]));
         } else {
-          tempTopic = (Topic)results[1];
-          tempTopic.setBaseForum((BaseForum)results[0]);
+          tempTopic = (Topic) HibernateUtils.unproxy(results[1]);
+          tempTopic.setBaseForum((BaseForum) HibernateUtils.unproxy(results[0]));
         }
         resultSet.add(tempTopic);
       }
@@ -292,11 +253,11 @@ public class MessageForumsForumManagerImpl extends HibernateDaoSupport implement
           
       if (results != null) {
         if (results[0] instanceof Topic) {
-          tempTopic = (Topic)results[0];
-          tempTopic.setBaseForum((BaseForum)results[1]);            
+          tempTopic = (Topic) HibernateUtils.unproxy(results[0]);
+          tempTopic.setBaseForum((BaseForum) HibernateUtils.unproxy(results[1]));
         } else {
-          tempTopic = (Topic)results[1];
-          tempTopic.setBaseForum((BaseForum)results[0]);
+          tempTopic = (Topic) HibernateUtils.unproxy(results[1]);
+          tempTopic.setBaseForum((BaseForum) HibernateUtils.unproxy(results[0]));
         }
         resultSet.add(tempTopic);
       }
@@ -659,11 +620,11 @@ public class MessageForumsForumManagerImpl extends HibernateDaoSupport implement
 				Object[] results = (Object[]) temp.get(0);
 				if (results != null && results.length > 1) {
 					if (results[0] instanceof Topic) {
-						res = (Topic) results[0];
-						res.setBaseForum((BaseForum) results[1]);
+						res = (Topic) HibernateUtils.unproxy(results[0]);
+						res.setBaseForum((BaseForum) HibernateUtils.unproxy(results[1]));
 					} else {
-						res = (Topic) results[1];
-						res.setBaseForum((BaseForum) results[0]);
+						res = (Topic) HibernateUtils.unproxy(results[1]);
+						res.setBaseForum((BaseForum) HibernateUtils.unproxy(results[0]));
 					}
 				}
 			}
@@ -712,11 +673,11 @@ public class MessageForumsForumManagerImpl extends HibernateDaoSupport implement
               
           if (results != null) {
             if (results[0] instanceof Topic) {
-              tempTopic = (Topic)results[0];
-              tempTopic.setBaseForum((BaseForum)results[1]);            
+              tempTopic = (Topic) HibernateUtils.unproxy(results[0]);
+              tempTopic.setBaseForum((BaseForum) HibernateUtils.unproxy(results[1]));
             } else {
-              tempTopic = (Topic)results[1];
-              tempTopic.setBaseForum((BaseForum)results[0]);
+              tempTopic = (Topic) HibernateUtils.unproxy(results[1]);
+              tempTopic.setBaseForum((BaseForum) HibernateUtils.unproxy(results[0]));
             }
             resultSet.add(tempTopic);
           }
@@ -818,20 +779,20 @@ public class MessageForumsForumManagerImpl extends HibernateDaoSupport implement
     /**
      * Save a discussion forum
      */
-    public void saveDiscussionForum(DiscussionForum forum) {
-        saveDiscussionForum(forum, false);
+    public DiscussionForum saveDiscussionForum(DiscussionForum forum) {
+        return saveDiscussionForum(forum, false);
     }
 
-    public void saveDiscussionForum(DiscussionForum forum, boolean draft) {
-    	saveDiscussionForum(forum, draft, false);
+    public DiscussionForum saveDiscussionForum(DiscussionForum forum, boolean draft) {
+        return saveDiscussionForum(forum, draft, false);
     }
     
-    public void saveDiscussionForum(DiscussionForum forum, boolean draft, boolean logEvent) {
+    public DiscussionForum saveDiscussionForum(DiscussionForum forum, boolean draft, boolean logEvent) {
     	String currentUser = getCurrentUser();
-    	saveDiscussionForum(forum, draft, logEvent, currentUser);
+        return saveDiscussionForum(forum, draft, logEvent, currentUser);
     }
     
-    public void saveDiscussionForum(DiscussionForum forum, boolean draft, boolean logEvent, String currentUser) {
+    public DiscussionForum saveDiscussionForum(DiscussionForum forum, boolean draft, boolean logEvent, String currentUser) {
     
         boolean isNew = forum.getId() == null;
 
@@ -880,9 +841,9 @@ public class MessageForumsForumManagerImpl extends HibernateDaoSupport implement
         }
         //make sure availability flag is set properly
         forum.setAvailability(ForumScheduleNotificationCover.makeAvailableHelper(forum.getAvailabilityRestricted(), forum.getOpenDate(), forum.getCloseDate()));
-        
-        getHibernateTemplate().saveOrUpdate(forum);
-        
+
+        forum = getHibernateTemplate().merge(forum);
+
         //make sure that any open and close dates are scheduled:
         ForumScheduleNotificationCover.scheduleAvailability(forum);
         
@@ -894,7 +855,9 @@ public class MessageForumsForumManagerImpl extends HibernateDaoSupport implement
         	}
         }
 
-        log.debug("saveDiscussionForum executed with forumId: " + forum.getId() + ":: draft: " + draft);
+        log.debug("saveDiscussionForum executed with forumId: {} :: draft: {}", forum.getId(), draft);
+
+        return forum;
     }
     
     public DiscussionTopic createDiscussionForumTopic(DiscussionForum forum) {
@@ -963,17 +926,12 @@ public class MessageForumsForumManagerImpl extends HibernateDaoSupport implement
         //make sure availability is set properly
         topic.setAvailability(ForumScheduleNotificationCover.makeAvailableHelper(topic.getAvailabilityRestricted(), topic.getOpenDate(), topic.getCloseDate()));
         
-        if (topic.getId() == null) {
-            
-          DiscussionForum discussionForum = 
-            (DiscussionForum) getForumByIdWithTopics(topic.getBaseForum().getId());
-          discussionForum.addTopic(topic);
-
-          saveDiscussionForum(discussionForum, parentForumDraftStatus, logEvent, currentUser);
-          //sak-5146 saveDiscussionForum(discussionForum, parentForumDraftStatus);
-            
+        if (isNew) {
+            DiscussionForum discussionForum = (DiscussionForum) getForumByIdWithTopics(topic.getBaseForum().getId());
+            discussionForum.addTopic(topic);
+            saveDiscussionForum(discussionForum, parentForumDraftStatus, logEvent, currentUser);
         } else {
-            getHibernateTemplate().saveOrUpdate(topic);
+            getHibernateTemplate().update(topic);
         }
         //now schedule any jobs that are needed for the open/close dates
         //this will require having the ID of the topic (if its a new one)
@@ -1105,6 +1063,8 @@ public class MessageForumsForumManagerImpl extends HibernateDaoSupport implement
         forum = (DiscussionForum)getForumById(true, id);
         List<Topic> topics = getTopicsByIdWithMessages(id);
         for (Topic topic : topics) {
+            // remove rubric association if there is one
+            rubricsService.deleteRubricAssociation(RubricsConstants.RBCS_TOOL_FORUMS, RubricsConstants.RBCS_TOPIC_ENTITY_PREFIX + topic.getId());
             forum.removeTopic(topic);
         }
         

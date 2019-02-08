@@ -144,11 +144,6 @@ function saveTime()
 	disabled="#{delivery.actionString=='previewAssessment'}" 
     />
 
-    <h:commandButton value="#{deliveryMessages.button_close_window}" type="button" 
-       rendered="#{delivery.actionString=='takeAssessmentViaUrl' && !delivery.anonymousLogin}"
-       style="act" onclick="javascript:window.close();" />
-    
-
   <%-- SUBMIT FOR GRADE FOR LINEAR ACCESS --%>
   <h:commandButton type="submit" value="#{deliveryMessages.button_submit_grading}"
       action="#{delivery.submitForGrade}"  id="submitForm" styleClass="active"
@@ -172,7 +167,12 @@ function saveTime()
                  || delivery.actionString=='takeAssessmentViaUrl')
               && delivery.navigation ne '1'}" 
     />
-
+  <h:commandButton id="save" type="submit" value="#{commonMessages.action_save}"
+     action="#{delivery.save_work}" onclick="disableSave();" 
+     style="display:none"
+     rendered="#{delivery.actionString=='previewAssessment'
+                  || delivery.actionString=='takeAssessment'
+                  || delivery.actionString=='takeAssessmentViaUrl'}" />
   <!-- Previous button for linear assessments -->
   <h:commandButton type="submit" value="#{commonMessages.cancel_action}"
     action="select" id="cancel"

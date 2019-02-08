@@ -35,6 +35,7 @@ import java.util.UUID;
 import java.util.Vector;
 
 import lombok.extern.slf4j.Slf4j;
+import lombok.Data;
 import org.springframework.dao.DataAccessException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -61,37 +62,16 @@ import org.sakaiproject.poll.util.PollUtil;
 import org.sakaiproject.site.api.SiteService;
 
 @Slf4j
+@Data
 public class PollListManagerImpl implements PollListManager,EntityTransferrer {
 
     public static final String REFERENCE_ROOT = Entity.SEPARATOR + "poll";
 
     private EntityManager entityManager;
-    public void setEntityManager(EntityManager em) {
-        entityManager = em;
-    }
-
-
     private IdManager idManager;
-    public void setIdManager(IdManager idm) {
-        idManager = idm;
-    }
-
     private PollDao dao;
-    public void setDao(PollDao dao) {
-		this.dao = dao;
-	}
-    
-    
     private PollVoteManager pollVoteManager;    
-    public void setPollVoteManager(PollVoteManager pollVoteManager) {
-		this.pollVoteManager = pollVoteManager;
-	}
-
-
 	private ExternalLogic externalLogic;    
-    public void setExternalLogic(ExternalLogic externalLogic) {
-		this.externalLogic = externalLogic;
-	}
 
 	public void init() {
         try {
@@ -107,14 +87,7 @@ public class PollListManagerImpl implements PollListManager,EntityTransferrer {
         externalLogic.registerFunction(PERMISSION_EDIT_ANY);
         externalLogic.registerFunction(PERMISSION_EDIT_OWN);
         log.info(this + " init()");
-
     }
-
-    public void destroy() {
-
-    }
-
-
 
     public List<Poll> findAllPollsForUserAndSitesAndPermission(String userId, String[] siteIds,
             String permissionConstant) {
@@ -124,16 +97,16 @@ public class PollListManagerImpl implements PollListManager,EntityTransferrer {
         List<Poll> polls = null;
         // get all allowed sites for this user
         List<String> allowedSites = externalLogic.getSitesForUser(userId, permissionConstant);
-
-        if(siteIds!=null && siteIds.length>0 && !allowedSites.isEmpty()){
-            List<String> requestedSiteIds = Arrays.asList(siteIds);
-            // filter down to just the requested ones
-            allowedSites.retainAll(requestedSiteIds);
-            if(allowedSites.isEmpty()){
+        if (allowedSites.isEmpty()) {
                 // no sites to search so EXIT here
-                return new ArrayList<Poll>();
+            return new ArrayList<>();
+        } else {
+            if (siteIds != null && siteIds.length > 0) {
+                List<String> requestedSiteIds = Arrays.asList(siteIds);
+                // filter down to just the requested ones
+                allowedSites.retainAll(requestedSiteIds);
             }
-            String[] siteIdsToSearch = allowedSites.toArray(new String[allowedSites.size()]);
+            String[] siteIdsToSearch = allowedSites.toArray(new String[0]);
             Search search = new Search();
             if (siteIdsToSearch.length > 0) {
                 search.addRestriction(new Restriction("siteId", siteIdsToSearch));
@@ -155,8 +128,6 @@ public class PollListManagerImpl implements PollListManager,EntityTransferrer {
         return polls;
     }
 
-
-
     public boolean savePoll(Poll t) throws SecurityException, IllegalArgumentException {
         boolean newPoll = false;
         
@@ -169,12 +140,21 @@ public class PollListManagerImpl implements PollListManager,EntityTransferrer {
         	throw new SecurityException();
         }
         
-        if (t.getId() == null) {
+        if (t.getPollId() == null) {
             newPoll = true;
             t.setId(idManager.createUuid());
         }
+        if(t.getCreationDate() == null) {
+            t.setCreationDate(new Date());
+        }
 
         try {
+           if(!newPoll && t.getPollId() != null) {
+                Poll poll = getPollById(t.getPollId());
+                if(poll != null && !t.getOwner().equals(poll.getOwner())) {
+                   t.setOwner(poll.getOwner());
+				}
+            }
             dao.save(t);
 
         } catch (DataAccessException e) {
@@ -208,20 +188,19 @@ public class PollListManagerImpl implements PollListManager,EntityTransferrer {
 
     	//Delete the Votes
     	List<Vote> vote = t.getVotes();
-    	
+
     	//We could have a partially populate item
     	if (vote == null || vote.isEmpty()) {
     		log.debug("getting votes as they where null");
     		vote = pollVoteManager.getAllVotesForPoll(t);
     		log.debug("got " + vote.size() + " vote");
     	}
-    	
-    	
+
     	Set<Vote> voteSet = new HashSet<Vote>(vote);
     	dao.deleteSet(voteSet);
 
     	//Delete the Options
-    	List<Option> options = t.getPollOptions();
+    	List<Option> options = t.getOptions();
     	//as above we could have a partialy populate item
     	if (options ==  null || options.isEmpty()) {
     		options = getOptionsForPoll(t);
@@ -338,8 +317,8 @@ public class PollListManagerImpl implements PollListManager,EntityTransferrer {
         search.addRestriction(new Restriction("optionId", optionId));
         Option option = dao.findOneBySearch(Option.class, search);
         // if the id is null set it
-        if (option != null && option.getUUId() == null) {
-            option.setUUId( UUID.randomUUID().toString() );
+        if (option != null && option.getUuid() == null) {
+            option.setUuid( UUID.randomUUID().toString() );
             saveOption(option);
         }
         return option;
@@ -372,9 +351,9 @@ public class PollListManagerImpl implements PollListManager,EntityTransferrer {
 	}
 
     public boolean saveOption(Option t) {
-        if (t.getUUId() == null 
-                || t.getUUId().trim().length() == 0) {
-            t.setUUId( UUID.randomUUID().toString() );
+        if (t.getUuid() == null 
+                || t.getUuid().trim().length() == 0) {
+            t.setUuid( UUID.randomUUID().toString() );
         }
 
         try {
@@ -664,7 +643,7 @@ public class PollListManagerImpl implements PollListManager,EntityTransferrer {
     
     
 	public boolean isAllowedViewResults(Poll poll, String userId) {
-		if (externalLogic.isUserAdmin())
+		if (externalLogic.isUserAdmin() || externalLogic.isAllowedInLocation("site.upd", externalLogic.getCurrentLocationReference()))
 			return true;
 
 		if (poll.getDisplayResult().equals("open"))

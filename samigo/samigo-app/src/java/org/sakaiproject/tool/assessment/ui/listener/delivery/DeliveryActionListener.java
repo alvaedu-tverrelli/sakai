@@ -1045,26 +1045,21 @@ public class DeliveryActionListener
     sec.setNumber("" + part.getSequence());
     sec.setMetaData(part);
 
-    Iterator iter = itemSet.iterator();
-    List itemContents = new ArrayList();
+    List<ItemContentsBean> itemContents = new ArrayList<>();
     int i = 0;
-    while (iter.hasNext())
+    for (ItemDataIfc thisItem : itemSet)
     {
-      ItemDataIfc thisitem = (ItemDataIfc) iter.next();
-      ItemContentsBean itemBean = getQuestionBean(thisitem, itemGradingHash, 
-                                                  delivery, publishedAnswerHash);
+      ItemContentsBean itemBean = getQuestionBean(thisItem, itemGradingHash, delivery, publishedAnswerHash);
 
       // Deal with numbering
       itemBean.setNumber(++i);
-      if (delivery.getSettings().getItemNumbering().equals
-          (AssessmentAccessControl.RESTART_NUMBERING_BY_PART.toString()))
+      if (delivery.getSettings().getItemNumbering().equals(AssessmentAccessControl.RESTART_NUMBERING_BY_PART.toString()))
       {
         itemBean.setSequence(Integer.toString(itemBean.getNumber()));
       }
       else
       {
-        itemBean.setSequence( ( (Integer) itemGradingHash.get("sequence" +
-          thisitem.getItemId().toString())).toString());
+        itemBean.setSequence( ( (Integer) itemGradingHash.get("sequence" + thisItem.getItemId().toString())).toString());
       }
 
       // scoring
@@ -1990,7 +1985,7 @@ public class DeliveryActionListener
         fbean.setText( (String) texts.toArray()[i++]);
       else
         fbean.setText("");
-      fbean.setHasInput(true);
+      fbean.setHasInput(Boolean.TRUE);
 
       List<ItemGradingData> datas = bean.getItemGradingDataArray();
       if (datas == null || datas.isEmpty())
@@ -2036,7 +2031,7 @@ public class DeliveryActionListener
       fbean.setText( (String) texts.toArray()[i]);
     else
       fbean.setText("");
-    fbean.setHasInput(false);
+    fbean.setHasInput(Boolean.FALSE);
     fibs.add(fbean);
 
     bean.setFibArray(fibs);
@@ -2140,7 +2135,7 @@ public class DeliveryActionListener
         fbean.setText( (String) texts.toArray()[i++]);
       else
         fbean.setText("");
-      fbean.setHasInput(true);
+      fbean.setHasInput(Boolean.TRUE);
 
       List<ItemGradingData> datas = bean.getItemGradingDataArray();
       if (datas == null || datas.isEmpty())
@@ -2191,7 +2186,7 @@ public class DeliveryActionListener
       fbean.setText( (String) texts.toArray()[i]);
      else
       fbean.setText("");
-    fbean.setHasInput(false);
+    fbean.setHasInput(Boolean.FALSE);
     fins.add(fbean);
 
     bean.setFinArray(fins);
@@ -2415,7 +2410,7 @@ public class DeliveryActionListener
           fbean.setItemContentsBean(bean);
           fbean.setAnswer(answer);
           fbean.setText((String) texts.toArray()[i++]);
-          fbean.setHasInput(true); // input box
+          fbean.setHasInput(Boolean.TRUE); // input box
 
           List<ItemGradingData> datas = bean.getItemGradingDataArray();
           if (datas == null || datas.isEmpty())
@@ -2444,7 +2439,7 @@ public class DeliveryActionListener
           fbean.setText( (String) texts.toArray()[i]);
       else
           fbean.setText("");
-      fbean.setHasInput(false);
+      fbean.setHasInput(Boolean.FALSE);
       fins.add(fbean);
 
       bean.setFinArray((ArrayList) fins);
@@ -2454,7 +2449,8 @@ public class DeliveryActionListener
   public void populateImageMapQuestion(ItemDataIfc item, ItemContentsBean bean, Map publishedAnswerHash)
   {	
 	bean.setImageSrc(item.getImageMapSrc());
-	
+	bean.setImageAltText(item.getImageMapAltText());
+
 	Iterator iter = item.getItemTextArraySorted().iterator();
     int j = 1;
     List beans = new ArrayList();

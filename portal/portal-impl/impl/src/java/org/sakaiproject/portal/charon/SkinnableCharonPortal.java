@@ -194,7 +194,6 @@ public class SkinnableCharonPortal extends HttpServlet implements Portal
 	private static final String INCLUDE_TITLE = "include-title";
 
     // SAK-22384
-    private static final String MATHJAX_ENABLED = "mathJaxAllowed";
     private static final String MATHJAX_SRC_PATH_SAKAI_PROP = "portal.mathjax.src.path";
     private static final String MATHJAX_ENABLED_SAKAI_PROP = "portal.mathjax.enabled";
     private static final boolean ENABLED_SAKAI_PROP_DEFAULT = true;
@@ -574,7 +573,7 @@ public class SkinnableCharonPortal extends HttpServlet implements Portal
 		rcontext.put("allSites", siteView.getRenderContextObject());
 
 		includeLogin(rcontext, req, session);
-		includeBottom(rcontext);
+		includeBottom(rcontext, site);
 
 		return rcontext;
 	}
@@ -1035,6 +1034,7 @@ public class SkinnableCharonPortal extends HttpServlet implements Portal
 		String universalAnalyticsId =  ServerConfigurationService.getString("portal.google.universal_analytics_id", null);
 		if ( universalAnalyticsId != null ) {
 			rcontext.put("googleUniversalAnalyticsId", universalAnalyticsId);
+			rcontext.put("googleAnonymizeIp", ServerConfigurationService.getBoolean("portal.google.anonymize.ip", false));
 		}
 
 		String analyticsId =  ServerConfigurationService.getString("portal.google.analytics_id", null);
@@ -1315,14 +1315,14 @@ public class SkinnableCharonPortal extends HttpServlet implements Portal
         {
                 if (site != null)
                 {                           
-                    String strMathJaxEnabledForSite = site.getProperties().getProperty(MATHJAX_ENABLED);
+                    String strMathJaxEnabledForSite = site.getProperties().getProperty(Site.PROP_SITE_MATHJAX_ALLOWED);
                     if (StringUtils.isNotBlank(strMathJaxEnabledForSite))
                     {
                         if (Boolean.valueOf(strMathJaxEnabledForSite))
                         {
                             // this call to MathJax.Hub.Config seems to be needed for MathJax to work in IE
-                            headJs.append("<script type=\"text/x-mathjax-config\">\nMathJax.Hub.Config({\ntex2jax: { inlineMath: [['\\\\(','\\\\)']] }\n});\n</script>\n");
-                            headJs.append("<script src=\"").append(MATHJAX_SRC_PATH).append("\"  language=\"JavaScript\" type=\"text/javascript\"></script>\n");
+                            headJs.append("<script type=\"text/x-mathjax-config\">\nMathJax.Hub.Config({\nmessageStyle: \"none\",\ntex2jax: { inlineMath: [['\\\\(','\\\\)']] }\n});\n</script>\n");
+                            headJs.append("<script src=\"").append(MATHJAX_SRC_PATH).append("\" type=\"text/javascript\"></script>\n");
                         }                     
                     }
                 }
@@ -1461,6 +1461,8 @@ public class SkinnableCharonPortal extends HttpServlet implements Portal
 				} else {
 					toolContextPath = toolContextPath.replace("/~","/%7E");
 				}
+			} else if ( toolContextPath.indexOf(" ") > 0 && reqUrl.indexOf(" ") < 1 ) {
+				toolContextPath = toolContextPath.replace(" ","%20");
 			}
 		}
 		log.debug("forwardtool call {} toolPathInfo {} ctx {}", req.getRequestURL(), toolPathInfo, toolContextPath);
@@ -1575,7 +1577,7 @@ public class SkinnableCharonPortal extends HttpServlet implements Portal
 		return "Sakai Charon Portal";
 	}
 
-	public void includeBottom(PortalRenderContext rcontext)
+	public void includeBottom(PortalRenderContext rcontext, Site site)
 	{
 		if (rcontext.uses(INCLUDE_BOTTOM))
 		{
@@ -1679,9 +1681,26 @@ public class SkinnableCharonPortal extends HttpServlet implements Portal
 				rcontext.put("bottomNav", l);
 			}
 
-                        boolean neoChatAvailable
-                            = ServerConfigurationService.getBoolean("portal.neochat", false)
-                                && chatHelper.checkChatPermitted(thisUser);
+                        String neoChatProperty = ServerConfigurationService.getString(Site.PROP_SITE_PORTAL_NEOCHAT, "never");
+                        boolean neoChatAvailable = false;
+ 
+                        if ("true".equals(neoChatProperty) || "false".equals(neoChatProperty)) {
+                            neoChatAvailable = Boolean.valueOf(neoChatProperty);
+                            if (site != null) {
+                                String siteNeoChatStr = site.getProperties().getProperty(Site.PROP_SITE_PORTAL_NEOCHAT);
+                                if (siteNeoChatStr != null) {
+                                    neoChatAvailable = Boolean.valueOf(siteNeoChatStr);
+                                }
+                            }
+                        }
+
+                        if ("always".equals(neoChatProperty)) {
+                            neoChatAvailable = true;
+                        }
+
+                        if (!chatHelper.checkChatPermitted(thisUser)) {
+                            neoChatAvailable = false;
+                        }
 
                         rcontext.put("neoChat", neoChatAvailable);
                         rcontext.put("portalChatPollInterval", 
@@ -1734,8 +1753,8 @@ public class SkinnableCharonPortal extends HttpServlet implements Portal
 			{
 				List<Object> l = new ArrayList<Object>();
 				Map<String, Object> m = new HashMap<String, Object>();
-				m.put("poweredByUrl", "http://sakaiproject.org");
-				m.put("poweredByImage", "/library/image/sakai_powered.gif");
+				m.put("poweredByUrl", "https://www.sakaiproject.org/");
+				m.put("poweredByImage", "/library/image/poweredBySakai.png");
 				m.put("poweredByAltText", "Powered by Sakai");
 				l.add(m);
 				rcontext.put("bottomNavPoweredBy", l);
@@ -1750,7 +1769,7 @@ public class SkinnableCharonPortal extends HttpServlet implements Portal
 			boolean useBullhornAlerts = ServerConfigurationService.getBoolean("portal.bullhorns.enabled", true);
 			rcontext.put("useBullhornAlerts", useBullhornAlerts);
 			if (useBullhornAlerts) {
-				int bullhornAlertInterval = ServerConfigurationService.getInt("portal.bullhorns.poll.interval", 10000);
+				int bullhornAlertInterval = ServerConfigurationService.getInt("portal.bullhorns.poll.interval", 60000);
 				rcontext.put("bullhornsPollInterval", bullhornAlertInterval);
 			}
 

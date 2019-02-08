@@ -10,7 +10,7 @@
     <parent>
         <artifactId>commons</artifactId>
         <groupId>org.sakaiproject.commons</groupId>
-        <version>13-SNAPSHOT</version>
+        <version>20-SNAPSHOT</version>
     </parent>
 
     <packaging>war</packaging>
@@ -50,7 +50,7 @@
         </dependency>
         <dependency>
             <groupId>javax.servlet</groupId>
-            <artifactId>servlet-api</artifactId>
+            <artifactId>javax.servlet-api</artifactId>
         </dependency>
         <dependency>
             <groupId>log4j</groupId>

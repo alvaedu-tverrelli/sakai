@@ -31,6 +31,7 @@ import javax.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.validator.routines.UrlValidator;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -93,6 +94,9 @@ public abstract class BaseSiteService implements SiteService, Observer
 	private static final String RESOURCECLASS = "resource.class.siteimpl";
 	private static final String RESOURCEBUNDLE = "resource.bundle.siteimpl";
 	private static final String ORIGINAL_SITE_ID_PROPERTY = "original-site-id";
+
+	private final UrlValidator siteIdValidator
+		= new UrlValidator(UrlValidator.ALLOW_LOCAL_URLS | UrlValidator.ALLOW_2_SLASHES);
 
 	private ResourceLoader rb = null;
 	// protected ResourceLoader rb = new ResourceLoader("site-impl");
@@ -1024,7 +1028,7 @@ public abstract class BaseSiteService implements SiteService, Observer
 		// track it
 		String event = site.getEvent();
 		if (event == null) event = SECURE_UPDATE_SITE;
-		eventTrackingService().post(eventTrackingService().newEvent(event, site.getReference(), true));
+		eventTrackingService().post(eventTrackingService().newEvent(event, site.getReference(), site.getId(), true, NotificationService.NOTI_OPTIONAL));
 
 		// clear the event for next time
 		site.setEvent(null);
@@ -1158,6 +1162,43 @@ public abstract class BaseSiteService implements SiteService, Observer
 		return Arrays.asList(siteTypes);
 	}
 
+	/**
+	 * @inheritDoc
+	 */
+	@Override
+	public void silentlyUnpublish(List<String> siteIds)
+	{
+		if (siteIds == null)
+		{
+			throw new IllegalArgumentException("siteIds cannot be null");
+		}
+
+		String currentUser = sessionManager().getCurrentSessionUserId();
+		Time lastModifiedTime = timeService().newTime();
+
+		// complete the edit
+		storage().unpublish(siteIds, currentUser, lastModifiedTime);
+
+		// track it
+		String event = SECURE_UPDATE_SITE;
+		for (String siteId : siteIds)
+		{
+			String siteReference = siteReference(siteId);
+			eventTrackingService().post(eventTrackingService().newEvent(event, siteReference, true));
+		}
+	}
+
+	/**
+	 * Saves a site property for the sites with the specified IDs using the specified name-value pair in a single transaction.
+	 * NB: inserts only; doesn't do any duplicate checking. Vulnerable to unique constraint violations
+	 * Use this only when making very minimal changes in performance critical tasks.
+	 */
+	@Override
+	public void saveSitePropertyOnSites(String propertyName, String propertyValue, String... siteIds)
+	{
+		storage().writeProperty(propertyName, propertyValue, siteIds);
+	}
+
 	private boolean isCourseSite(String siteId) {
 		boolean rv = false;
 		try {
@@ -1230,6 +1271,14 @@ public abstract class BaseSiteService implements SiteService, Observer
 		}
 
 		id = Validator.escapeResourceName(id);
+
+		if (!serverConfigurationService().getBoolean("site.api.allow_malformed_ids", false)
+				&& !siteIdValidator.isValid("http://localhost/portal/site/" + id)) {
+			String message
+				= "Id " + id + " is not a valid id format. It can only contain url friendly characters";
+			log.warn(".addSite(): " + message);
+			throw new IdInvalidException(message);
+		}
 
 		// check for a valid site type
 		if (!Validator.checkSiteType(type)) {
@@ -2013,6 +2062,14 @@ public abstract class BaseSiteService implements SiteService, Observer
 		{
 			return (List<Site>) getSites( selectionType, null, null, null, excludedSites, sortType, null, requireDescription, userID );
 		}
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public List<String> getSiteIds(SelectionType type, Object ofType, String criteria, Map<String, String> propertyCriteria, Map<String, String> propertyRestrictions, SortType sort, PagingPosition page, String userId)
+	{
+		return storage().getSiteIds(type, ofType, criteria, propertyCriteria, propertyRestrictions, null, sort, page, userId);
 	}
 
 	/**
@@ -2940,6 +2997,29 @@ public abstract class BaseSiteService implements SiteService, Observer
 		public void saveInfo(String siteId, String description, String infoUrl);
 
 		/**
+		 * Unpublish the sites by simply unsetting the PUBLISHED flag
+		 * @param siteIds
+		 *        The site to unpublish
+		 * @param modifedBy
+		 *        User who is unpublishing the site (as a userID)
+		 * @param modifiedOn
+		 *        Time that the site is unpublished
+		 */
+		public void unpublish(List<String> siteIds, String modifiedBy, Time modifiedOn);
+
+		/**
+		 * Writes site properties
+		 */
+		public void writeProperties(Entity r, ResourceProperties props);
+
+		/**
+		 * Saves a site property for the sites with the specified IDs using the specified name-value pair in a single transaction.
+		 * NB: inserts only; doesn't do any duplicate checking. Vulnerable to unique constraint violations
+		 * Use this only when making very minimal changes in performance critical tasks.
+		 */
+		public void writeProperty(String propertyName, String propertyValue, String... siteId);
+
+		/**
 		 * Remove this site.
 		 * 
 		 * @param user
@@ -3128,6 +3208,34 @@ public abstract class BaseSiteService implements SiteService, Observer
 		 * @return a List of the Site IDs for the sites matching the criteria.
 		 */
 		List<String> getSiteIds(SelectionType type, Object ofType, String criteria, Map<String, String> propertyCriteria, SortType sort, PagingPosition page);
+
+		/**
+		 * Get the Site IDs for all sites matching criteria.
+		 * This is useful when you only need the listing of site ids (for other operations) and do not need the actual Site objects.
+		 *
+		 * All parameters are the same as {@link #getSites(org.sakaiproject.site.api.SiteService.SelectionType, Object, String, Map, org.sakaiproject.site.api.SiteService.SortType, PagingPosition)}
+		 *
+		 * @param type
+		 *        The SelectionType specifying what sort of selection is intended.
+		 * @param ofType
+		 *        Site type criteria: null for any type; a String to match a single type; A String[], List or Set to match any type in the collection.
+		 * @param criteria
+		 *        Additional selection criteria: sites returned will match this string somewhere in their id, title, description, or skin.
+		 * @param propertyCriteria
+		 *        Additional selection criteria: sites returned will have a property named to match each key in the map, whose values match (somewhere in their value) the value in the map (may be null or empty).
+		 * @param propertyRestrictions
+		 *        Similar to propertyCriteria, except matches will be excluded
+		 * @param excludedSites
+		 *        siteIds to be excluded from the results
+		 * @param sort
+		 *        A SortType indicating the desired sort. For no sort, set to SortType.NONE.
+		 * @param page
+		 *        The PagePosition subset of items to return.
+		 * @param userId
+		 *        The returned sites will be those which can be accessed by the user with this internal ID
+		 * @return a List of the Site IDs for the sites matching the criteria.
+		 */
+		List<String> getSiteIds(SelectionType type, Object ofType, String criteria, Map<String, String> propertyCriteria, Map<String, String> propertyRestrictions, List<String> excludedSites, SortType sort, PagingPosition page, String userId);
 
 		/**
 		 * Count the Site objets that meet specified criteria.
@@ -3575,10 +3683,10 @@ public abstract class BaseSiteService implements SiteService, Observer
 	 * regenerate that user's cache since the assumption is generally that the user would have
 	 * clicked a site link presented to them before their access was revoked.
 	 *
-	 * @param _ The Observable, which is effectively nothing with ETS
+	 * @param o The Observable, which is effectively nothing with ETS
 	 * @param eventObj The event from ETS; will be checked and no-op if null or not an Event
 	 */
-	public void update(Observable _, Object eventObj) {
+	public void update(Observable o, Object eventObj) {
 		if (eventObj == null || !(eventObj instanceof Event))
 		{
 			return;
@@ -3606,30 +3714,32 @@ public abstract class BaseSiteService implements SiteService, Observer
 
 		String eventType = event.getEvent();
 
-		if (EVENT_SITE_USER_INVALIDATE.equals(eventType) || PreferencesService.SECURE_EDIT_PREFS.equals(eventType)) {
-			// KNL-1171: always clear the cache for the user as the Site below may have been deleted
-			clearUserCacheForUser(event.getUserId());
+        if (eventType != null) {
+            switch (eventType) {
+                case SiteService.SECURE_UPDATE_SITE_MEMBERSHIP:
+                case SiteService.SECURE_UPDATE_GROUP_MEMBERSHIP:
+                case SiteService.SECURE_UPDATE_SITE:
+                    notifySiteParticipant("/gradebook/" + event.getContext() + "/");
+                    break;
+                case EVENT_SITE_USER_INVALIDATE:
+                    try {
+                        Site site = getSite(event.getResource());
+                        clearUserCacheForSite(site);
+                    } catch (IdUnusedException iue) {
+                        log.warn("Site not found when handling event ({})", event);
+                    }
+                case AuthzGroupService.SECURE_UNJOIN_AUTHZ_GROUP:
+                case EVENT_SITE_VISIT_DENIED:
+                case PreferencesService.SECURE_EDIT_PREFS:
+                    // always clear the cache for the user as the Site below may have been deleted
+                    clearUserCacheForUser(event.getUserId());
+                    break;
+                default:
+                    // do nothing for all other events
+            }
+        }
+    }
 
-			try {
-				Site site = getSite(event.getResource());
-				clearUserCacheForSite(site);
-			} catch (IdUnusedException e) {
-				if (log.isDebugEnabled())
-				{
-					log.debug("Site not found when handling an event (" + eventType + "), ID/REF: " + event.getResource());
-				}
-			}
-		}
-		else if (EVENT_SITE_VISIT_DENIED.equals(eventType) || AuthzGroupService.SECURE_UNJOIN_AUTHZ_GROUP.equals(eventType))
-		{
-			clearUserCacheForUser(event.getUserId());
-		}
-		else if(SiteService.SECURE_UPDATE_SITE_MEMBERSHIP.equals(eventType) || SiteService.SECURE_UPDATE_GROUP_MEMBERSHIP.equals(eventType)
-				|| SiteService.SECURE_UPDATE_SITE.equals(eventType))
-		{
-			notifySiteParticipant("/gradebook/" + event.getContext() + "/");
-		}
-	}
 	protected Storage storage() {
 		return m_storage;
 	}
@@ -3709,6 +3819,24 @@ public abstract class BaseSiteService implements SiteService, Observer
 			
 			NotificationAction action = notification.getAction();
 			action.notify(notification, event);
+		}
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public SiteTitleValidationStatus validateSiteTitle(String orig, String stripped) {
+		orig = StringUtils.trimToEmpty(orig);
+		stripped = StringUtils.trimToEmpty(stripped);
+
+		if (!orig.equals(stripped) && StringUtils.isBlank(stripped)) {
+			return SiteTitleValidationStatus.STRIPPED_TO_EMPTY;
+		} else if (StringUtils.isBlank(stripped)) {
+			return SiteTitleValidationStatus.EMPTY;
+		} else if (stripped.length() > SITE_TITLE_MAX_LENGTH) {
+			return SiteTitleValidationStatus.TOO_LONG;
+		} else {
+			return SiteTitleValidationStatus.OK;
 		}
 	}
 }

@@ -34,10 +34,14 @@ import java.util.Map;
 import javax.faces.model.SelectItem;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.StringUtils;
+import lombok.Getter;
+import lombok.Setter;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.util.Precision;
+
 import org.sakaiproject.event.cover.EventTrackingService;
 import org.sakaiproject.samigo.util.SamigoConstants;
+import org.sakaiproject.tool.assessment.data.dao.grading.ItemGradingAttachment;
 import org.sakaiproject.tool.assessment.data.dao.grading.ItemGradingData;
 import org.sakaiproject.tool.assessment.data.dao.grading.MediaData;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.AnswerIfc;
@@ -144,7 +148,7 @@ public class ItemContentsBean implements Serializable {
 	
 	private String pointsDisplayString;
 
-	private List itemGradingAttachmentList;
+	private List<ItemGradingAttachment> itemGradingAttachmentList;
 	
 	private Long itemGradingIdForFilePicker;
 	
@@ -171,11 +175,17 @@ public class ItemContentsBean implements Serializable {
 	private String studentComment;
 	
 	private String imageSrc = "";
+	@Getter @Setter
+	private String imageAltText = "";
 
 	private Set<ItemTagIfc> tagsList;
 	private String tagsListToJson;
 
 	private int answerCounter = 1;
+
+	// Rubrics
+	private String rubricStateDetails;
+	private boolean hasAssociatedRubric;
 
 	public ItemContentsBean() {
 	}
@@ -485,7 +495,13 @@ public class ItemContentsBean implements Serializable {
 						&& !data.getAnswerText().equals("")) {
 					return false;
 				}
-			} 
+			}
+			else if (getItemData().getTypeId().equals(TypeIfc.IMAGEMAP_QUESTION)) {
+				if (StringUtils.isNotEmpty(data.getAnswerText())
+						&& data.getAnswerText().matches("\\{\"x\":-?\\d+,\"y\":-?\\d+\\}")) {
+					return false;
+				}
+			}
 			else {
 				if (data.getPublishedAnswerId() != null
 						|| data.getAnswerText() != null) {
@@ -961,7 +977,7 @@ public class ItemContentsBean implements Serializable {
 		fibArray = newArray;
 	}
 
-	public List getFinArray() {
+	public List<FinBean> getFinArray() {
 		return finArray;
 	}
 
@@ -1321,7 +1337,7 @@ public class ItemContentsBean implements Serializable {
 	public String getPointsDisplayString() {
 		String pointsDisplayString = "";
 		if (showStudentQuestionScore) {
-			pointsDisplayString = Precision.round(points, 2) + "/";
+			pointsDisplayString = String.valueOf(Precision.round(points, 2));
 		}
 		return pointsDisplayString;
 	}
@@ -1516,11 +1532,11 @@ public class ItemContentsBean implements Serializable {
       }
   }
 
-  public List getItemGradingAttachmentList() {
+  public List<ItemGradingAttachment> getItemGradingAttachmentList() {
 	  return itemGradingAttachmentList;
   }
 
-  public void setItemGradingAttachmentList(List itemGradingAttachmentList)
+  public void setItemGradingAttachmentList(List<ItemGradingAttachment> itemGradingAttachmentList)
   {
 	  this.itemGradingAttachmentList = itemGradingAttachmentList;
   }
@@ -1636,5 +1652,21 @@ public class ItemContentsBean implements Serializable {
   public int getAnswerCounter() {
     return answerCounter++;
   }
+
+	public String getRubricStateDetails() {
+		return rubricStateDetails;
+	}
+
+	public void setRubricStateDetails(String rubricStateDetails) {
+		this.rubricStateDetails = rubricStateDetails;
+	}
+
+	public boolean isHasAssociatedRubric() {
+		return hasAssociatedRubric;
+	}
+
+	public void setHasAssociatedRubric(boolean hasAssociatedRubric) {
+		this.hasAssociatedRubric = hasAssociatedRubric;
+	}
 }
 

@@ -24,9 +24,13 @@ package org.sakaiproject.tool.assessment.ui.listener.author;
 import java.io.UnsupportedEncodingException;
 import java.text.MessageFormat;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -42,16 +46,22 @@ import javax.mail.internet.InternetAddress;
 
 import lombok.extern.slf4j.Slf4j;
 
+import org.sakaiproject.component.cover.ComponentManager;
 import org.sakaiproject.component.cover.ServerConfigurationService;
 import org.sakaiproject.email.cover.EmailService;
 import org.sakaiproject.event.cover.EventTrackingService;
 import org.sakaiproject.exception.IdUnusedException;
+import org.sakaiproject.rubrics.logic.RubricsConstants;
+import org.sakaiproject.rubrics.logic.RubricsService;
+import org.sakaiproject.rubrics.logic.model.ToolItemRubricAssociation;
+import org.sakaiproject.site.api.Group;
 import org.sakaiproject.site.api.Site;
 import org.sakaiproject.site.cover.SiteService;
 import org.sakaiproject.spring.SpringBeanLocator;
 import org.sakaiproject.samigo.util.SamigoConstants;
 import org.sakaiproject.service.gradebook.shared.AssignmentHasIllegalPointsException;
 import org.sakaiproject.service.gradebook.shared.GradebookExternalAssessmentService;
+import org.sakaiproject.tool.assessment.data.dao.assessment.PublishedItemData;
 import org.sakaiproject.tool.assessment.data.dao.assessment.PublishedSectionData;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemDataIfc;
 import org.sakaiproject.tool.assessment.facade.ExtendedTimeFacade;
@@ -98,8 +108,11 @@ public class PublishAssessmentListener
 
   private CalendarServiceHelper calendarService = IntegrationContextFactory.getInstance().getCalendarServiceHelper();
   private ResourceLoader rl= new ResourceLoader("org.sakaiproject.tool.assessment.bundle.AssessmentSettingsMessages");
-  
+
+  private RubricsService rubricsService;
+
   public PublishAssessmentListener() {
+    rubricsService = ComponentManager.get(RubricsService.class);
   }
 
   public void processAction(ActionEvent ae) throws AbortProcessingException {
@@ -194,38 +207,71 @@ public class PublishAssessmentListener
     PublishedAssessmentFacade pub = null;
 
     try {
-       assessment.addAssessmentMetaData("ALIAS", assessmentSettings.getAlias());
-       pub = publishedAssessmentService.publishAssessment(assessment);
-       PublishRepublishNotificationBean publishRepublishNotification = (PublishRepublishNotificationBean) ContextUtil.lookupBean("publishRepublishNotification");
-       boolean sendNotification = publishRepublishNotification.getSendNotification();
-       String subject = publishRepublishNotification.getNotificationSubject();
-       String notificationMessage = getNotificationMessage(publishRepublishNotification, assessmentSettings.getTitle(), assessmentSettings.getReleaseTo(), assessmentSettings.getStartDateString(), assessmentSettings.getPublishedUrl(),
-          		assessmentSettings.getReleaseToGroupsAsString(), assessmentSettings.getDueDateString(), assessmentSettings.getTimedHours(), assessmentSettings.getTimedMinutes(), 
-          		assessmentSettings.getUnlimitedSubmissions(), assessmentSettings.getSubmissionsAllowed(), assessmentSettings.getScoringType(), assessmentSettings.getFeedbackDelivery(), assessmentSettings.getFeedbackDateString());
+      assessment.addAssessmentMetaData("ALIAS", assessmentSettings.getAlias());
+      pub = publishedAssessmentService.publishAssessment(assessment);
+
+      //Lock the groups for deletion if the assessment is released to groups, students can lose submissions if the group is deleted.
+      boolean groupRelease = AssessmentAccessControlIfc.RELEASE_TO_SELECTED_GROUPS.equals(assessmentSettings.getReleaseTo());
+
+      if (groupRelease) {
+        try{
+            String publishedAssessmentId = String.valueOf(pub.getPublishedAssessmentId());
+            PublishedAssessmentFacade publishedAssessment = publishedAssessmentService.getPublishedAssessment(publishedAssessmentId, true);
+            Map<String, String> selectedGroups = publishedAssessment.getReleaseToGroups();
+
+            log.debug("Locking groups for deletion by the published assessment with id {}.", publishedAssessmentId);
+            log.debug("Locking for deletion the following groups {}.", selectedGroups);
+
+            Site site = SiteService.getSite(ToolManager.getCurrentPlacement().getContext());
+            Collection<Group> groups = site.getGroups();
+
+            for(Group group : groups){
+                if(selectedGroups.keySet().contains(group.getId())){
+                    log.debug("Locking the group {} for deletion by the the published assessment with id {}.", group.getTitle(), publishedAssessmentId);
+                    group.lockGroup(publishedAssessmentId, Group.LockMode.DELETE);
+                }
+            }
+
+            log.debug("Saving the site after locking the groups for deletion.");
+            SiteService.save(site);
+        }catch(Exception e){
+            log.error("Fatal error locking the groups for deletion {}.", e);
+        }
+      }
+
+      PublishRepublishNotificationBean publishRepublishNotification = (PublishRepublishNotificationBean) ContextUtil.lookupBean("publishRepublishNotification");
+      boolean sendNotification = publishRepublishNotification.getSendNotification();
+      String subject = publishRepublishNotification.getNotificationSubject();
+      String notificationMessage = getNotificationMessage(publishRepublishNotification, assessmentSettings.getTitle(), assessmentSettings.getReleaseTo(), assessmentSettings.getStartDateString(), assessmentSettings.getPublishedUrl(),
+        assessmentSettings.getReleaseToGroupsAsString(), assessmentSettings.getDueDateString(), assessmentSettings.getTimedHours(), assessmentSettings.getTimedMinutes(), 
+        assessmentSettings.getUnlimitedSubmissions(), assessmentSettings.getSubmissionsAllowed(), assessmentSettings.getScoringType(), assessmentSettings.getFeedbackDelivery(), assessmentSettings.getFeedbackDateString());
        
-       if (sendNotification) {
-    	   sendNotification(pub, publishedAssessmentService, subject, notificationMessage, 
-    			   assessmentSettings.getReleaseTo());
-       }
+      if (sendNotification) {
+        sendNotification(pub, publishedAssessmentService, subject, notificationMessage, 
+          assessmentSettings.getReleaseTo());
+      }
 
-       ExtendedTimeFacade extendedTimeFacade = PersistenceService.getInstance().getExtendedTimeFacade();
-       extendedTimeFacade.copyEntriesToPub(pub.getData(), assessmentSettings.getExtendedTimes());
+      ExtendedTimeFacade extendedTimeFacade = PersistenceService.getInstance().getExtendedTimeFacade();
+      extendedTimeFacade.copyEntriesToPub(pub.getData(), assessmentSettings.getExtendedTimes());
 
-       EventTrackingService.post(EventTrackingService.newEvent(SamigoConstants.EVENT_ASSESSMENT_PUBLISH, "siteId=" + AgentFacade.getCurrentSiteId() + ", assessmentId=" + assessment.getAssessmentId() + ", publishedAssessmentId=" + pub.getPublishedAssessmentId(), true));
+      EventTrackingService.post(EventTrackingService.newEvent(SamigoConstants.EVENT_ASSESSMENT_PUBLISH, "siteId=" + AgentFacade.getCurrentSiteId() + ", assessmentId=" + assessment.getAssessmentId() + ", publishedAssessmentId=" + pub.getPublishedAssessmentId(), true));
 
-		Iterator<PublishedSectionData> sectionDataIterator = pub.getSectionSet().iterator();
-		while (sectionDataIterator.hasNext()){
-			PublishedSectionData sectionData = sectionDataIterator.next();
-			Iterator<ItemDataIfc> itemDataIfcIterator = sectionData.getItemSet().iterator();
-			while (itemDataIfcIterator.hasNext()){
-				ItemDataIfc itemDataIfc = itemDataIfcIterator.next();
-				EventTrackingService.post(EventTrackingService.newEvent(SamigoConstants.EVENT_PUBLISHED_ASSESSMENT_SAVEITEM, "/sam/" + AgentFacade.getCurrentSiteId() + "/publish, publishedItemId=" + itemDataIfc.getItemIdString(), true));
-			}
-		}
+      for (Object sectionObj : pub.getSectionSet()){
+        PublishedSectionData sectionData = (PublishedSectionData) sectionObj;
+        for (Object itemObj : sectionData.getItemSet()){
+          PublishedItemData itemData = (PublishedItemData) itemObj;
+          EventTrackingService.post(EventTrackingService.newEvent(SamigoConstants.EVENT_PUBLISHED_ASSESSMENT_SAVEITEM, "/sam/" + AgentFacade.getCurrentSiteId() + "/publish, publishedItemId=" + itemData.getItemIdString(), true));
 
-		//update Calendar Events
-       boolean addDueDateToCalendar = FacesContext.getCurrentInstance().getExternalContext().getRequestParameterMap().get("publishAssessmentForm:calendarDueDate") != null;
-       calendarService.updateAllCalendarEvents(pub, assessmentSettings.getReleaseTo(), assessmentSettings.getGroupsAuthorized(), rl.getString("calendarDueDatePrefix") + " ", addDueDateToCalendar, notificationMessage);
+          Optional<ToolItemRubricAssociation> rubricAssociation = rubricsService.getRubricAssociation(RubricsConstants.RBCS_TOOL_SAMIGO, assessmentSettings.getAssessmentId().toString() + "." + itemData.getOriginalItemId().toString());
+          if (rubricAssociation.isPresent()) {
+            rubricsService.saveRubricAssociation(RubricsConstants.RBCS_TOOL_SAMIGO, RubricsConstants.RBCS_PUBLISHED_ASSESSMENT_ENTITY_PREFIX + pub.getPublishedAssessmentId().toString() + "." + itemData.getItemIdString(), rubricAssociation.get().getFormattedAssociation());
+          }
+        }
+      }
+
+		  //update Calendar Events
+      boolean addDueDateToCalendar = FacesContext.getCurrentInstance().getExternalContext().getRequestParameterMap().get("publishAssessmentForm:calendarDueDate") != null;
+      calendarService.updateAllCalendarEvents(pub, assessmentSettings.getReleaseTo(), assessmentSettings.getGroupsAuthorized(), rl.getString("calendarDueDatePrefix") + " ", addDueDateToCalendar, notificationMessage);
     } catch (AssignmentHasIllegalPointsException gbe) {
        // Right now gradebook can only accept assessements with totalPoints > 0 
        // this  might change later

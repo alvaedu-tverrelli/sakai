@@ -1,6 +1,6 @@
 <%@ taglib uri="http://java.sun.com/jsf/html" prefix="h" %>
 <%@ taglib uri="http://java.sun.com/jsf/core" prefix="f" %>
-<%@ taglib uri="http://sakaiproject.org/jsf/sakai" prefix="sakai" %>
+<%@ taglib uri="http://sakaiproject.org/jsf2/sakai" prefix="sakai" %>
 <%@ taglib uri="http://sakaiproject.org/jsf/messageforums" prefix="mf" %>
 <jsp:useBean id="msgs" class="org.sakaiproject.util.ResourceLoader" scope="session">
    <jsp:setProperty name="msgs" property="baseName" value="org.sakaiproject.api.app.messagecenter.bundle.Messages"/>
@@ -15,9 +15,9 @@
 			<script type="text/javascript">includeLatestJQuery("msgcntr");</script>
 			<script type="text/javascript" src="/library/webjars/qtip2/3.0.3/jquery.qtip.min.js"></script>
 			<link rel="stylesheet" type="text/css" href="/library/webjars/qtip2/3.0.3/jquery.qtip.min.css" />
-			<sakai:script contextBase="/messageforums-tool" path="/js/forum.js"/>
-			<sakai:script contextBase="/messageforums-tool" path="/js/sak-10625.js"/>
-			<sakai:script contextBase="/messageforums-tool" path="/js/messages.js"/>
+			<script type="text/javascript" src="/messageforums-tool/js/forum.js"></script>
+			<script type="text/javascript" src="/messageforums-tool/js/sak-10625.js"></script>
+			<script type="text/javascript" src="/messageforums-tool/js/messages.js"></script>
 			
 			<!--jsp/discussionForum/message/dfViewMessage.jsp-->
 			<script type="text/javascript">
@@ -57,21 +57,21 @@
 							rendered="#{ForumTool.messagesandForums}" />
 						<h:commandLink action="#{ForumTool.processActionHome}" value="#{msgs.cdfm_discussion_forums}" title=" #{msgs.cdfm_discussion_forums}"
 							rendered="#{ForumTool.forumsTool}" />
-						<f:verbatim><h:outputText value=" " /><h:outputText value=" / " /><h:outputText value=" " /></f:verbatim>
+						<h:outputText value=" " /><h:outputText value=" / " /><h:outputText value=" " />
 						<h:commandLink action="#{ForumTool.processActionDisplayForum}" 
 								title=" #{ForumTool.selectedForum.forum.title}" rendered="#{ForumTool.showForumLinksInNav}" >
 							<f:param value="#{ForumTool.selectedForum.forum.id}" name="forumId"/>
 							<h:outputText value="#{ForumTool.selectedForum.forum.title}"/>
 						</h:commandLink>
 						<h:outputText value="#{ForumTool.selectedForum.forum.title}" rendered="#{!ForumTool.showForumLinksInNav}"/>
-						<f:verbatim><h:outputText value=" " /><h:outputText value=" / " /><h:outputText value=" " /></f:verbatim>
+						<h:outputText value=" " /><h:outputText value=" / " /><h:outputText value=" " />
 						<h:commandLink action="#{ForumTool.processActionDisplayTopic}"  
 								title=" #{ForumTool.selectedTopic.topic.title}">
 								<f:param value="#{ForumTool.selectedForum.forum.id}" name="forumId"/>
 								<f:param value="#{ForumTool.selectedTopic.topic.id}" name="topicId"/>
 								<h:outputText value="#{ForumTool.selectedTopic.topic.title}"/>
 						</h:commandLink>
-						<f:verbatim><h:outputText value=" " /><h:outputText value=" / " /><h:outputText value=" " /></f:verbatim>
+						<h:outputText value=" " /><h:outputText value=" / " /><h:outputText value=" " />
 						<h:commandLink action="#{ForumTool.processActionDisplayThread}"  
 								title=" #{ForumTool.selectedThreadHead.message.title}">
 							<f:param value="#{ForumTool.selectedForum.forum.id}" name="forumId"/>
@@ -112,32 +112,27 @@
 					<h:outputText value="#{ForumTool.selectedTopic.topic.shortDescription}" />
 				</p>
 				<%-- link to open and close long desc. --%>
-				<p>
-					<h:commandLink immediate="true" 
-							action="#{ForumTool.processDfComposeToggle}" 
-							onmousedown="document.forms[0].onsubmit();"
-							rendered="#{ForumTool.selectedTopic.hasExtendedDesciption}" 
-							title="#{msgs.cdfm_full_description}"
-							styleClass="show">
-						<f:param value="dfViewMessage" name="redirectToProcessAction"/>
-						<f:param value="true" name="composeExpand"/>
-						<h:graphicImage url="/images/collapse.gif" />
-						<h:outputText value="#{msgs.cdfm_read_full_description}" />
-					</h:commandLink>
-					<h:commandLink immediate="true" 
-							action="#{ForumTool.processDfComposeToggle}" 
-							onmousedown="document.forms[0].onsubmit();"
-							rendered="#{ForumTool.selectedTopic.readFullDesciption}"
-							title="#{msgs.cdfm_full_description}"
-							styleClass="hide">
-						<f:param value="dfViewMessage" name="redirectToProcessAction"/>
-						<h:graphicImage url="/images/expand.gif"/>
-						<h:outputText value="#{msgs.cdfm_hide_full_description}" />
-					</h:commandLink>
-				</p>
-				<mf:htmlShowArea value="#{ForumTool.selectedTopic.topic.extendedDescription}" 
-					rendered="#{ForumTool.selectedTopic.readFullDesciption}" 
-					hideBorder="true"/>
+				<h:outputText value="#{ForumTool.selectedForum.forum.title} /  #{ForumTool.selectedTopic.topic.title}"  styleClass="title"/> 
+				<div class="textPanel">
+					<h:outputText value="#{ForumTool.selectedTopic.topic.shortDescription}" />
+				</div>
+				<div>
+					<p id="openLinkBlock" class="toggleParent openLinkBlock display-none">
+						<a href="#" id="showMessage" class="toggle show">
+							<h:graphicImage url="/images/expand.gif" alt=""/>
+							<h:outputText value=" #{msgs.cdfm_read_full_description}" />
+						</a>
+					</p>
+					<p id="hideLinkBlock" class="toggleParent hideLinkBlock">
+						<a href="#" id="hideMessage" class="toggle show">
+							<h:graphicImage url="/images/collapse.gif" alt="" />
+							<h:outputText value=" #{msgs.cdfm_hide_full_description}"/>
+						</a>
+					</p>
+					<div id="fullTopicDescription" class="textPanel fullTopicDescription">
+						<h:outputText escape="false" value="#{ForumTool.selectedTopic.topic.extendedDescription}" />
+					</div>
+				</div>
 			</div>
 			<h:messages globalOnly="true" infoClass="success" errorClass="alertMessage" rendered="#{! empty facesContext.maximumSeverity}"/>
 			<f:subview id="wordCountView" rendered="#{ForumTool.selectedTopic.isPostToGradebook && ForumTool.gradebookExist}">
@@ -316,7 +311,7 @@
 			<h:inputHidden value="#{ForumTool.fromPage}" />
 
 			<p style="padding:0" class="act">
-				<h:commandButton id="post" action="#{ForumTool.processDfMsgDeleteConfirmYes}" value="#{msgs.cdfm_button_bar_delete}" accesskey="x" styleClass="active blockMeOnClick"/>
+				<h:commandButton id="post" action="#{ForumTool.processDfMsgDeleteConfirmYes}" value="#{msgs.cdfm_button_bar_delete}" accesskey="x" styleClass="active blockMeOnClick" rendered="#{ForumTool.selectedMessage.userCanDelete}" />
 				<h:commandButton action="#{ForumTool.processDfMsgDeleteCancel}" value="#{msgs.cdfm_button_bar_cancel}" immediate="true" accesskey="c" />
                 <h:outputText styleClass="messageProgress" style="display:none" value="#{msgs.cdfm_processing_submit_message}" />
 			</p>

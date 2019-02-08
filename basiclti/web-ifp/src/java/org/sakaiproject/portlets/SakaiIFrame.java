@@ -106,8 +106,6 @@ public class SakaiIFrame extends GenericPortlet {
 	protected final String POPUP = "popup";
 	protected final String MAXIMIZE = "sakai:maximize";
 
-	protected final static String TITLE = "title";
-
 	private static final String FORM_PAGE_TITLE = "title-of-page";
 
 	private static final String FORM_TOOL_TITLE = "title-of-tool";
@@ -253,9 +251,6 @@ public class SakaiIFrame extends GenericPortlet {
 	 */
 	private Map<String, Object> patchContentItem(Long key, Placement placement)
 	{
-		// Get out tool configuration so we can fix things up...
-		ToolConfiguration toolConfig = SiteService.findTool(placement.getId());
-
 		// Look up the content item, bypassing authz checks
 		Map<String, Object> content = m_ltiService.getContentDao(key);
 		if ( content == null ) return null;
@@ -263,7 +258,8 @@ public class SakaiIFrame extends GenericPortlet {
 
 		// Look up the tool associated with the Content Item
 		// checking Authz to see is we can touch this tool
-		Map<String, Object> tool = m_ltiService.getTool(tool_id, placement.getContext());
+		String siteId = placement.getContext();
+		Map<String, Object> tool = m_ltiService.getTool(tool_id, siteId);
 		if ( tool == null ) return null;
 
 		// Now make a content item from this tool inheriting from the other content item
@@ -276,11 +272,13 @@ public class SakaiIFrame extends GenericPortlet {
 			props.put(k, value.toString());
 		}
 		props.put(LTIService.LTI_TOOL_ID, tool_id.toString());
-		props.put(LTIService.LTI_SITE_ID, placement.getContext());
+		props.put(LTIService.LTI_SITE_ID, siteId);
 		props.put(LTIService.LTI_PLACEMENT, placement.getId());
 
-		Object retval = m_ltiService.insertContent(props, placement.getContext());
-		if ( retval instanceof String ) {
+		// The current user may not be a maintainer in the current site, but we want to still be able to
+		// correct the source on the LTI tool
+		Object retval = m_ltiService.insertContentDao(props, siteId, m_ltiService.isAdmin(siteId), true);
+		if ( retval == null || retval instanceof String ) {
 			log.error("Unable to insert LTILinkItem tool={} placement={}",tool_id,placement.getId());
 			placement.getPlacementConfig().setProperty(SOURCE,"");
 			placement.save();
@@ -288,7 +286,7 @@ public class SakaiIFrame extends GenericPortlet {
 		}
 
 		Long contentKey = (Long) retval;
-		Map<String,Object> newContent = m_ltiService.getContent(contentKey, placement.getContext());
+		Map<String,Object> newContent = m_ltiService.getContent(contentKey, siteId);
 		String contentUrl = m_ltiService.getContentLaunch(newContent);
 		if ( newContent == null || contentUrl == null ) {
 			log.error("Unable to set contentUrl tool={} placement={}",tool_id,placement.getId());
@@ -409,29 +407,38 @@ public class SakaiIFrame extends GenericPortlet {
 		}
 
 	public void processActionEdit(ActionRequest request, ActionResponse response)
-		throws PortletException, IOException 
-		{
+		throws PortletException, IOException {
+
 			// TODO: Check Role
 
 			// Stay in EDIT mode unless we are successful
 			response.setPortletMode(PortletMode.EDIT);
 
-			Placement placement = ToolManager.getCurrentPlacement();
-			// get the site toolConfiguration, if this is part of a site.
-			ToolConfiguration toolConfig = SiteService.findTool(placement.getId());
 			String id = request.getParameter(LTIService.LTI_ID);
 			String toolId = request.getParameter(LTIService.LTI_TOOL_ID);
 			Properties reqProps = new Properties();
 			Enumeration names = request.getParameterNames();
-			while (names.hasMoreElements())
-			{
+			while (names.hasMoreElements()) {
 				String name = (String) names.nextElement();
 				reqProps.setProperty(name, request.getParameter(name));
 			}
-			Object retval = m_ltiService.updateContent(Long.parseLong(id), reqProps, placement.getContext());
-			String fa_icon = (String)request.getParameter(LTIService.LTI_FA_ICON);
+			Placement placement = ToolManager.getCurrentPlacement();
+			m_ltiService.updateContent(Long.parseLong(id), reqProps, placement.getContext());
+			String fa_icon = (String) request.getParameter(LTIService.LTI_FA_ICON);
 			if ( fa_icon != null && fa_icon.length() > 0 ) {
 				placement.getPlacementConfig().setProperty("imsti.fa_icon",fa_icon);
+			}
+
+			// get the site toolConfiguration, if this is part of a site.
+			ToolConfiguration toolConfig = SiteService.findTool(placement.getId());
+
+			// Set the title for the page
+			toolConfig.getContainingPage().setTitle(reqProps.getProperty("title"));
+
+			try {
+				SiteService.save(SiteService.getSite(toolConfig.getSiteId()));
+			} catch(Exception e) {
+				log.error("Failed to save site", e);
 			}
 
 			placement.save();

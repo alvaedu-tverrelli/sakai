@@ -4,7 +4,7 @@
   <parent>
     <artifactId>user</artifactId>
     <groupId>org.sakaiproject.user</groupId>
-    <version>13-SNAPSHOT</version>
+    <version>20-SNAPSHOT</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
   <name>sakai-user-tool-prefs</name>
@@ -91,11 +91,11 @@
     </dependency>
     <dependency>
          <groupId>javax.servlet.jsp</groupId>
-         <artifactId>jsp-api</artifactId>
+         <artifactId>javax.servlet.jsp-api</artifactId>
       </dependency>
     <dependency>
        <groupId>javax.servlet</groupId>
-       <artifactId>servlet-api</artifactId>
+       <artifactId>javax.servlet-api</artifactId>
     </dependency>
 
 	<dependency>

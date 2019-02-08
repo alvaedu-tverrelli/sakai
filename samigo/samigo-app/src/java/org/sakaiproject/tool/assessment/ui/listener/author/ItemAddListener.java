@@ -42,10 +42,12 @@ import javax.faces.event.ActionEvent;
 import javax.faces.event.ActionListener;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import org.sakaiproject.component.cover.ComponentManager;
 import org.sakaiproject.event.cover.EventTrackingService;
+import org.sakaiproject.rubrics.logic.RubricsConstants;
+import org.sakaiproject.rubrics.logic.RubricsService;
 import org.sakaiproject.samigo.util.SamigoConstants;
 import org.sakaiproject.tags.api.Tag;
 import org.sakaiproject.tags.api.TagService;
@@ -61,7 +63,6 @@ import org.sakaiproject.tool.assessment.data.dao.assessment.PublishedItemText;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.AnswerFeedbackIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.AnswerIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.AssessmentIfc;
-import org.sakaiproject.tool.assessment.data.ifc.assessment.AttachmentIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemAttachmentIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemDataIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemFeedbackIfc;
@@ -71,7 +72,9 @@ import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemTextIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemTagIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.SectionDataIfc;
 import org.sakaiproject.tool.assessment.facade.AgentFacade;
+import org.sakaiproject.tool.assessment.facade.AssessmentFacade;
 import org.sakaiproject.tool.assessment.facade.ItemFacade;
+import org.sakaiproject.tool.assessment.facade.PublishedAssessmentFacade;
 import org.sakaiproject.tool.assessment.facade.PublishedItemFacade;
 import org.sakaiproject.tool.assessment.facade.SectionFacade;
 import org.sakaiproject.tool.assessment.facade.TypeFacade;
@@ -83,6 +86,7 @@ import org.sakaiproject.tool.assessment.services.assessment.AssessmentService;
 import org.sakaiproject.tool.assessment.services.assessment.PublishedAssessmentService;
 import org.sakaiproject.tool.assessment.ui.bean.author.AnswerBean;
 import org.sakaiproject.tool.assessment.ui.bean.author.AssessmentBean;
+import org.sakaiproject.tool.assessment.ui.bean.author.AssessmentSettingsBean;
 import org.sakaiproject.tool.assessment.ui.bean.author.AuthorBean;
 import org.sakaiproject.tool.assessment.ui.bean.author.CalculatedQuestionAnswerIfc;
 import org.sakaiproject.tool.assessment.ui.bean.author.CalculatedQuestionFormulaBean;
@@ -96,8 +100,8 @@ import org.sakaiproject.tool.assessment.ui.bean.authz.AuthorizationBean;
 import org.sakaiproject.tool.assessment.ui.bean.questionpool.QuestionPoolBean;
 import org.sakaiproject.tool.assessment.ui.bean.questionpool.QuestionPoolDataBean;
 import org.sakaiproject.tool.assessment.ui.listener.util.ContextUtil;
+import org.sakaiproject.tool.assessment.util.ParameterUtil;
 import org.sakaiproject.tool.assessment.util.TextFormat;
-import org.sakaiproject.tool.assessment.ws.Item;
 import org.sakaiproject.util.FormattedText;
 
 /**
@@ -117,6 +121,8 @@ public class ItemAddListener
   private boolean isEditPendingAssessmentFlow = true;
   AssessmentService assessdelegate;
 
+  private RubricsService rubricsService = ComponentManager.get(RubricsService.class);
+
   /**
    * Standard process action method.
    * @param ae ActionEvent
@@ -126,9 +132,13 @@ public class ItemAddListener
 
 	log.debug("ItemAdd LISTENER.");
 
+    AssessmentSettingsBean assessmentSettings = (AssessmentSettingsBean) ContextUtil.lookupBean("assessmentSettings");
+    AssessmentBean assessmentBean = (AssessmentBean) ContextUtil.lookupBean("assessmentBean");
     ItemAuthorBean itemauthorbean = (ItemAuthorBean) ContextUtil.lookupBean("itemauthor");
     ItemBean item = itemauthorbean.getCurrentItem();
-    
+
+    ParameterUtil paramUtil = new ParameterUtil();
+
     item.setEmiVisibleItems("0");
     String iText = item.getItemText();
     String iInstruction = item.getInstruction();
@@ -194,7 +204,7 @@ public class ItemAddListener
 	    err = ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.AuthorMessages","corrAnswer");
 	    context.addMessage(null,new FacesMessage(err));
 	    item.setOutcome("surveyItem");
-		item.setPoolOutcome("surveyItem");
+	    item.setPoolOutcome("surveyItem");
 	    return;
       }
     }
@@ -206,7 +216,7 @@ public class ItemAddListener
 	    err = ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.AuthorMessages","corrAnswer");
 	    context.addMessage(null,new FacesMessage(err));
 	    item.setOutcome("trueFalseItem");
-		item.setPoolOutcome("trueFalseItem");
+	    item.setPoolOutcome("trueFalseItem");
 	    return;
       }
     }
@@ -314,11 +324,21 @@ public class ItemAddListener
    		error=true;
    	    
     	}
-   	 if(error)
+   	 if(error) {
    		return;
+   	 }
     }
 	try {
-		saveItem(itemauthorbean);
+		saveItem(itemauthorbean, assessmentBean);
+
+		// RUBRICS, save the binding between the assignment and the rubric
+		if (assessmentBean.getAssessment() instanceof AssessmentFacade) {
+			String associationId = assessmentBean.getAssessmentId().toString() + "." + itemauthorbean.getItemId();
+			rubricsService.saveRubricAssociation(RubricsConstants.RBCS_TOOL_SAMIGO, associationId, paramUtil.getRubricConfigurationParameters(null, null));
+		} else if (assessmentBean.getAssessment() instanceof PublishedAssessmentFacade) {
+			String pubAssociationId = RubricsConstants.RBCS_PUBLISHED_ASSESSMENT_ENTITY_PREFIX + assessmentBean.getAssessmentId().toString() + "." + itemauthorbean.getItemId();
+			rubricsService.saveRubricAssociation(RubricsConstants.RBCS_TOOL_SAMIGO, pubAssociationId, paramUtil.getRubricConfigurationParameters(null, null));
+		}
 	}
 	catch (FinFormatException e) {
 		err=ContextUtil.getLocalizedString("org.sakaiproject.tool.assessment.bundle.AuthorMessages","fin_invalid_characters_error");
@@ -729,7 +749,7 @@ public class ItemAddListener
     	return false;
     }
 
-  public void saveItem(ItemAuthorBean itemauthor) throws FinFormatException{
+  public void saveItem(ItemAuthorBean itemauthor, AssessmentBean assessmentBean) throws FinFormatException{
 	  boolean update = false;
       ItemBean bean = itemauthor.getCurrentItem();
       ItemFacade item;
@@ -855,7 +875,6 @@ public class ItemAddListener
 	    	  else {  //Other Types
 	    		  item.setItemTextSet(prepareText(item, bean, itemauthor));
 	    	  }
-
     	  	
             // prepare MetaData
             item.setItemMetaDataSet(prepareMetaData(item, bean));
@@ -875,7 +894,7 @@ public class ItemAddListener
       	  	}
       }
 
-	  updateAttachments(itemauthor.getAttachmentList(), item);
+	  updateAttachments(itemauthor.getAttachmentList(), item, delegate);
 
 	  //Manage the tags.
 	  String[] tagsFromForm= FacesContext.getCurrentInstance().getExternalContext().getRequestParameterValuesMap().get("tag_selector[]");
@@ -919,7 +938,6 @@ public class ItemAddListener
 	  }
       itemauthor.setTagsList(item.getItemTagSet());//To avoid add extra labels when refreshing the page manually.
 
-
 	  if (isFromQuestionPool) {
         // Came from Pool manager
 		  if (item.getTypeId().equals(TypeFacade.EXTENDED_MATCHING_ITEMS)) {
@@ -934,10 +952,7 @@ public class ItemAddListener
 
         delegate.saveItem(item);
 
-
-
        item = delegate.getItem(item.getItemId().toString());
-
 
         QuestionPoolService qpdelegate = new QuestionPoolService();
 
@@ -991,7 +1006,6 @@ public class ItemAddListener
           SectionFacade section;
 
 	  if ("-1".equals(bean.getSelectedSection())) {
-	    AssessmentBean assessmentBean = (AssessmentBean) ContextUtil.lookupBean("assessmentBean");
 // add a new section
       	    section = assessdelegate.addSection(assessmentBean.getAssessmentId());
           }
@@ -1012,7 +1026,6 @@ public class ItemAddListener
               // reorder the sequences of items in the OrigSection
     	      SectionFacade origsect= assessdelegate.getSection(bean.getOrigSection());
 	      shiftItemsInOrigSection(delegate, origsect, oldSeq);
-
 
             }
             else {
@@ -1118,8 +1131,6 @@ public class ItemAddListener
         }
 
         // #1a - goto editAssessment.jsp, so reset assessmentBean
-        AssessmentBean assessmentBean = (AssessmentBean) ContextUtil.lookupBean(
-            "assessmentBean");
         AssessmentIfc assessment = assessdelegate.getAssessment(
             Long.valueOf(assessmentBean.getAssessmentId()));
         assessmentBean.setAssessment(assessment);
@@ -1191,26 +1202,23 @@ public class ItemAddListener
 	  choicetext.setText(stripPtags(choicebean.getChoice()));
 
 	  // loop through matches for in validAnswers list and add all to this choice
-	  Iterator<MatchItemBean>answeriter = validAnswers.iterator();	  
 	  Set<AnswerIfc> answerSet = new HashSet<AnswerIfc>();
-	  while (answeriter.hasNext()) {
+	  for (int i = 0; i < validAnswers.size(); i++) {
 		  Answer answer = null;
-		  MatchItemBean answerbean = (MatchItemBean) answeriter.next();
+		  MatchItemBean answerbean = validAnswers.get(i);
 		  if (answerbean.getSequence().equals(choicebean.getSequence()) ||
 				  answerbean.getSequenceStr().equals(choicebean.getControllingSequence())) {
 			  // correct answers
 			  answer = new Answer(choicetext, stripPtags(answerbean
 					  .getMatch()), answerbean.getSequence(), AnswerBean
-					  .getChoiceLabels()[answerbean.getSequence()
-					                     .intValue() - 1], Boolean.TRUE, null, Double.valueOf(
+					  .getChoiceLabels()[i], Boolean.TRUE, null, Double.valueOf(
 					                    		 bean.getItemScore()), Double.valueOf(0d), Double.valueOf(bean.getItemDiscount()));
 
 		  } else {
 			  // incorrect answers
 			  answer = new Answer(choicetext, stripPtags(answerbean
 					  .getMatch()), answerbean.getSequence(), AnswerBean
-					  .getChoiceLabels()[answerbean.getSequence()
-					                     .intValue() - 1], Boolean.FALSE, null,  Double.valueOf(
+					  .getChoiceLabels()[i], Boolean.FALSE, null,  Double.valueOf(
 					                    		 bean.getItemScore()), Double.valueOf(0d), Double.valueOf(bean.getItemDiscount()));
 		  }
 
@@ -2560,6 +2568,11 @@ public class ItemAddListener
 		set.add(new ItemMetaData(item.getData(),
 					ItemMetaDataIfc.IMAGE_MAP_SRC, bean.getImageMapSrc()));
 		}
+		// The imageMap Image Alt Text added in Metadata
+		if (StringUtils.isNotEmpty(bean.getImageMapAltText())) {
+		set.add(new ItemMetaData(item.getData(),
+					ItemMetaDataIfc.IMAGE_MAP_ALT_TEXT, bean.getImageMapAltText()));
+		}
 		// MSMC property got left out, added in metadata
 		if (bean.getMcmsPartialCredit() != null) {
 		set.add(new ItemMetaData(item.getData(),
@@ -3048,7 +3061,7 @@ public class ItemAddListener
 	  }
   }
 
-	private void updateAttachments(List newList, ItemFacade targetItem) {
+	private void updateAttachments(List newList, ItemFacade targetItem, ItemService delegate) {
 		final Map<Long, ItemAttachmentIfc> oldIds = targetItem.getItemAttachmentMap();
 		if ( newList != null && !(newList.isEmpty()) ) {
 			for (Object o : newList) {
@@ -3065,6 +3078,7 @@ public class ItemAddListener
 		// any "oldIds" left over must be orphans. delete them.
 		for ( Map.Entry<Long, ItemAttachmentIfc> e : oldIds.entrySet() ) {
 			targetItem.removeItemAttachment(e.getValue());
+			delegate.removeItemAttachment(e.getKey());
 		}
 	}
 

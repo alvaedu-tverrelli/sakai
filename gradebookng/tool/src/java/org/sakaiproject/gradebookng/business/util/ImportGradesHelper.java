@@ -15,8 +15,8 @@
  */
 package org.sakaiproject.gradebookng.business.util;
 
-import au.com.bytecode.opencsv.CSVParser;
-import au.com.bytecode.opencsv.CSVReader;
+import com.opencsv.CSVParser;
+import com.opencsv.CSVReader;
 
 import java.io.IOException;
 import java.io.InputStream; 
@@ -41,6 +41,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.math.NumberUtils;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -287,7 +288,7 @@ public class ImportGradesHelper {
 					}
 					break;
 				case USER_NAME:
-					row.setStudentName(lineVal);
+					row.setStudentName(StringUtils.trimToEmpty(lineVal));
 					break;
 				case GB_ITEM_WITH_POINTS:
 					// fall into next case (same impl)
@@ -385,7 +386,7 @@ public class ImportGradesHelper {
 		}
 
 		// Perform comment validation; present error message with invalid gradebook items and corresponding student identifiers on current page
-		CommentValidationReport commentReport = new CommentValidator().validate(rows, columns);
+		CommentValidationReport commentReport = new CommentValidator().validate(rows, columns, businessService.getServerConfigService());
 		SortedMap<String, List<String>> invalidCommentsMap = commentReport.getInvalidComments();
 		if (!invalidCommentsMap.isEmpty()) {
 			List<String> badCommentEntries = new ArrayList<>();
@@ -396,7 +397,7 @@ public class ImportGradesHelper {
 			}
 
 			String badComments = StringUtils.join(badCommentEntries, ", ");
-			sourcePanel.error(MessageHelper.getString("importExport.error.invalidComments", CommentValidator.MAX_COMMENT_LENGTH, badComments));
+			sourcePanel.error(MessageHelper.getString("importExport.error.invalidComments", CommentValidator.getMaxCommentLength(businessService.getServerConfigService()), badComments));
 			hasValidationErrors = true;
 		}
 
@@ -826,7 +827,7 @@ public class ImportGradesHelper {
 		int i = 0;
 		for (final Cell cell : row) {
 			// force cell to String
-			cell.setCellType(Cell.CELL_TYPE_STRING);
+			cell.setCellType(CellType.STRING);
 			s[i] = StringUtils.trimToNull(cell.getStringCellValue());
 			i++;
 		}

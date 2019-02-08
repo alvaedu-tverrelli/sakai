@@ -50,7 +50,6 @@ import org.sakaiproject.api.app.syllabus.SyllabusService;
 import org.sakaiproject.authz.api.FunctionManager;
 //permission convert
 import org.sakaiproject.authz.api.SecurityService;
-import org.sakaiproject.component.cover.ComponentManager;
 import org.sakaiproject.component.cover.ServerConfigurationService;
 import org.sakaiproject.content.api.ContentHostingService;
 import org.sakaiproject.content.api.ContentResource;
@@ -71,8 +70,6 @@ import org.sakaiproject.exception.IdUnusedException;
 import org.sakaiproject.exception.PermissionException;
 import org.sakaiproject.exception.TypeException;
 //permission convert
-import org.sakaiproject.site.api.Group;
-import org.sakaiproject.site.api.Site;
 import org.sakaiproject.site.api.SiteService;
 import org.sakaiproject.time.cover.TimeService;
 import org.sakaiproject.tool.api.Placement;
@@ -316,29 +313,6 @@ public class SyllabusServiceImpl implements SyllabusService, EntityTransferrer, 
 
 		try
 		{
-//for 2.3
-//			Site site = siteService.getSite(ref.getContext());
-//			Collection groups = site.getGroups();
-//
-//			if ((securityService.isSuperUser()))
-//			{
-//				return groups;
-//			}
-//
-//			Collection groupRefs = new Vector();
-//			for (Iterator i = groups.iterator(); i.hasNext();)
-//			{
-//				Group group = (Group) i.next();
-//				groupRefs.add(group.getReference());
-//			}
-//		
-//			for (Iterator i = groups.iterator(); i.hasNext();)
-//			{
-//				Group group = (Group) i.next();
-//				rv.add(group);
-//			}
-//			
-//			ref.addSiteContextAuthzGroup(rv);
 			if (SYLLABUS.equals(ref.getSubType()))
 			{
 				rv.add(ref.getReference());
@@ -549,19 +523,8 @@ public class SyllabusServiceImpl implements SyllabusService, EntityTransferrer, 
                         if (syElement.getTagName().equals(SYLLABUS))
                         {
                           //create a page and all syllabus tool to the page
-//sakai2                          String page = addSyllabusToolToPage(siteId,pageElement
-//                              .getAttribute(PAGE_NAME));
-//                          SyllabusItem syllabusItem = syllabusManager
-//                          .createSyllabusItem(UserDirectoryService
-//                              .getCurrentUser().getId(), page, syElement
-//                              .getAttribute(SYLLABUS_REDIRECT_URL));
                           String page = addSyllabusToolToPage(siteId,siteElement
                             .getAttribute(SITE_NAME));
-//sakai2                          SyllabusItem syllabusItem = syllabusManager
-//                          .createSyllabusItem(UserDirectoryService
-//                              .getCurrentUser().getId(), page, syElement
-//                              .getAttribute(SYLLABUS_REDIRECT_URL));
-//sakai2 add--
                           SyllabusItem syllabusItem = syllabusManager.getSyllabusItemByContextId(page);
                           if(syllabusItem == null)
                           {
@@ -662,7 +625,7 @@ public class SyllabusServiceImpl implements SyllabusService, EntityTransferrer, 
                                 int initPosition = syllabusManager.findLargestSyllabusPosition(syllabusItem).intValue() + 1;
                                 syData = syllabusManager.createSyllabusDataObject(syData.getTitle(), (new Integer(initPosition)), syData.getAsset(),
                                         syData.getView(), syData.getStatus(),
-                                        syData.getEmailNotification(), syData.getStartDate(), syData.getEndDate(), syData.isLinkCalendar(),
+                                        syData.getEmailNotification(), syData.getStartDate(), syData.getEndDate(), syData.getLinkCalendar(),
                                         syData.getCalendarEventIdStartDate(), syData.getCalendarEventIdEndDate());
 
                                 Set<SyllabusAttachment> attachSet = new TreeSet<SyllabusAttachment>();
@@ -771,7 +734,7 @@ public class SyllabusServiceImpl implements SyllabusService, EntityTransferrer, 
                   SyllabusData newToSyData = syllabusManager
                   		  .createSyllabusDataObject(toSyData.getTitle(),
                           positionNo, toSyData.getAsset(), toSyData.getView(),
-                          toSyData.getStatus(), toSyData.getEmailNotification(), toSyData.getStartDate(), toSyData.getEndDate(), toSyData.isLinkCalendar(),
+                          toSyData.getStatus(), toSyData.getEmailNotification(), toSyData.getStartDate(), toSyData.getEndDate(), toSyData.getLinkCalendar(),
                           toSyData.getCalendarEventIdStartDate(), toSyData.getCalendarEventIdEndDate());
                   
                   syllabusManager.addSyllabusToSyllabusItem(toSyItem, newToSyData, false);
@@ -1203,7 +1166,7 @@ public class SyllabusServiceImpl implements SyllabusService, EntityTransferrer, 
 										positionNo, toSyData.getAsset(),
 										toSyData.getView(), toSyData
 												.getStatus(), toSyData
-												.getEmailNotification(), toSyData.getStartDate(), toSyData.getEndDate(), toSyData.isLinkCalendar(),
+												.getEmailNotification(), toSyData.getStartDate(), toSyData.getEndDate(), toSyData.getLinkCalendar(),
 												toSyData.getCalendarEventIdStartDate(), toSyData.getCalendarEventIdEndDate());
 						Set attachSet = syllabusManager.getSyllabusAttachmentsForSyllabusData(toSyData);
 						Iterator attachIter = attachSet.iterator();
@@ -1397,7 +1360,7 @@ public class SyllabusServiceImpl implements SyllabusService, EntityTransferrer, 
 			Set<Entry<String, String>> entrySet = (Set<Entry<String, String>>) transversalMap.entrySet();	  	
 
 			try
-			{				
+			{
 				String toSiteId = toContext;
 
 				SyllabusItem fromSyllabusItem = syllabusManager.getSyllabusItemByContextId(toSiteId);
@@ -1470,13 +1433,13 @@ public class SyllabusServiceImpl implements SyllabusService, EntityTransferrer, 
 							syllabusManager.saveSyllabus(fromSyllabusData);
 						}
 					}
-				}				
+				}
 			}
 			catch (Exception e)
 			{
 				log.debug("Syllabus updateEntityReferences failed" + e);
 			}
-		}		  		  		
+		}
 	}
 	
 }

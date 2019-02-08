@@ -1907,25 +1907,6 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 		p.addProperty(ResourceProperties.PROP_CONTENT_TYPE, r.getContentType());
 
 		p.addProperty(ResourceProperties.PROP_IS_COLLECTION, "false");
-
-		if (StringUtils.isBlank(p.getProperty(ResourceProperties.PROP_COPYRIGHT_CHOICE))) {
-			String copyright = m_serverConfigurationService.getString("copyright.type.default", "not_determined");
-			// if copyright is null don't set a default copyright
-			if (copyright != null) {
-				String[] copyrightTypes = m_serverConfigurationService.getStrings("copyright.types");
-				if (copyrightTypes != null && copyrightTypes.length > 0) {
-					List<String> l = Arrays.asList(copyrightTypes);
-					if (l.contains(copyright)) {
-						p.addProperty(ResourceProperties.PROP_COPYRIGHT_CHOICE, copyright);
-					} else {
-						log.warn("Cannot set the default copyright " + copyright + " on " + r.getId() + " does not match any copyright types");
-					}
-				} else {
-					log.warn("Cannot set the default copyright " + copyright + " on " + r.getId() + " no copyright types are defined");
-				}
-			}
-		}
-
 	} // addLiveResourceProperties
 
 	/**
@@ -2504,7 +2485,11 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 	{
 		List<ContentResource> rv = new ArrayList<ContentResource>();
 
-		if (isRootCollection(id))
+		if (StringUtils.isBlank(id))
+		{
+			return rv;
+		}
+		else if (isRootCollection(id))
 		{
 			// There are performance issues with returning every single resources in one collection as well
 			// as issues in Sakai where actions incorrectly happen for the whole of the content service
@@ -6365,6 +6350,12 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 		// Post an available event for now or later
 		postAvailableEvent(edit, ref, priority);
 
+		//Post an event when a new version of the file is uploaded
+		if(contentUpdated){
+			// post EVENT_RESOURCE_UPD_NEW_VERSION event
+			this.eventTrackingService.post(this.eventTrackingService.newEvent(EVENT_RESOURCE_UPD_NEW_VERSION, edit.getReference(), true, priority));
+		}
+
 		if(titleUpdated) {
 			// post EVENT_RESOURCE_UPD_TITLE event
 			this.eventTrackingService.post(this.eventTrackingService.newEvent(EVENT_RESOURCE_UPD_TITLE, edit.getReference(), true, priority));
@@ -8101,6 +8092,8 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 	public void updateEntityReferences(String toContext, Map transversalMap){
 		//TODO: is there any content that needs reference updates?
 		String fromContext = (String) transversalMap.get("/fromContext");
+		if (StringUtils.isBlank(fromContext)) return;
+
 		String thisKey = null;
 		try {
 			List thisTargetResourceList = getAllResources(fromContext);
@@ -8273,6 +8266,7 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 				ContentCollection oCollection = getCollection(fromContext);
 
 				// Copy the Resource Properties from Root Collection to New Root Collection
+				// TODO: Shouldn't this only happen on a data replace, but not on a merge?
 				ResourceProperties oCollectionProperties = oCollection.getProperties();
 				ContentCollectionEdit toCollectionEdit = (ContentCollectionEdit) toCollection;
 				ResourcePropertiesEdit toColPropEdit = toCollectionEdit.getPropertiesEdit();
@@ -8388,6 +8382,12 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 								p.addAll(oProperties);
 								// SAK-23305
 								hideImportedContent(edit);
+								//Register the events
+								this.eventTrackingService.post(this.eventTrackingService.newEvent(EVENT_RESOURCE_ADD, edit.getReference(), true, NotificationService.NOTI_NONE));
+								boolean contentUpdated = ((BaseResourceEdit) edit).m_body != null || ((BaseResourceEdit) edit).m_contentStream != null;
+								if(contentUpdated){
+									this.eventTrackingService.post(this.eventTrackingService.newEvent(EVENT_RESOURCE_UPD_NEW_VERSION, edit.getReference(), true, NotificationService.NOTI_NONE));
+								}
 								// complete the edit
 								m_storage.commitResource(edit);
 								((BaseResourceEdit) edit).closeEdit();
@@ -8459,10 +8459,10 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 				/*
 				 * If this is "reuse content" during worksite setup, the site collection at this time is
 				 * /group/!admin/ for all content including ones in the folders, so count how many "/" in
-				 * the collection ID. If <= 3, then it's a top-level item and needs to be hidden.
+				 * the collection ID. If == 3, then it's a top-level item and needs to be hidden.
 				 */
 				int slashcount = StringUtils.countMatches(containingCollectionId, "/");
-				if (slashcount <= 3)
+				if (slashcount == 3)
 				{
 					if (resource != null)
 					{

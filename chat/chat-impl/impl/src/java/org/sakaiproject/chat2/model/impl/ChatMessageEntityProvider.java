@@ -97,8 +97,8 @@ public class ChatMessageEntityProvider implements CoreEntityProvider,
 			
 			try {
 				User msgowner = userDirectoryService.getUser(this.owner);
-				this.ownerDisplayId = msgowner.getDisplayId();
-				this.ownerDisplayName = msgowner.getDisplayName();
+				this.ownerDisplayId = msgowner.getDisplayId(this.context);
+				this.ownerDisplayName = msgowner.getDisplayName(this.context);
 			} catch (UserNotDefinedException e) {
 				// user not found - ignore
 			}
@@ -318,14 +318,13 @@ public class ChatMessageEntityProvider implements CoreEntityProvider,
 			log.debug("No siteId specified");
 			throw new SecurityException("You must be specify the site ID");
 		}
-		log.debug("siteId: {}", siteId);
 		
 		String channelId = (String) params.get("channelId");
 		if (StringUtils.isBlank(channelId)) {
 			log.debug("No channelId specified");
 			throw new SecurityException("You must be specify the channel ID");
 		}
-		log.debug("channelId: {}", channelId);
+		log.debug("channelId: {}, siteId: {}, sessionKey: {}", channelId, siteId, chatManager.getSessionKey());
 		
 		ChatChannel channel = chatManager.getChatChannel(channelId);
 		if (!chatManager.getCanReadMessage(channel)) {

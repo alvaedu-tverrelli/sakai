@@ -2,7 +2,7 @@
                  javax.faces.el.*, org.sakaiproject.tool.messageforums.*"%>
 <%@ taglib uri="http://java.sun.com/jsf/html" prefix="h" %>
 <%@ taglib uri="http://java.sun.com/jsf/core" prefix="f" %>
-<%@ taglib uri="http://sakaiproject.org/jsf/sakai" prefix="sakai" %>
+<%@ taglib uri="http://sakaiproject.org/jsf2/sakai" prefix="sakai" %>
 <%@ taglib uri="http://sakaiproject.org/jsf/messageforums" prefix="mf" %>
 <jsp:useBean id="msgs" class="org.sakaiproject.util.ResourceLoader" scope="session">
    <jsp:setProperty name="msgs" property="baseName" value="org.sakaiproject.api.app.messagecenter.bundle.Messages"/>
@@ -11,7 +11,7 @@
 	<sakai:view toolCssHref="/messageforums-tool/css/msgcntr.css">
       <h:form id="revise">
         <script type="text/javascript">includeLatestJQuery("msgcntr");</script>
-        <sakai:script contextBase="/messageforums-tool" path="/js/messages.js"/>
+        <script type="text/javascript" src="/messageforums-tool/js/messages.js"></script>
 		<script type="text/javascript">
 			$(document).ready(function(){
 				//fade permission block and then disable all the inputs/selects in the permission include so as not to confuse people
@@ -35,8 +35,8 @@
     		thisId = "Main" + org.sakaiproject.tool.cover.ToolManager.getCurrentPlacement().getId();
   		}
 		%>
-       		<sakai:script contextBase="/messageforums-tool" path="/js/sak-10625.js"/>
-       		<sakai:script contextBase="/messageforums-tool" path="/js/forum.js"/>			
+       		<script type="text/javascript" src="/messageforums-tool/js/sak-10625.js"></script>
+       		<script type="text/javascript" src="/messageforums-tool/js/forum.js"></script>			
 		<%--//designNote: this just feels weird - presenting somehting that sort of looks like the form used to create the topic (with an editable permissions block!) to comfirm deletion --%>
 <!--jsp/discussionForum/topic/dfTopicSettings.jsp-->
 		<%--<sakai:tool_bar_message value="#{msgs.cdfm_delete_topic_title}"/>--%>
@@ -63,30 +63,39 @@
 			<p class="textPanel">
 				    <h:outputText id="topic_shortDescription"  value="#{ForumTool.selectedTopic.topic.shortDescription}"/>
 			</p>
-			<p><a id="show" class="show"  href="#">
-				<h:graphicImage url="/images/collapse.gif" alt="" /><h:outputText   value="#{msgs.cdfm_full_description}"/>
-			</a></p>
-			<p><a id="hide" class="hide"  href="#">
-				<h:graphicImage url="/images/expand.gif" alt="" /><h:outputText   value="#{msgs.cdfm_full_description}"/>
-			</a></p>
-				
-			<div class="textPanel toggle"  id="toggle">
-				<mf:htmlShowArea hideBorder="true" id="topic_fullDescription"  value="#{ForumTool.selectedTopic.topic.extendedDescription}"/>
-				
+
+			<h:panelGroup>
+				<h:panelGroup layout="block" id="openLinkBlock" styleClass="toggleParent openLinkBlock">
+					<a href="#" id="showMessage" class="toggle show">
+						<h:graphicImage url="/images/expand.gif" alt=""/>
+						<h:outputText value=" #{msgs.cdfm_read_full_description}" />
+					</a>
+				</h:panelGroup>
+				<h:panelGroup layout="block" id="hideLinkBlock" styleClass="toggleParent hideLinkBlock display-none">
+					<a href="#" id="hideMessage" class="toggle show">
+						<h:graphicImage url="/images/collapse.gif" alt="" />
+						<h:outputText value=" #{msgs.cdfm_hide_full_description}"/>
+					</a>
+				</h:panelGroup>
+			</h:panelGroup>
+
+			<h:panelGroup layout="block" id="fullTopicDescription" styleClass="textPanel fullTopicDescription">
+				<h:outputText escape="false" value="#{ForumTool.selectedTopic.topic.extendedDescription}" />
+
 				<div class="table-responsive">
-				<h:dataTable value="#{ForumTool.selectedTopic.attachList}" var="eachAttach" rendered="#{!empty ForumTool.selectedTopic.attachList}" styleClass="table table-hover table-striped table-bordered" columnClasses="attach,bogus">
-				  <h:column>
-					<sakai:contentTypeMap fileType="#{eachAttach.attachment.attachmentType}" mapType="image" var="imagePath" pathPrefix="/library/image/"/>									
-					<h:graphicImage id="exampleFileIcon" value="#{imagePath}" alt="" />					
-					</h:column>
-					  <h:column>
-					<h:outputLink value="#{eachAttach.url}" target="_blank">
-					  <h:outputText value="#{eachAttach.attachment.attachmentName}"  style="text-decoration:underline;"/>
-				    </h:outputLink>
-				  </h:column>
-				</h:dataTable>
+					<h:dataTable value="#{ForumTool.selectedTopic.attachList}" var="eachAttach" rendered="#{!empty ForumTool.selectedTopic.attachList}" styleClass="table table-hover table-striped table-bordered" columnClasses="attach,bogus">
+						<h:column>
+							<sakai:contentTypeMap fileType="#{eachAttach.attachment.attachmentType}" mapType="image" var="imagePath" pathPrefix="/library/image/"/>
+							<h:graphicImage id="exampleFileIcon" value="#{imagePath}" alt="" />
+						</h:column>
+						<h:column>
+							<h:outputLink value="#{eachAttach.url}" target="_blank">
+								<h:outputText value="#{eachAttach.attachment.attachmentName}"  style="text-decoration:underline;"/>
+							</h:outputLink>
+						</h:column>
+					</h:dataTable>
 				</div>
-			</div>
+			</h:panelGroup>
 		</div>	
 		<%-- originally hidden
 		   <h4><h:outputText  value="Anonymous Responses"/></h4>
