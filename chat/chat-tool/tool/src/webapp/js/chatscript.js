@@ -18,13 +18,22 @@
  * limitations under the License.
  *
  **********************************************************************************/
+ 
+// When user goes between tabs or back from home screen, we monitor and updateChatData
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState == 'hidden' || document.visibilityState == 'visible') {
+    chatscript.changePageVisibility(document.visibilityState);
+  }
+});
+
 var chatscript = {
 	url_submit : "/direct/chat-message/",
 	keycode_enter : 13,
 	pollInterval : 5000,
 	currentChatChannelId : null,
 	timeoutVar : null,
-	
+	pageVisibility : 'visible',
+
 	init : function(){
 		var me = this;
 		
@@ -35,6 +44,7 @@ var chatscript = {
 		var textarea = $("#topForm\\:controlPanel\\:message");
 		var submitButton = $("#topForm\\:controlPanel\\:submit");
 		var resetButton = $("#topForm\\:controlPanel\\:reset");
+
 		submitButton.bind('click', function() {
 			var messageBody = textarea.val();
 			submitButton.prop("disabled", true);
@@ -101,9 +111,31 @@ var chatscript = {
 			});
 		});
 	},
+  changePageVisibility : function(newVisibility) {
+    this.pageVisibility = newVisibility;
+    if (newVisibility == 'visible') {
+      this.updateChatData();
+    }
+  },
+	onAjaxError: function (xhr) {
+
+		var textarea = $("#topForm\\:controlPanel\\:message");
+		var submitButton = $("#topForm\\:controlPanel\\:submit");
+		if (xhr.status === 404) {
+			$("#missingChannel").slideDown('fast');
+			textarea.val("").prop("disabled", true);
+			submitButton.prop("disabled", true);
+			$("#topForm\\:controlPanel\\:reset").prop("disabled", true);
+		} else {
+			$("#errorSubmit").slideDown('fast');
+			submitButton.prop("disabled", false);
+		}
+		textarea.focus();
+	},
 	sendMessage : function(params, textarea, submitButton) {
 		var me = this;
 		var errorSubmit = $("#errorSubmit");
+		var missingChannel = $("#missingChannel");
 		$.ajax({
 			url: me.url_submit + 'new',
 			data: params,
@@ -111,17 +143,15 @@ var chatscript = {
 			beforeSend: function() {
 				errorSubmit.slideUp('fast');
 			},
-			error: function(xhr, ajaxOptions, thrownError) {
-				errorSubmit.slideDown('fast');
-				textarea.focus();
-				submitButton.prop("disabled", false);
+			error: function(xhr, textStatus, errorThrown) {
+				me.onAjaxError(xhr);
 			},
 			success: function(data) {
 				me.scrollChat();
 				me.updateChatData();
 				textarea.val("").focus();
 				submitButton.prop("disabled", false);
-			}
+			},
 		});
 	},
 	deleteMessage : function(messageId) {
@@ -143,12 +173,16 @@ var chatscript = {
 		if(this.timeoutVar != null) {
 			clearTimeout(this.timeoutVar);
 		}
-		this.timeoutVar = setTimeout(function() {
-			me.updateChatData();
-		}, this.pollInterval);
+		// If the tab is hidden, no use in firing AJAX requests for new chat data
+		if(this.pageVisibility != 'hidden') {
+			this.timeoutVar = setTimeout(function() {
+				me.updateChatData();
+			}, this.pollInterval);
+		}
 	},
 	doUpdateChatData : function() {
 		var me = this;
+		var missingChannel = $("#missingChannel");
 		var url = me.url_submit + portal.user.id + "/chatData.json";
 		var params = {
 			"siteId": portal.siteId,
@@ -159,10 +193,13 @@ var chatscript = {
 			data: params,
 			type: "GET",
 			cache: false,
-			success: function(data) {
+			success: function (data) {
 				me.addMessages(data.data.messages);
 				me.updatePresentUsers(data.data.presentUsers);
 				me.deleteMessages(data.data.deletedMessages);
+			},
+			error: function (xhr, textStatus, errorThrown) {
+				me.onAjaxError(xhr);
 			}
 		});
 	},
@@ -184,11 +221,13 @@ var chatscript = {
 
 		for (var i=0; i<messages.length; i++) {
 			var lastMessageOwnerId = $("#topForm\\:chatList li[class!='divisorNewMessages']").last().attr("data-owner-id");
+			var lastMessageMillis  = $("#topForm\\:chatList li[class!='divisorNewMessages']").last().attr("data-millis");
 			var messageId = messages[i].id;
 			var ownerId = messages[i].owner;
 			var ownerDisplayName = messages[i].ownerDisplayName;
 
 			var messageDate = messages[i].messageDate;
+			var messageMillisDiff = messages[i].messageDate - (lastMessageMillis ? lastMessageMillis : 0);
 			var localizedDate = messages[i].messageDateString.localizedDate;
 			var localizedTime = messages[i].messageDateString.localizedTime;
 			var dateID = messages[i].messageDateString.dateID;
@@ -203,6 +242,7 @@ var chatscript = {
 				messageItem.removeAttr("id");
 				messageItem.attr("data-message-id", messageId);
 				messageItem.attr("data-owner-id", ownerId);
+				messageItem.attr("data-millis", messageDate);
 				messageItem.find(".chatUserAvatar").css("background-image", "url(/direct/profile/" + ownerId + "/image)");
 				messageItem.find(".chatMessage").attr("data-message-id", messageId);
 				messageItem.find(".chatName").attr("id", ownerId);
@@ -212,7 +252,7 @@ var chatscript = {
 				if (removeable) {
 					messageItem.find(".chatRemove").removeClass("hide");
 				}
-				if (lastMessageOwnerId == ownerId) {
+				if (lastMessageOwnerId == ownerId && messageMillisDiff < (5*60*1000)) {
 					messageItem.addClass("nestedMessage");
 					messageItem.find(".chatMessageDate").text(dateStr);
 				}

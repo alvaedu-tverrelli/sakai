@@ -1,11 +1,6 @@
 <div class="portletBody">
 #if ($alertMessage)<div class="alertMessage">$tlang.getString("gen.alert") $alertMessage</div>#end
 #if ($!popup) 
-#if ( ! $!popupdone ) 
-<script type="text/javascript" language="JavaScript">
-window.open('$!source','BasicLTI');
-</script>
-#end
 <p>
 $tlang.getString("new.page.launch") </p> <p>
 <a href="$source" onclick="window.open('$!source','BasicLTI'); return false;" target="LTI">$tlang.getString("new.page.relaunch")</a>
@@ -20,6 +15,8 @@ $tlang.getString("new.page.launch") </p> <p>
 	marginwidth="0"
 	marginheight="0"
 	scrolling="auto"
+	allowfullscreen="true"
+	allow="$!browser-feature-allow"
 	src="$!source">
 </iframe>
 <script>

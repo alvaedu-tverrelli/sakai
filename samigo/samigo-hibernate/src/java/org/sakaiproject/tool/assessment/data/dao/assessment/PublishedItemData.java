@@ -615,7 +615,7 @@ public class PublishedItemData
     */
    public String getAnswerKey() {
 		String answerKey = "";
-		ArrayList itemTextArray = getItemTextArraySorted();
+		ArrayList<ItemTextIfc> itemTextArray = getItemTextArraySorted();
 		if (itemTextArray.size() == 0)
 			return answerKey;
 
@@ -637,19 +637,39 @@ public class PublishedItemData
 				}
 			}
 			return answerKey;
+		} else if (typeId.equals(TypeD.MATCHING)) {
+
+			List<String> answerKeys = new ArrayList<>(itemTextArray.size());
+			for (ItemTextIfc question : itemTextArray) {
+				boolean isDistractor = true;
+
+				List<AnswerIfc> answersSorted = question.getAnswerArraySorted();
+				for (AnswerIfc answer : answersSorted) {
+					if (!getPartialCreditFlag() && answer.getIsCorrect()) {
+						answerKeys.add(question.getSequence() + ":" + answer.getLabel());
+						isDistractor = false;
+						break;
+					}
+				}
+
+				if (isDistractor) {
+					answerKeys.add(
+						question.getSequence()
+							+ ":"
+							+ rb.getString("choice_labels").split(":")[answersSorted.size()]);
+				}
+			}
+
+			answerKey = StringUtils.join(answerKeys, ", ");
+			return answerKey;
 		}
-	   
-		List answerArray = ((ItemTextIfc) itemTextArray.get(0))
-				.getAnswerArraySorted();
-		HashMap h = new HashMap();
-		
+
 		for (int i = 0; i < itemTextArray.size(); i++) {
 			ItemTextIfc text = (ItemTextIfc) itemTextArray.get(i);
 			List answers = text.getAnswerArraySorted();
 			for (int j = 0; j < answers.size(); j++) {
 				AnswerIfc a = (AnswerIfc) answers.get(j);
 				if (!this.getPartialCreditFlag() && (Boolean.TRUE).equals(a.getIsCorrect())) {
-					String pair = (String) h.get(a.getLabel());
 					if (!this.getTypeId().equals(TypeD.MATCHING)) {
 						if (this.getTypeId().equals(TypeD.TRUE_FALSE)) {
 							answerKey = a.getText();
@@ -665,13 +685,6 @@ public class PublishedItemData
 							} else {
 								answerKey += "," + a.getLabel();
 							}
-						}
-					} else {
-						if (pair == null) {
-							String s = a.getLabel() + ":" + text.getSequence();
-							h.put(a.getLabel(), s);
-						} else {
-							h.put(a.getLabel(), pair + " " + text.getSequence());
 						}
 					}
 				}
@@ -689,21 +702,6 @@ public class PublishedItemData
 							answerKey += ",&nbsp;" + a.getLabel() + "&nbsp;<span style='color: green'>(" + pc + "%&nbsp;" + correct + ")</span>";
 						}
 					}
-				}
-			}
-			if (this.getTypeId().equals(TypeD.MATCHING)) {
-				for (int k = 0; k < answerArray.size(); k++) {
-					AnswerIfc a = (AnswerIfc) answerArray.get(k);
-					String pair = (String) h.get(a.getLabel());
-					// if answer is not a match to any text, just print answer
-					// label
-					if (pair == null)
-						pair = a.getLabel() + ": ";
-
-					if (k != 0)
-						answerKey = answerKey + ",  " + pair;
-					else
-						answerKey = pair;
 				}
 			}
 		}
@@ -1058,6 +1056,10 @@ public class PublishedItemData
   }
   public String getImageMapSrc() {
 	  return getItemMetaDataByLabel(ItemMetaDataIfc.IMAGE_MAP_SRC);
+  }
+
+  public String getImageMapAltText() {
+      return getItemMetaDataByLabel(ItemMetaDataIfc.IMAGE_MAP_ALT_TEXT);
   }
 
  public Double getMinScore() {

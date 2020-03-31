@@ -19,7 +19,7 @@ package org.sakaiproject.contentreview.compilatio;
 
 import lombok.Setter;
 import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.sakaiproject.assignment.api.AssignmentService;
@@ -35,6 +35,7 @@ import org.sakaiproject.contentreview.exception.QueueException;
 import org.sakaiproject.contentreview.exception.ReportException;
 import org.sakaiproject.contentreview.exception.SubmissionException;
 import org.sakaiproject.contentreview.exception.TransientSubmissionException;
+import org.sakaiproject.contentreview.service.BaseContentReviewService;
 import org.sakaiproject.contentreview.service.ContentReviewQueueService;
 import org.sakaiproject.contentreview.service.ContentReviewService;
 import org.sakaiproject.entity.api.EntityManager;
@@ -59,7 +60,9 @@ import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.util.*;
 
-public class CompilatioReviewServiceImpl implements ContentReviewService {
+import javax.servlet.http.HttpServletRequest;
+
+public class CompilatioReviewServiceImpl extends BaseContentReviewService {
 	
 	private static final Log log = LogFactory.getLog(CompilatioReviewServiceImpl.class);
 	
@@ -182,7 +185,6 @@ public class CompilatioReviewServiceImpl implements ContentReviewService {
 	@Setter protected ToolManager toolManager;
 	@Setter protected UserDirectoryService userDirectoryService;
 	@Setter protected ContentHostingService contentHostingService;
-	@Setter protected ServerConfigurationService serverConfigurationService;
 	@Setter protected EntityManager entityManager;
 	@Setter protected AssignmentService assignmentService;
 	@Setter protected CompilatioAccountConnection compilatioConn;
@@ -580,6 +582,11 @@ public class CompilatioReviewServiceImpl implements ContentReviewService {
 		}
 
 		log.info("Finished fetching reports from Compilatio : "+success+" success items, "+inprogress+" in progress, "+errors+" errors");
+	}
+
+	@Override
+	public void syncRosters() {
+		// Auto-generated method stub
 	}
 	
 	@Override
@@ -1037,5 +1044,26 @@ public class CompilatioReviewServiceImpl implements ContentReviewService {
 			return item;
 		}
 		return null;
+	}
+
+	@Override
+	public String getEndUserLicenseAgreementLink(String userId) {
+		return null;
+	}
+
+	@Override
+	public Instant getEndUserLicenseAgreementTimestamp() {
+		return null;
+	}
+
+	@Override
+	public String getEndUserLicenseAgreementVersion() {
+		return null;
+	}
+
+	@Override
+	public void webhookEvent(HttpServletRequest request, int providerId, Optional<String> customParam) {
+		// TODO Auto-generated method stub
+		
 	}
 }

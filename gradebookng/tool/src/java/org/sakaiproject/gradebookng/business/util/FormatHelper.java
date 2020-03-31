@@ -24,7 +24,10 @@ import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 import org.apache.commons.lang.StringUtils;
@@ -32,6 +35,7 @@ import org.apache.commons.validator.routines.DoubleValidator;
 import org.sakaiproject.util.ResourceLoader;
 
 import lombok.extern.slf4j.Slf4j;
+import org.sakaiproject.service.gradebook.shared.CategoryDefinition;
 
 @Slf4j
 public class FormatHelper {
@@ -46,7 +50,12 @@ public class FormatHelper {
 	 * @return double to decimal places
 	 */
 	public static String formatDoubleToDecimal(final Double score) {
-		return formatDoubleToDecimal(score, 2);
+		if (score == null) {
+                        return "";
+		}
+		else {
+                        return formatDoubleToDecimal(score, 2);
+		}
 	}
 
 	/**
@@ -188,6 +197,16 @@ public class FormatHelper {
 	}
 
 	/**
+	 * Convert an empty grade to a dash for display purposes
+	 *
+	 * @param grade
+	 * @return a dash if the grade is empty, the original grade if not
+	 */
+	public static String convertEmptyGradeToDash(final String grade) {
+		return StringUtils.defaultIfBlank(grade, " - ");
+	}
+
+	/**
 	 * Format a grade using the locale
 	 *
 	 * @param grade - string representation of a grade
@@ -256,6 +275,16 @@ public class FormatHelper {
 	}
 
 	/**
+	 * Strips out line breaks
+	 *
+	 * @param s String to abbreviate
+	 * @return string without line breaks
+	 */
+	public static String stripLineBreaks(final String s) {
+		return s.replaceAll("\\r\\n|\\r|\\n", "");
+	}
+
+	/**
 	 * Abbreviate a string via {@link StringUtils#abbreviateMiddle(String, String, int)}
 	 *
 	 * Set at 45 chars
@@ -265,17 +294,6 @@ public class FormatHelper {
 	 */
 	public static String abbreviateMiddle(final String s) {
 		return StringUtils.abbreviateMiddle(s, "...", 45);
-	}
-
-	/**
-	 * Validate if a string is a valid Double using the specified Locale.
-	 *
-	 * @param value - The value validation is being performed on.
-	 * @return true if the value is valid
-	 */
-	public static boolean isValidDouble(final String value) {
-		final DoubleValidator dv = new DoubleValidator();
-		return dv.isValid(value, rl.getLocale());
 	}
 
 	/**
@@ -321,5 +339,38 @@ public class FormatHelper {
 		} catch (final UnsupportedEncodingException e) {
 			throw new AssertionError("UTF-8 not supported");
 		}
+	}
+
+	/**
+	 * Returns a list of drop highest/lowest labels based on the settings of the given category.
+	 * @param category the category
+	 * @return a list of 1 or 2 labels indicating that drop highest/lowest is in use, or an empty list if not in use.
+	 */
+	public static List<String> formatCategoryDropInfo(CategoryDefinition category) {
+
+		if (category == null) {
+			return Collections.emptyList();
+		}
+
+		int dropHighest = category.getDropHighest() == null ? 0 : category.getDropHighest();
+		int dropLowest = category.getDropLowest() == null ? 0 : category.getDropLowest();
+		int keepHighest = category.getKeepHighest() == null ? 0 : category.getKeepHighest();
+
+		if (dropHighest == 0 && dropLowest == 0 && keepHighest == 0) {
+			return Collections.emptyList();
+		}
+
+		List<String> info = new ArrayList<>(2);
+		if (dropHighest > 0) {
+			info.add(MessageHelper.getString("label.category.drophighest", dropHighest));
+		}
+		if (dropLowest > 0) {
+			info.add(MessageHelper.getString("label.category.droplowest", dropLowest));
+		}
+		if (keepHighest > 0) {
+			info.add(MessageHelper.getString("label.category.keephighest", keepHighest));
+		}
+
+		return info;
 	}
 }

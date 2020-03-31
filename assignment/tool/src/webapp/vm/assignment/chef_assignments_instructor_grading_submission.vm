@@ -29,7 +29,7 @@
         </div>
     #end
     #if ($alertMessage)
-        <div class="alertMessage">$tlang.getString("gen.alert") $alertMessage</div>
+        <div class="alertMessage"><strong>$tlang.getString("gen.alert")</strong> $alertMessage</div>
         <div style="display:block;clear:both"></div>#end
 
     ## the form
@@ -183,7 +183,7 @@
                         $reviewServiceName&nbsp;$tlang.getString("review.report")
                     </th>
                     <td>
-                        #if (!$submission)
+                        #if (!$submission || !$!service.isContentReviewVisibleForSubmission($!submission))
                             $tlang.getString("review.notavail")
                         #else
                             #set($reviewResults=$!service.getContentReviewResults($!submission))
@@ -237,7 +237,7 @@
 ##                    <th>$tlang.getString('gen.history')</th>
 ##                    <td>
 ##                        #foreach ($entry in $submission.getSubmissionLog())
-##                            $entry<br/>
+##                            $validator.escapeHtml($entry)<br/>
 ##                        #end
 ##                    </td>
 ##                </tr>
@@ -266,41 +266,7 @@
             #end
 
             ## Assignment Attachments
-            #set ($attachments = $assignment.Attachments)
-            #if ($attachments)
-                #set ($size = $attachments.size())
-                #if ($size < 1)
-                    <p class="instruction">
-                        #if ($submissionType == 5)
-                            $tlang.getString("gen.noatt.single")
-                        #else
-                            $tlang.getString("gen.noatt")
-                        #end
-                    </p>
-                #else
-                    <h4>$tlang.getString("gen.addres2")</h4>
-                    <ul class="attachList indnt1">
-                        #foreach ($attachmentReference in $attachments)
-                            #set ($reference = $assignmentAttachmentReferences.get($attachmentReference))
-                            #if ($reference)
-                                #set ($props = false)
-                                #set ($props = $reference.Properties)
-                                #if ($!props)
-                                    <li>
-                                        #if ($props.getBooleanProperty($props.NamePropIsCollection))
-                                            <img src = "#imageLink($contentTypeImageService.getContentTypeImage("folder"))" border="0" alt="$tlang.getString("gen.folatt")" />
-                                        #else
-                                            <img src = "#imageLink($contentTypeImageService.getContentTypeImage($props.getProperty($props.NamePropContentType)))" border="0" alt="$tlang.getString("gen.filatt")" />
-                                        #end
-                                        <a href="$reference.Url" target="_blank">$validator.escapeHtml($props.getPropertyFormatted($props.NamePropDisplayName))</a>
-                                        #propertyDetails($props)
-                                    </li>
-                                #end
-                            #end
-                        #end
-                    </ul>
-                #end
-            #end
+            #attachmentFragment($assignment.Attachments $assignmentAttachmentReferences $!decoratedUrlMap)
         #end
         ## show the assignment content
 
@@ -429,7 +395,7 @@
             <p class="text-warning">$tlang.getString("nonelec_instruction2")</p>
         #else
             #if($submissionType == 1 || $submissionType == 3)
-                #if (($submission.Submitted || !$alertGradeDraft) && !$!value_feedback_text.isEmpty())
+                #if (($submission.Submitted || !$alertGradeDraft) && $!value_feedback_text && !$!value_feedback_text.isEmpty())
                     <p class="text-info">$tlang.getString("gradingsub.belisthe")</p>
                     <div class="textarea-holder">
                         <textarea name="$name_feedback_text" id="$name_feedback_text" rows="30" wrap="virtual" cols="80">
@@ -536,18 +502,14 @@
                         <p class="shorttext">
                             <label for="grade">$tlang.getString("gen.gra2")</label>
                             <select name="$name_grade" id="grade">
-                                <option value="" #if($!value_grade.equals(""))selected="selected"#end>$tlang.getString("non.submission.grade.select")</option>
-                                #foreach ($i in ["Pass", "Fail"])
+                                <option value="" #if($!grade_submission_grade.equals(""))selected="selected"#end>$tlang.getString("non.submission.grade.select")</option>
+                                #foreach ($i in ["pass", "fail"])
                                     <option value="$i"
-                                        #if ($!value_grade.equalsIgnoreCase($i))
+                                        #if ($!grade_submission_grade.equalsIgnoreCase($tlang.getString($i)))
                                             selected="selected"
                                         #end
                                         >
-                                        #if ($i=="Pass")
-                                            $tlang.getString("pass")
-                                        #elseif ($i=="Fail")
-                                            $tlang.getString("fail")
-                                        #end
+                                        $tlang.getString($i)
                                     </option>
                                 #end
                             </select>
@@ -587,7 +549,7 @@
                                 #set ($group_value_grade = $value_grades.get($submitter.getSubmitter()))
                                 #if ($gradeType == 2)
                                     <div class="row-override">
-                                        <label>$!submitterName</label>
+                                        <label>$validator.escapeHtml($!submitterName)</label>
                                         <div class="shorttext">
                                             <span$tlang.getString("gen.grade.override")</span>
                                             <select name="$group_name_grade" id="grade">
@@ -607,7 +569,7 @@
                                     </div>
                                 #elseif ($gradeType == 3)
                                     <div class="row-override">
-                                        <label>$!submitterName</label>
+                                        <label>$validator.escapeHtml($!submitterName)</label>
                                         <div class="shorttext">
                                             <span>$tlang.getString("gen.grade.override")</span> <input type="text"
                                                 name="$group_name_grade"
@@ -621,7 +583,7 @@
                                     </div>
                                 #elseif ($gradeType == 4)
                                     <div class="row-override">
-                                        <label>$!submitterName</label>
+                                        <label>$validator.escapeHtml($!submitterName)</label>
                                         <div class="shorttext">
                                             <span>$tlang.getString("gen.grade.override")</span>
                                             <select name="$group_name_grade" id="grade">
@@ -648,7 +610,7 @@
                                     </div>
                                 #elseif ($gradeType == 5)
                                     <div class="row-override">
-                                        <label>$!submitterName</label>
+                                        <label>$validator.escapeHtml($!submitterName)</label>
                                         <div class="assignment-checkbox-inline">
                                             <span>$tlang.getString("gen.grade.override")</span>
                                             <label for="gradeChecked">

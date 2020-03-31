@@ -800,6 +800,10 @@
       <to-view-id>/jsf/delivery/tableOfContents.jsp</to-view-id>
     </navigation-case>
     <navigation-case>
+      <from-outcome>accessDenied</from-outcome>
+      <to-view-id>/jsf/delivery/accessDenied.jsp</to-view-id>
+    </navigation-case>
+    <navigation-case>
       <from-outcome>accessError</from-outcome>
       <to-view-id>/jsf/delivery/accessError.jsp</to-view-id>
     </navigation-case>
@@ -1466,10 +1470,6 @@
       </renderer>
    </render-kit>
 
-	<validator>
- 		<validator-id>finResponseValidator</validator-id>
- 		<validator-class>org.sakaiproject.tool.assessment.jsf.validator.FinResponseValidator</validator-class>
- 	</validator>
  	<validator>
  		<validator-id>finQuestionValidator</validator-id>
  		<validator-class>org.sakaiproject.tool.assessment.jsf.validator.FinQuestionValidator</validator-class>

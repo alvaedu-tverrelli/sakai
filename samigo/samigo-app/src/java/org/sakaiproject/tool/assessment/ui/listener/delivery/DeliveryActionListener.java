@@ -179,6 +179,7 @@ public class DeliveryActionListener
       // However, it comes from Begin Assessment button clicks, we need to reset the indexes to 0
       // Otherwise, the first question of the first part will not be displayed 
       if (ae != null && ae.getComponent().getId().startsWith("beginAssessment")) {
+    	  delivery.setSubmissionFiles(new HashMap());
     	  if (!delivery.getNavigation().equals("1")) {
     		  // If it comes from Begin Assessment button clicks (in Random assessment), reset the indexes to 0
     		  log.debug("From Begin Assessment button clicks");
@@ -1045,26 +1046,21 @@ public class DeliveryActionListener
     sec.setNumber("" + part.getSequence());
     sec.setMetaData(part);
 
-    Iterator iter = itemSet.iterator();
-    List itemContents = new ArrayList();
+    List<ItemContentsBean> itemContents = new ArrayList<>();
     int i = 0;
-    while (iter.hasNext())
+    for (ItemDataIfc thisItem : itemSet)
     {
-      ItemDataIfc thisitem = (ItemDataIfc) iter.next();
-      ItemContentsBean itemBean = getQuestionBean(thisitem, itemGradingHash, 
-                                                  delivery, publishedAnswerHash);
+      ItemContentsBean itemBean = getQuestionBean(thisItem, itemGradingHash, delivery, publishedAnswerHash);
 
       // Deal with numbering
       itemBean.setNumber(++i);
-      if (delivery.getSettings().getItemNumbering().equals
-          (AssessmentAccessControl.RESTART_NUMBERING_BY_PART.toString()))
+      if (delivery.getSettings().getItemNumbering().equals(AssessmentAccessControl.RESTART_NUMBERING_BY_PART.toString()))
       {
         itemBean.setSequence(Integer.toString(itemBean.getNumber()));
       }
       else
       {
-        itemBean.setSequence( ( (Integer) itemGradingHash.get("sequence" +
-          thisitem.getItemId().toString())).toString());
+        itemBean.setSequence( ( (Integer) itemGradingHash.get("sequence" + thisItem.getItemId().toString())).toString());
       }
 
       // scoring
@@ -2454,7 +2450,8 @@ public class DeliveryActionListener
   public void populateImageMapQuestion(ItemDataIfc item, ItemContentsBean bean, Map publishedAnswerHash)
   {	
 	bean.setImageSrc(item.getImageMapSrc());
-	
+	bean.setImageAltText(item.getImageMapAltText());
+
 	Iterator iter = item.getItemTextArraySorted().iterator();
     int j = 1;
     List beans = new ArrayList();

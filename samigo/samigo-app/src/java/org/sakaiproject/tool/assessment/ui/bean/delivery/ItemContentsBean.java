@@ -34,10 +34,14 @@ import java.util.Map;
 import javax.faces.model.SelectItem;
 
 import lombok.extern.slf4j.Slf4j;
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.math3.util.Precision;
+
 import org.sakaiproject.event.cover.EventTrackingService;
 import org.sakaiproject.samigo.util.SamigoConstants;
+import org.sakaiproject.tool.assessment.data.dao.grading.ItemGradingAttachment;
 import org.sakaiproject.tool.assessment.data.dao.grading.ItemGradingData;
 import org.sakaiproject.tool.assessment.data.dao.grading.MediaData;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.AnswerIfc;
@@ -144,7 +148,7 @@ public class ItemContentsBean implements Serializable {
 	
 	private String pointsDisplayString;
 
-	private List itemGradingAttachmentList;
+	private List<ItemGradingAttachment> itemGradingAttachmentList;
 	
 	private Long itemGradingIdForFilePicker;
 	
@@ -171,6 +175,8 @@ public class ItemContentsBean implements Serializable {
 	private String studentComment;
 	
 	private String imageSrc = "";
+	@Getter @Setter
+	private String imageAltText = "";
 
 	private Set<ItemTagIfc> tagsList;
 	private String tagsListToJson;
@@ -302,7 +308,7 @@ public class ItemContentsBean implements Serializable {
 	 * @return String representation of the points.
 	 */
 	public double getPoints() {
-		return Precision.round(points, 2);
+		return points;
 	}
 
 	/**
@@ -485,7 +491,13 @@ public class ItemContentsBean implements Serializable {
 						&& !data.getAnswerText().equals("")) {
 					return false;
 				}
-			} 
+			}
+			else if (getItemData().getTypeId().equals(TypeIfc.IMAGEMAP_QUESTION)) {
+				if (StringUtils.isNotEmpty(data.getAnswerText())
+						&& data.getAnswerText().matches("\\{\"x\":-?\\d+,\"y\":-?\\d+\\}")) {
+					return false;
+				}
+			}
 			else {
 				if (data.getPublishedAnswerId() != null
 						|| data.getAnswerText() != null) {
@@ -525,7 +537,11 @@ public class ItemContentsBean implements Serializable {
 	 * @return String representation of the max points.
 	 */
 	public double getRoundedMaxPoints() {
-		return Precision.round(maxPoints, 2);
+		return maxPoints;
+	}
+	
+	public double getRoundedMaxPointsToDisplay() {
+		return Precision.round(maxPoints, 2);		
 	}
 
 	/**
@@ -957,7 +973,7 @@ public class ItemContentsBean implements Serializable {
 		fibArray = newArray;
 	}
 
-	public List getFinArray() {
+	public List<FinBean> getFinArray() {
 		return finArray;
 	}
 
@@ -1367,7 +1383,7 @@ public class ItemContentsBean implements Serializable {
       if (itemData.getScore() == null)
 	  return 0.0;
       else
-	  return Precision.round(itemData.getScore(), 2);
+	  return itemData.getScore();
   }
 	 
   public void setUpdatedScore(Double score) {
@@ -1512,11 +1528,11 @@ public class ItemContentsBean implements Serializable {
       }
   }
 
-  public List getItemGradingAttachmentList() {
+  public List<ItemGradingAttachment> getItemGradingAttachmentList() {
 	  return itemGradingAttachmentList;
   }
 
-  public void setItemGradingAttachmentList(List itemGradingAttachmentList)
+  public void setItemGradingAttachmentList(List<ItemGradingAttachment> itemGradingAttachmentList)
   {
 	  this.itemGradingAttachmentList = itemGradingAttachmentList;
   }

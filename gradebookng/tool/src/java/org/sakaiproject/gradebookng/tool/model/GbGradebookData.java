@@ -46,6 +46,7 @@ import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class GbGradebookData {
@@ -64,12 +65,13 @@ public class GbGradebookData {
 		private String readonly;
 
 		private String studentNumber;
+		private String hasDroppedScores;
 	}
 
 	private interface ColumnDefinition {
 		public String getType();
 
-		public Score getValueFor(GbStudentGradeInfo studentGradeInfo, boolean isInstructor);
+		public Score getValueFor(GbStudentGradeInfo studentGradeInfo, boolean isUserAbleToEditAssessments);
 	}
 
 	@Value
@@ -102,7 +104,7 @@ public class GbGradebookData {
 		}
 
 		@Override
-		public Score getValueFor(final GbStudentGradeInfo studentGradeInfo, final boolean isInstructor) {
+		public Score getValueFor(final GbStudentGradeInfo studentGradeInfo, final boolean isUserAbleToEditAssessments) {
 			final Map<Long, GbGradeInfo> studentGrades = studentGradeInfo.getGrades();
 
 			final GbGradeInfo gradeInfo = studentGrades.get(assignmentId);
@@ -112,7 +114,7 @@ public class GbGradebookData {
 			} else {
 				final String grade = gradeInfo.getGrade();
 
-				if (isInstructor || gradeInfo.isGradeable()) {
+				if (isUserAbleToEditAssessments || gradeInfo.isGradeable()) {
 					return new EditableScore(grade);
 				} else {
 					return new ReadOnlyScore(grade);
@@ -130,6 +132,7 @@ public class GbGradebookData {
 		private boolean isExtraCredit;
 		private String color;
 		private boolean hidden;
+		private List<String> dropInfo;
 
 		@Override
 		public String getType() {
@@ -137,7 +140,7 @@ public class GbGradebookData {
 		}
 
 		@Override
-		public Score getValueFor(final GbStudentGradeInfo studentGradeInfo, final boolean isInstructor) {
+		public Score getValueFor(final GbStudentGradeInfo studentGradeInfo, final boolean isUserAbleToEditAssessments) {
 			final Map<Long, Double> categoryAverages = studentGradeInfo.getCategoryAverages();
 
 			final Double average = categoryAverages.get(categoryId);
@@ -184,6 +187,7 @@ public class GbGradebookData {
 	private GradebookInformation settings;
 	private GradebookUiSettings uiSettings;
 	private GbRole role;
+	private boolean isUserAbleToEditAssessments;
 	private Map<String, String> toolNameIconCSSMap;
 	private String defaultIconCSS;
 	private Map<String, Double> courseGradeMap;
@@ -197,6 +201,7 @@ public class GbGradebookData {
 		this.settings = gbGradeTableData.getGradebookInformation();
 		this.uiSettings = gbGradeTableData.getUiSettings();
 		this.role = gbGradeTableData.getRole();
+		this.isUserAbleToEditAssessments = gbGradeTableData.getisUserAbleToEditAssessments();
 
 		this.courseGradeMap = gbGradeTableData.getCourseGradeMap();
 
@@ -218,7 +223,7 @@ public class GbGradebookData {
 
 		// if we can't edit one of the items,
 		// we need to serialize this into the data
-		if (!isInstructor() && grades.stream().anyMatch(g -> !g.canEdit())) {
+		if (!isUserAbleToEditAssessments() && grades.stream().anyMatch(g -> !g.canEdit())) {
 			int i = 0;
 			for (StudentDefinition student : GbGradebookData.this.students) {
 				String readonly = "";
@@ -246,7 +251,7 @@ public class GbGradebookData {
 	}
 
 	private String serializeGrades(final List<Score> gradeList) {
-		if (gradeList.stream().anyMatch(score -> score.isLarge())) {
+		if (gradeList.stream().anyMatch(score -> !score.isPackable())) {
 			return "json:" + serializeLargeGrades(gradeList);
 		} else {
 			return "packed:" + serializeSmallGrades(gradeList);
@@ -254,7 +259,7 @@ public class GbGradebookData {
 	}
 
 	private String serializeLargeGrades(final List<Score> gradeList) {
-		final List<Double> scores = gradeList.stream().map(score -> score.isNull() ? -1 : score.getScore()).collect(Collectors.toList());
+		final List<Double> scores = gradeList.stream().map(score -> score.isNull() ? null : score.getScore()).collect(Collectors.toList());
 
 		try {
 			final ObjectMapper mapper = new ObjectMapper();
@@ -296,6 +301,11 @@ public class GbGradebookData {
 			}
 
 			final double grade = score.getScore();
+
+			if (grade < 0) {
+			    throw new IllegalStateException("serializeSmallGrades doesn't support negative scores");
+			}
+
 
 			final boolean hasFraction = ((int) grade != grade);
 
@@ -351,7 +361,7 @@ public class GbGradebookData {
 		result.put("isGroupedByCategory", uiSettings.isGroupedByCategory());
 		result.put("isCourseGradeReleased", settings.isCourseGradeDisplayed());
 		result.put("showPoints", uiSettings.getShowPoints());
-		result.put("instructor", isInstructor());
+		result.put("isUserAbleToEditAssessments", isUserAbleToEditAssessments());
 		result.put("isStudentNumberVisible", this.isStudentNumberVisible);
 
 		return result;
@@ -413,7 +423,7 @@ public class GbGradebookData {
 
 		for (GbStudentGradeInfo studentGradeInfo : GbGradebookData.this.studentGradeInfoList) {
 			for (ColumnDefinition column : GbGradebookData.this.columns) {
-				final Score grade = column.getValueFor(studentGradeInfo, isInstructor());
+				final Score grade = column.getValueFor(studentGradeInfo, isUserAbleToEditAssessments());
 				result.add(grade);
 			}
 		}
@@ -435,7 +445,8 @@ public class GbGradebookData {
 			studentDefinition.setUserId(student.getStudentUuid());
 			studentDefinition.setFirstName(student.getStudentFirstName());
 			studentDefinition.setLastName(student.getStudentLastName());
-			studentDefinition.setHasComments(formatCommentData(student));
+			studentDefinition.setHasComments(formatColumnFlags(student, g -> StringUtils.isNotBlank(g.getGradeComment())));
+			studentDefinition.setHasDroppedScores(formatColumnFlags(student, g -> g.isDroppedFromCategoryScore()));
 
 			if (this.isStudentNumberVisible) {
 				studentDefinition.setStudentNumber(student.getStudentNumber());
@@ -480,7 +491,7 @@ public class GbGradebookData {
 				counted = false;
 			}
 			result.add(new AssignmentDefinition(a1.getId(),
-					a1.getName(),
+					FormatHelper.stripLineBreaks(a1.getName()),
 					FormatHelper.abbreviateMiddle(a1.getName()),
 					FormatHelper.formatDoubleToDecimal(a1.getPoints()),
 					FormatHelper.formatDate(a1.getDueDate(), getString("label.studentsummary.noduedate")),
@@ -495,7 +506,7 @@ public class GbGradebookData {
 
 					nullable(a1.getCategoryId()),
 					a1.getCategoryName(),
-					userSettings.getCategoryColor(a1.getCategoryName(), a1.getCategoryId()),
+					userSettings.getCategoryColor(a1.getCategoryName()),
 					nullable(categoryWeight),
 					a1.isCategoryExtraCredit(),
 
@@ -512,8 +523,11 @@ public class GbGradebookData {
 								.getString(),
 						nullable(categoryWeight),
 						a1.isCategoryExtraCredit(),
-						userSettings.getCategoryColor(a1.getCategoryName(), a1.getCategoryId()),
-						!uiSettings.isCategoryScoreVisible(a1.getCategoryName())));
+						userSettings.getCategoryColor(a1.getCategoryName()),
+						!uiSettings.isCategoryScoreVisible(a1.getCategoryName()),
+						FormatHelper.formatCategoryDropInfo(categories.stream()
+								.filter(c -> c.getId().equals(a1.getCategoryId()))
+								.findAny().orElse(null))));
 			}
 		}
 
@@ -533,8 +547,9 @@ public class GbGradebookData {
 									.getString(),
 							nullable(categoryWeight),
 							category.isExtraCredit(),
-							userSettings.getCategoryColor(category.getName(), category.getId()),
-							!uiSettings.isCategoryScoreVisible(category.getName())));
+							userSettings.getCategoryColor(category.getName()),
+							!uiSettings.isCategoryScoreVisible(category.getName()),
+							FormatHelper.formatCategoryDropInfo(category)));
 				}
 			}
 		}
@@ -542,14 +557,14 @@ public class GbGradebookData {
 		return result;
 	}
 
-	private String formatCommentData(final GbStudentGradeInfo student) {
+	private String formatColumnFlags(final GbStudentGradeInfo student, Predicate<GbGradeInfo> predicate) {
 		final StringBuilder sb = new StringBuilder();
 
-		for (ColumnDefinition column : GbGradebookData.this.columns) {
+		for (ColumnDefinition column : columns) {
 			if (column instanceof AssignmentDefinition) {
 				final AssignmentDefinition assignmentColumn = (AssignmentDefinition) column;
 				final GbGradeInfo gradeInfo = student.getGrades().get(assignmentColumn.getAssignmentId());
-				if (gradeInfo != null && !StringUtils.isBlank(gradeInfo.getGradeComment())) {
+				if (gradeInfo != null && predicate.test(gradeInfo)) {
 					sb.append('1');
 				} else {
 					sb.append('0');
@@ -574,6 +589,10 @@ public class GbGradebookData {
 		return GbRole.INSTRUCTOR.equals(role);
 	}
 
+	private boolean isUserAbleToEditAssessments() {
+		return isUserAbleToEditAssessments;
+	}
+
 	private abstract class Score {
 		private String score;
 
@@ -592,8 +611,8 @@ public class GbGradebookData {
 			return score == null;
 		}
 
-		public boolean isLarge() {
-			return score != null && Double.valueOf(score) > 16384;
+		public boolean isPackable() {
+			return isNull() || (Double.valueOf(score) >= 0 && Double.valueOf(score) < 16384);
 		}
 	}
 

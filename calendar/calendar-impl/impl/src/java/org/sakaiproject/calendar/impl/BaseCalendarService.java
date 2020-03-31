@@ -213,13 +213,14 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 	 * @inheritDoc
 	 */
 	public String calendarPdfReference(String context, String id, int scheduleType, String timeRangeString,
-			String userName, TimeRange dailyTimeRange)
+			String userName, TimeRange dailyTimeRange, boolean reverseOrder)
 	{
 		return getAccessPoint(true) + Entity.SEPARATOR + REF_TYPE_CALENDAR_PDF + Entity.SEPARATOR + context + Entity.SEPARATOR + id
 				+ "?" + SCHEDULE_TYPE_PARAMETER_NAME + "=" + Validator.escapeHtml(Integer.valueOf(scheduleType).toString()) + "&"
 				+ TIME_RANGE_PARAMETER_NAME + "=" + timeRangeString + "&"
 				+ Validator.escapeHtml(USER_NAME_PARAMETER_NAME) + "=" + Validator.escapeUrl(userName) + "&"
-				+ DAILY_START_TIME_PARAMETER_NAME + "=" + Validator.escapeHtml(dailyTimeRange.toString());
+				+ DAILY_START_TIME_PARAMETER_NAME + "=" + Validator.escapeHtml(dailyTimeRange.toString()) + "&"
+				+ ORDER_EVENTS_PARAMETER_NAME + "=" + reverseOrder;
 	}
 
    
@@ -330,10 +331,11 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 	 *        The List of calendar References.
 	 * @param range
 	 *        The time period to use to select events.
+	 * @param reverseOrder
+	 * 		  CalendarEventVector object will be ordered reverse.       
 	 * @return CalendarEventVector object with the union of all events from the list of calendars in the given time range.
 	 */
-	public CalendarEventVector getEvents(List references, TimeRange range)
-	{
+	public CalendarEventVector getEvents(List references, TimeRange range, boolean reverseOrder) {
 		CalendarEventVector calendarEventVector = null;
 
 		if (references != null && range != null)
@@ -383,12 +385,29 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 
 			// Do a sort since each of the events implements the Comparable interface.
 			Collections.sort(allEvents);
+			if (reverseOrder) {
+				Collections.reverse(allEvents);
+			}
 
 			// Build up a CalendarEventVector and return it.
 			calendarEventVector = new CalendarEventVector(allEvents.iterator());
 		}
 
 		return calendarEventVector;
+	}
+	
+	/**
+	 * Takes several calendar References and merges their events from within a given time range.
+	 * 
+	 * @param references
+	 *        The List of calendar References.
+	 * @param range
+	 *        The time period to use to select events.
+	 * @return CalendarEventVector object with the union of all events from the list of calendars in the given time range.
+	 */
+	public CalendarEventVector getEvents(List references, TimeRange range)
+	{
+		return this.getEvents(references, range, false);
 	}
 
 	/**
@@ -5157,6 +5176,8 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 	protected final static String CALENDAR_PARAMETER_BASE_NAME = "calendar";
 
 	protected final static String SCHEDULE_TYPE_PARAMETER_NAME = "scheduleType";
+	
+	protected final static String ORDER_EVENTS_PARAMETER_NAME = "order";
 
 
 
@@ -5431,11 +5452,14 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 
 		// Now get the time range.
 		TimeRange timeRange = getTimeRangeFromParameters(parameters);
+		
+		// Now get the order
+		boolean reverseOrder = Boolean.parseBoolean( (String) parameters.get(ORDER_EVENTS_PARAMETER_NAME) );
 
 		Document document = docBuilder.newDocument();
 
 		pdfExportService.generateXMLDocument(scheduleType, document, timeRange, getDailyStartTimeFromParameters(parameters),
-				calendarReferenceList, userName, this);
+				calendarReferenceList, userName, this, reverseOrder);
 
 		pdfExportService.generatePDF(document, pdfExportService.getXSLFileNameForScheduleType(scheduleType), os);
 	}
@@ -5696,15 +5720,7 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 	
 	protected void handleAccessIcalCommon(HttpServletRequest req, HttpServletResponse res, Reference ref, String calRef)
 			throws EntityPermissionException, PermissionException, IOException {
-		
-		// Extract the alias name to use for the filename.
-		List alias =  m_aliasService.getAliases(calRef);
-		String aliasName = "schedule.ics";
-		if ( ! alias.isEmpty() )
-			aliasName =  ((Alias)alias.get(0)).getId();
-		
-		List<String> referenceList = getCalendarReferences(ref.getContext());
-		Time modDate = m_timeService.newTime(0);
+
 		// Ok so we need to check to see if we've handled this reference before.
 		// This is to prevent loops when including calendars
 		// that currently includes other calendars we only do the check in here.
@@ -5713,6 +5729,16 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 			log.warn("Reject internal request for: "+ calRef);
 			return;
 		}
+
+		// Extract the alias name to use for the filename.
+		List<Alias> alias =  m_aliasService.getAliases(calRef);
+		String aliasName = "schedule.ics";
+		if ( ! alias.isEmpty() )
+			aliasName =  alias.get(0).getId();
+		
+		List<String> referenceList = getCalendarReferences(ref.getContext());
+		Time modDate = m_timeService.newTime(0);
+
 		// update date/time reference
 		for (String curCalRef: referenceList)
 		{

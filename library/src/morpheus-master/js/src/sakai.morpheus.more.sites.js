@@ -174,20 +174,20 @@ function showToolMenu(jqObj){
   var classId = jqObj.attr('id');
   // We need to escape special chars, like exclamations, or else $PBJQ selectors don't work.
   var id = classId.replace(/!/g,'\\!').replace(/~/g,'\\~');
-  $PBJQ('.toolMenus').removeClass('toolMenusActive');
+  $PBJQ('.toolMenus').removeClass('toolMenusActive').attr('aria-expanded', 'false');
 
   if ($PBJQ('.' + id).length) {
     $PBJQ('#otherSiteTools').remove();
   } else {
     var subsubmenu_elt = $PBJQ('<ul id="otherSiteTools" role="menu" />').addClass(classId);
     var siteURL = '/direct/site/' + classId + '/pages.json';
-    scroll(0, 0)
+    scroll(0, 0);
     var maxToolsInt = parseInt($PBJQ('#maxToolsInt').text());
     var maxToolsText = $PBJQ('#maxToolsText').text();
 
     var li_template = $PBJQ('<li class="otherSiteTool" >' +
                             '<span>' +
-                            '<a role="menuitem"><span class="Mrphs-toolsNav__menuitem--icon"> </span></a>' +
+                            '<a role="menuitem" tabindex="-1"><span class="Mrphs-toolsNav__menuitem--icon"> </span></a>' +
                             '</span>' +
                             '</li>');
 
@@ -241,8 +241,11 @@ function showToolMenu(jqObj){
 
       $PBJQ('#otherSiteTools').remove();
       jqObj.closest('li').append(subsubmenu_elt);
+      // Move focus to first option and setup menu tools for arrow navigation
+      jqObj.closest('li').find('ul li a').first().focus();
+      addArrowNavAndDisableTabNav($PBJQ('ul#otherSiteTools'));
 
-      jqObj.parent().find('.toolMenus').addClass("toolMenusActive");
+      jqObj.parent().find('.toolMenus').addClass("toolMenusActive").attr('aria-expanded', 'true');
     }); // end json call
   }
 }
@@ -366,7 +369,7 @@ $PBJQ(document).ready(function($){
   // selector to cope with Site IDs containing strange characters.
   var itemsBySiteId = {};
   $PBJQ('.site-favorite-btn', favoritesPane).each(function (i, e) {
-    itemsBySiteId[$PBJQ(e).data('site-id')] = $PBJQ(e).parent();
+    itemsBySiteId[$PBJQ(e).attr('data-site-id')] = $PBJQ(e).parent();
   });
 
   var button_states = {
@@ -408,9 +411,9 @@ $PBJQ(document).ready(function($){
     $PBJQ(btn).data('favorite-state', state);
 
     if (state === 'favorite') {
-      $PBJQ(btn).attr('title', $PBJQ('#removeFromFavoritesText').text());
+      $PBJQ(btn).attr('title', $PBJQ('#removeFromFavoritesText').text().replace("[site]", $PBJQ(btn).parent().find('span.fullTitle').text() ));
     } else if (state === 'nonfavorite') {
-      $PBJQ(btn).attr('title', $PBJQ('#addToFavoritesText').text());
+      $PBJQ(btn).attr('title', $PBJQ('#addToFavoritesText').text().replace("[site]", $PBJQ(btn).parent().find('span.fullTitle').text() ));
     } else {
       $PBJQ(btn).attr('title', null);
     }
@@ -461,7 +464,7 @@ $PBJQ(document).ready(function($){
 
   var renderFavorites = function (favorites) {
     $PBJQ('.site-favorite-btn', favoritesPane).each(function (idx, btn) {
-      var buttonSiteId = $PBJQ(btn).data('site-id');
+      var buttonSiteId = $PBJQ(btn).attr('data-site-id');
 
       if ($PBJQ(btn).closest('.my-workspace').length > 0) {
         setButton(btn, 'myworkspace');
@@ -491,7 +494,7 @@ $PBJQ(document).ready(function($){
   var listFavorites = function () {
     // Any favorite button with the 'site-favorite' class has been starred.
     return $PBJQ('.site-favorite-btn', favoritesPane).has('.site-favorite').map(function () {
-      return $PBJQ(this).data('site-id');
+      return $PBJQ(this).attr('data-site-id');
     }).toArray();
   }
 
@@ -657,7 +660,7 @@ $PBJQ(document).ready(function($){
   $PBJQ(favoritesPane).on('click', '.site-favorite-btn', function () {
     var self = this;
 
-    var siteId = $PBJQ(self).data('site-id');
+    var siteId = $PBJQ(self).attr('data-site-id');
     var originalState = $PBJQ(self).data('favorite-state');
 
     if (originalState === 'myworkspace') {
@@ -833,8 +836,8 @@ $PBJQ(document).ready(function($){
           highlightMaxItems();
 
           // Update our ordering based on the new selection
-          favoritesList = list.find('.organize-favorite-item').map(function () {
-            return $PBJQ(this).data('site-id');
+          favoritesList = list.find('.organize-favorite-item *[data-site-id]').map(function () {
+            return $PBJQ(this).attr('data-site-id');
           }).toArray();
 
           // and send it all to the server
@@ -871,7 +874,7 @@ $PBJQ(document).ready(function($){
       // The clicked item was currently in "purgatory", having been unfavorited
       // in the process of organizing favorites.  This click will promote it
       // back to a favorite
-      var siteId = $PBJQ(self).data('site-id');
+      var siteId = $PBJQ(self).attr('data-site-id');
       returnElementToOriginalPositionIfPossible(siteId)
 
       var newIndex = favoritesList.indexOf(siteId);
@@ -897,7 +900,7 @@ $PBJQ(document).ready(function($){
     // Set the favorite state for both the entry under "Organize" and the
     // original entry under "Sites"
     setButton(self, buttonState);
-    setButton(itemsBySiteId[$PBJQ(self).data('site-id')].find('.site-favorite-btn'),
+    setButton(itemsBySiteId[$PBJQ(self).attr('data-site-id')].find('.site-favorite-btn'),
               buttonState);
 
     setAllOrNoneStarStates();

@@ -28,7 +28,6 @@ import java.util.Set;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
-import org.sakaiproject.samigo.util.SamigoConstants;
 import org.sakaiproject.tool.assessment.data.dao.shared.TypeD;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.AnswerIfc;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.ItemAttachmentIfc;
@@ -739,7 +738,7 @@ public ItemData() {}
 			}
 
 			if (isDistractor) {
-				answerKeys.add(question.getSequence() + ":" + Character.toString(SamigoConstants.ALPHABET.charAt(answersSorted.size())));
+				answerKeys.add(question.getSequence() + ":" + rb.getString("choice_labels").split(":")[answersSorted.size()]);
 			}
 		}
 
@@ -1138,6 +1137,10 @@ public ItemData() {}
   }
   public String getImageMapSrc() {
 	  return getItemMetaDataByLabel(ItemMetaDataIfc.IMAGE_MAP_SRC);	  
+  }
+
+  public String getImageMapAltText() {
+      return getItemMetaDataByLabel(ItemMetaDataIfc.IMAGE_MAP_ALT_TEXT);
   }
 
   public Double getMinScore() {

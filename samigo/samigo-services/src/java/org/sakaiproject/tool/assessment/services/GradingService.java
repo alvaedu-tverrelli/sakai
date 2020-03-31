@@ -981,6 +981,7 @@ public class GradingService
                                totalItems, fibEmiAnswersMap, emiScoresMap, publishedAnswerHash, regrade, calcQuestionAnswerSequence);
         }
         catch (FinFormatException e) {
+        	log.warn("Fin Format Exception while processing response. ", e);
         	autoScore = 0d;
         	if (invalidFINMap != null) {
         		if (invalidFINMap.containsKey(itemId)) {
@@ -1923,6 +1924,11 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 		  String studentAnswerText = null;
 		  if (data.getAnswerText() != null) {
 			  studentAnswerText = data.getAnswerText().replaceAll("\\s+", "").replace(',','.');    // in Spain, comma is used as a decimal point
+			  //The UI syntax expects a format with curly braces for complex numbers, remove them for the Commons Math library.
+			  if(StringUtils.contains(studentAnswerText, "{") && StringUtils.contains(studentAnswerText, "}")){
+				  studentAnswerText = StringUtils.replace(studentAnswerText, "{", "");
+				  studentAnswerText = StringUtils.replace(studentAnswerText, "}", "");
+			  }
 		  }
 
 		  if (range) {
@@ -1955,6 +1961,11 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 
 			  if (answer != null){ 	 
 		             answer = answer.replaceAll("\\s+", "").replace(',','.');  // in Spain, comma is used as a decimal point 	 
+		             //The UI syntax expects a format with curly braces, remove them for the Commons Math library.
+		             if(StringUtils.contains(answer, "{") && StringUtils.contains(answer, "}")){
+		                 answer = StringUtils.replace(answer, "{", "");
+		                 answer = StringUtils.replace(answer, "}", "");
+		             }
 			  }	 
 		 
 			  try {
@@ -2053,7 +2064,7 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
    */
   public Map validate(String value) {
 	  Map map = new HashMap();
-	  if (value == null || value.trim().equals("")) {
+	  if (StringUtils.isEmpty(value)) {
 		  return map;
 	  }
 	  String trimmedValue = value.trim();
@@ -2533,15 +2544,15 @@ Here are the definition and 12 cases I came up with (lydia, 01/2006):
 	    return actualNumberReatke;
   }
   
-  public Map<Long, Long> getActualNumberRetakeHash(String agentIdString) {
-	    Map<Long, Long> actualNumberReatkeHash = new HashMap<>();
+  public Map<Long, Integer> getActualNumberRetakeHash(String agentIdString) {
+	    Map<Long, Integer> actualNumberRetakeHash = new HashMap<>();
 	    try {
-	    	actualNumberReatkeHash = PersistenceService.getInstance().
+	    	actualNumberRetakeHash = PersistenceService.getInstance().
 	        getAssessmentGradingFacadeQueries().getActualNumberRetakeHash(agentIdString);
 	    } catch (Exception e) {
 	      log.error(e.getMessage(), e);
 	    }
-	    return actualNumberReatkeHash;
+	    return actualNumberRetakeHash;
   }
     
   public Map<Long, Map<String, Long>> getSiteActualNumberRetakeHash(String siteIdString) {

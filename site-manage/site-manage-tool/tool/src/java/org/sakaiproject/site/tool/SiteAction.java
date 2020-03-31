@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.UUID;
 import java.util.Vector;
 
@@ -101,6 +102,7 @@ import org.sakaiproject.entity.api.Reference;
 import org.sakaiproject.entity.api.ResourceProperties;
 import org.sakaiproject.entity.api.ResourcePropertiesEdit;
 import org.sakaiproject.entity.cover.EntityManager;
+import org.sakaiproject.entitybroker.DeveloperHelperService;
 import org.sakaiproject.event.api.SessionState;
 import org.sakaiproject.event.api.NotificationService;
 import org.sakaiproject.event.cover.EventTrackingService;
@@ -117,6 +119,8 @@ import org.sakaiproject.importer.api.SakaiArchive;
 import org.sakaiproject.importer.api.ResetOnCloseInputStream;
 import org.sakaiproject.javax.PagingPosition;
 import org.sakaiproject.lti.api.LTIService;
+import org.sakaiproject.memory.api.Cache;
+import org.sakaiproject.memory.api.MemoryService;
 import org.sakaiproject.scoringservice.api.ScoringAgent;
 import org.sakaiproject.scoringservice.api.ScoringService;
 import org.sakaiproject.site.api.Group;
@@ -158,8 +162,17 @@ import org.sakaiproject.userauditservice.api.UserAuditRegistration;
 import org.sakaiproject.userauditservice.api.UserAuditService;
 import org.sakaiproject.shortenedurl.api.ShortenedUrlService;
 // for basiclti integration
+import org.sakaiproject.site.api.SiteService.SiteTitleValidationStatus;
+import org.sakaiproject.util.BaseResourcePropertiesEdit;
+import org.sakaiproject.util.FileItem;
+import org.sakaiproject.util.FormattedText;
+import org.sakaiproject.util.ParameterParser;
+import org.sakaiproject.util.RequestFilter;
+import org.sakaiproject.util.ResourceLoader;
+import org.sakaiproject.util.SortedIterator;
+import org.sakaiproject.util.Validator;
+import org.sakaiproject.util.Web;
 import org.sakaiproject.util.api.LinkMigrationHelper;
-import org.sakaiproject.util.*;
 
 /**
  * <p>
@@ -222,6 +235,11 @@ public class SiteAction extends PagedResourceActionII {
 	private static ShortenedUrlService shortenedUrlService = (ShortenedUrlService) ComponentManager.get(ShortenedUrlService.class);
 	
 	private PreferencesService preferencesService = (PreferencesService)ComponentManager.get(PreferencesService.class);
+
+	private MemoryService memoryService = (MemoryService) ComponentManager.get(MemoryService.class);
+	private Cache m_userSiteCache = memoryService.newCache("org.sakaiproject.site.api.SiteService.userSiteCache");
+
+	private static DeveloperHelperService devHelperService = (DeveloperHelperService) ComponentManager.get(DeveloperHelperService.class);
 
 	private static final String SITE_MODE_SITESETUP = "sitesetup";
 
@@ -795,7 +813,7 @@ public class SiteAction extends PagedResourceActionII {
 	private String m_filePath;
 	private String moreInfoPath;
 	private String libraryPath;
-	
+
 	private static final String STATE_HARD_DELETE = "hardDelete";
 	
 	private static final String STATE_CREATE_FROM_ARCHIVE = "createFromArchive";
@@ -1680,9 +1698,10 @@ public class SiteAction extends PagedResourceActionII {
 
 			//Add flash notification when new site is created
 			if(state.getAttribute(STATE_NEW_SITE_STATUS_ID) != null){
-				String  flashNotifMsg = "<a title=\"" + state.getAttribute(STATE_NEW_SITE_STATUS_TITLE) + "\"href=\"/portal/site/"+
+				String siteTitle = Validator.escapeHtml((String)state.getAttribute(STATE_NEW_SITE_STATUS_TITLE));
+				String  flashNotifMsg = "<a title=\"" + siteTitle + "\"href=\"/portal/site/"+
 				state.getAttribute(STATE_NEW_SITE_STATUS_ID) + "\" target=\"_top\">"+
-				state.getAttribute(STATE_NEW_SITE_STATUS_TITLE)+"</a>" +" "+
+				siteTitle+"</a>" +" "+
 				rb.getString("sitdup.hasbeedup");
 				addFlashNotif(state,flashNotifMsg);
 				StringBuilder sbFlashNotifAction =  new StringBuilder();
@@ -2609,10 +2628,6 @@ public class SiteAction extends PagedResourceActionII {
 				if (SiteTypeUtil.isProjectSite(siteType)) {
 					context.put("isProjectSite", Boolean.TRUE);
 				}
-
-				if (StringUtils.trimToNull(siteInfo.iconUrl) != null) {
-					context.put(FORM_ICON_URL, siteInfo.iconUrl);
-				}
 			}
 
 			// about skin and icon selection
@@ -2625,6 +2640,7 @@ public class SiteAction extends PagedResourceActionII {
 			context.put("title", siteInfo.title);
 			context.put(FORM_SITE_URL_BASE, getSiteBaseUrl());
 			context.put(FORM_SITE_ALIAS, siteInfo.getFirstAlias());
+			context.put(FORM_ICON_URL, siteInfo.iconUrl);
 			context.put("description", siteInfo.description);
 			context.put("short_description", siteInfo.short_description);
 			context.put("form_site_contact_name", siteInfo.site_contact_name);
@@ -4813,11 +4829,11 @@ public class SiteAction extends PagedResourceActionII {
 		// read the search form field into the state object
 		String search = StringUtils.trimToNull(Validator.escapeHtml(data.getParameters().getString(FORM_SEARCH)));
 
-		// set the flag to go to the prev page on the next list
-		if (StringUtils.isNotBlank(search)) {
+		// If there is no search term provided, remove any previous search term from state
+		if (StringUtils.isBlank(search)) {
 			state.removeAttribute(SITE_USER_SEARCH);
 		} else {
-			//search item is present, if the result was paged clear the top position from the state
+			// Search term is present, reset the paging and set the search term in state
 			resetPaging(state);
 			state.setAttribute(SITE_USER_SEARCH, search);
 		}
@@ -6218,14 +6234,6 @@ private Map<String,List> getTools(SessionState state, String type, Site site) {
 			}
 		}
 	}
-	
-	List toolRegistrationSelectedList = (List) state.getAttribute(STATE_TOOL_REGISTRATION_SELECTED_LIST);
-	
-	//If this is the first time through add these selected tools as the default otherwise don't touch this
-	if (toolRegistrationSelectedList==null) {
-		state.setAttribute(STATE_TOOL_REGISTRATION_SELECTED_LIST, selectedTools);
-	}
-
 	return toolGroup;
 }
 
@@ -8933,6 +8941,12 @@ private Map<String,List> getTools(SessionState state, String type, Site site) {
 						}
 				}
 				authzGroupService.save(realmEdit);
+
+				// SAK-41181
+				usersDeleted.stream().map(ud -> ud.substring(4)).collect(Collectors.toList()).forEach(ud -> {
+					log.debug("Removing user uuid {} from the user site cache", ud);
+					m_userSiteCache.remove(ud);
+				});
 				
 				// do the audit logging - Doing this in one bulk call to the database will cause the actual audit stamp to be off by maybe 1 second at the most
 				// but seems to be a better solution than call this multiple time for every update
@@ -9623,11 +9637,13 @@ private Map<String,List> getTools(SessionState state, String type, Site site) {
 				if (state.getAttribute(SITE_DUPLICATED) == null) {
 					if ((SecurityService.isSuperUser())&& ((StringUtils.trimToNull(params.getString("newSiteId")) != null)&&(SiteService.siteExists(params.getString("newSiteId"))))){
 					    addAlert(state, rb.getString("sitdup.idused") + " ");
-					} else if (StringUtils.trimToNull(params.getString("title")) == null) {
-					    addAlert(state, rb.getString("java.dupli") + " ");
-					} else {
-						String title = params.getString("title");
-						state.setAttribute(SITE_DUPLICATED_NAME, title);
+					}
+
+					// duplicated site title is editable; cannot but null/empty after HTML stripping, and cannot exceed max length
+					String titleOrig = params.getString("title");
+					String titleStripped = FormattedText.stripHtmlFromText(titleOrig, true, true);
+					if (isSiteTitleValid(titleOrig, titleStripped, state)) {
+						state.setAttribute(SITE_DUPLICATED_NAME, titleStripped);
 
 						String newSiteId = null;
 						if (StringUtils.trimToNull(params.getString("newSiteId")) == null) {
@@ -9668,7 +9684,7 @@ private Map<String,List> getTools(SessionState state, String type, Site site) {
 							}
 
 							// set title
-							site.setTitle(title);
+							site.setTitle(titleStripped);
 							
 							// SAK-20797 alter quota if required
 							boolean	duplicateQuota = params.getString("dupequota") != null ? params.getBoolean("dupequota") : false;
@@ -10522,18 +10538,12 @@ private Map<String,List> getTools(SessionState state, String type, Site site) {
 		// title
 		boolean hasRosterAttached = params.getString("hasRosterAttached") != null ? Boolean.getBoolean(params.getString("hasRosterAttached")) : false;
 		if ((siteTitleEditable(state, siteInfo.site_type) || !hasRosterAttached) && params.getString("title") != null) 	 
-		{ 	 
-			// site titel is editable and could not be null
-			String title = StringUtils.trimToNull(params.getString("title"));
-			siteInfo.title = title;
-			
-			if (title == null) { 	 
-				addAlert(state, rb.getString("java.specify") + " "); 	 
-			} 	 
-			// check for site title length 	 
-			else if (title.length() > SiteConstants.SITE_GROUP_TITLE_LIMIT) 	 
-			{ 	 
-				addAlert(state, rb.getFormattedMessage("site_group_title_length_limit", new Object[]{SiteConstants.SITE_GROUP_TITLE_LIMIT})); 	 
+		{
+			// site title is editable; cannot but null/empty after HTML stripping, and cannot exceed max length
+			String titleOrig = params.getString("title");
+			String titleStripped = FormattedText.stripHtmlFromText(titleOrig, true, true);
+			if (isSiteTitleValid(titleOrig, titleStripped, state)) {
+				siteInfo.title = titleStripped;
 			}
 		}
 				
@@ -11320,21 +11330,17 @@ private Map<String,List> getTools(SessionState state, String type, Site site) {
 			state.removeAttribute(STATE_TOOL_EMAIL_ADDRESS);
 		}
 
-		// commit
 		commitSite(site);
 		
+		siteManageService.importToolsIntoSite(site, chosenList, importTools, false);
+
+		// after importing content we need to refresh the site
 		site = refreshSiteObject(site);
 
-		// import
-		siteManageService.importToolsIntoSite(site, chosenList, importTools, false);
-		
-		// SAK-22384 add LaTeX (MathJax) support
-		if (MathJaxEnabler.prepareMathJaxToolSettingsForSave(site, state))
-		{
-			commitSite(site);
-		}
-
-		if (LessonsSubnavEnabler.prepareSiteForSave(site, state)) {
+		boolean updateSite;
+		updateSite = MathJaxEnabler.prepareMathJaxToolSettingsForSave(site, state);
+		updateSite = LessonsSubnavEnabler.prepareSiteForSave(site, state) || updateSite;
+		if (updateSite) {
 			commitSite(site);
 		}
 	} // saveFeatures
@@ -13423,25 +13429,22 @@ private Map<String,List> getTools(SessionState state, String type, Site site) {
 		List<AcademicSession> academicSessions = new ArrayList<AcademicSession>();
 		User user = UserDirectoryService.getCurrentUser();
 		
-		if( cms != null && user != null)
+		if( cms != null && user != null && groupProvider != null)
 		{
-			Map<String, String> sectionRoles = cms.findSectionRoles( user.getEid() );			
-			if( sectionRoles != null )
+			Map<String, String> sectionsToRoles = groupProvider.getGroupRolesForUser(user.getEid());
+			final Set<String> rolesAllowed = getRolesAllowedToAttachSection();
+			Map<String, String> filteredSectionsToRoles = sectionsToRoles.entrySet().stream()
+				.filter(entry->rolesAllowed.contains(entry.getValue()))
+				.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+			for (String sectionEid : filteredSectionsToRoles.keySet())
 			{
-				// Iterate through all the sections and add their corresponding academic sessions to our return value
-				Set<String> sectionEids = sectionRoles.keySet();
-				Iterator<String> itr = sectionEids.iterator();
-				while( itr.hasNext() )
+				Section section = cms.getSection(sectionEid);
+				if (section != null)
 				{
-					String sectionEid = itr.next();
-					Section section = cms.getSection( sectionEid );
-					if( section != null )
+					CourseOffering courseOffering = cms.getCourseOffering(section.getCourseOfferingEid());
+					if (courseOffering != null)
 					{
-						CourseOffering courseOffering = cms.getCourseOffering( section.getCourseOfferingEid() );
-						if( courseOffering != null )
-						{
-							academicSessions.add( courseOffering.getAcademicSession() );
-						}
+						academicSessions.add(courseOffering.getAcademicSession());
 					}
 				}
 			}
@@ -13565,7 +13568,7 @@ private Map<String,List> getTools(SessionState state, String type, Site site) {
 		return includeRole;
 	} // includeRole
 
-	protected Set getRolesAllowedToAttachSection() {
+	protected Set<String> getRolesAllowedToAttachSection() {
 		// Use !site.template.[site_type]
 		String azgId = "!site.template.course";
 		AuthzGroup azgTemplate;
@@ -13575,7 +13578,7 @@ private Map<String,List> getTools(SessionState state, String type, Site site) {
 			log.error(this + ".getRolesAllowedToAttachSection: Could not find authz group " + azgId, e);
 			return new HashSet();
 		}
-		Set roles = azgTemplate.getRolesIsAllowed("site.upd");
+		Set<String> roles = azgTemplate.getRolesIsAllowed("site.upd");
 		roles.addAll(azgTemplate.getRolesIsAllowed("realm.upd"));
 		return roles;
 	} // getRolesAllowedToAttachSection
@@ -14940,7 +14943,16 @@ private Map<String,List> getTools(SessionState state, String type, Site site) {
 					}
 					else
 					{
-						state.setAttribute(STATE_TEMPLATE_INDEX, "37");
+						if (ServerConfigurationService.getBoolean(SAK_PROP_FILTER_TERMS, Boolean.FALSE))
+						{
+							// Filter terms is intended to prevent users from hitting case 37 (manual creation).
+							// This will handle element inspecting the academic session dropdown
+							state.setAttribute(STATE_TEMPLATE_INDEX, "36");
+						}
+						else
+						{
+							state.setAttribute(STATE_TEMPLATE_INDEX, "37");
+						}
 					}		
 				}
 
@@ -15001,40 +15013,33 @@ private Map<String,List> getTools(SessionState state, String type, Site site) {
 	
 	/**
 	 * Handle the eventSubmit_doUnjoin command to have the user un-join this site.
+	 * @param data
 	 */
 	public void doUnjoin(RunData data) {
 		
-		SessionState state = ((JetspeedRunData) data)
-			.getPortletSessionState(((JetspeedRunData) data).getJs_peid());
+		SessionState state = ((JetspeedRunData) data).getPortletSessionState(((JetspeedRunData) data).getJs_peid());
 		final ParameterParser params = data.getParameters();
-
 		final String id = params.get("itemReference");
-		String siteTitle = null;
-		
-		if (id != null)	{
-			try	{
-				siteTitle = SiteService.getSite(id).getTitle();
+
+		if (id != null) {
+			try {
 				SiteService.unjoin(id);
-				String msg = rb.getString("sitinfimp.youhave") + " " + siteTitle;
-				addAlert(state, msg);
-				
-			} catch (IdUnusedException ignore) {
-				
-			} catch (PermissionException e)	{
-				// This could occur if the user's role is the maintain role for the site, and we don't let the user
-				// unjoin sites they are maintainers of
-			 	log.warn(e.getMessage());
-				//TODO can't access site so redirect to portal
-				
+				String userHomeURL = devHelperService.getUserHomeLocationURL(devHelperService.getCurrentUserReference());
+				addAlert(state, rb.getFormattedMessage("site.unjoin", new Object[] {userHomeURL}));
+			} catch (IdUnusedException e) {
+				// Something strange happened, log and notify the user
+				log.debug("Unexpected error: ", e);
+				addAlert(state, rb.getFormattedMessage("site.unjoin.error", new Object[] {ServerConfigurationService.getString("mail.support")}));
+			} catch (PermissionException e) {
+				// This could occur if the user's role is the maintain role for the site, and unjoining would leave the site without
+				// a user with the maintain role
+				log.warn(e.getMessage());
+				addAlert(state, rb.getString("site.unjoin.permissionException"));
 			} catch (InUseException e) {
-				addAlert(state, siteTitle + " "
-						+ rb.getString("sitinfimp.sitebeing") + " ");
+				log.debug("InUseException: ", e);
+				addAlert(state, rb.getString("site.unjoin.inUseException"));
 			}
 		}
-		
-		// refresh the whole page
-		scheduleTopRefresh();
-		
 	} // doUnjoin
 
 	
@@ -15428,5 +15433,29 @@ private Map<String,List> getTools(SessionState state, String type, Site site) {
 		return true; //backwards compatibility
 	}
 
-	
+	/**
+	 * Responsible for checking validation status of the original versus stripped site title, and
+	 * adding necessary error messages to the STATE.
+	 * @param titleOrig the original site title as entered by the user
+	 * @param titleStripped the produce of passing the original string into FormattedText.stripHtmlFromText(titleOrig, true, true);
+	 * @param true if the stripped title passes all validation; false otherwise
+	 */
+	private boolean isSiteTitleValid(String titleOrig, String titleStripped, SessionState state) {
+		SiteTitleValidationStatus status = SiteService.validateSiteTitle(titleOrig, titleStripped);
+
+		if (null != status) switch(status)
+		{
+			case STRIPPED_TO_EMPTY:
+				addAlert(state, rb.getString("siteTitle.htmlStrippedToEmpty"));
+				return false;
+			case EMPTY:
+				addAlert(state, rb.getString("java.specify"));
+				return false;
+			case TOO_LONG:
+				addAlert(state, rb.getFormattedMessage("site_group_title_length_limit", new Object[] {SiteConstants.SITE_GROUP_TITLE_LIMIT}));
+				return false;
+		}
+
+		return true;
+	}
 }

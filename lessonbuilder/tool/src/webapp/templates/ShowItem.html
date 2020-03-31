@@ -52,6 +52,7 @@ if (newsize > 32760) newsize = 32760;
 iframe.style.height = (newsize + 50) + 'px';
 setMainFrameHeight(window.name);
 
+doc.body.className+=(" "+iframe.getAttribute('data-namespace'));
 }
 
 </script>
@@ -186,7 +187,6 @@ function toggleShortUrlOutput(defaultUrl, checkbox, textbox) {
 			allowfullscreen="true"
 			webkitallowfullscreen="true"
 			mozallowfullscreen="true"
-			allow="camera; microphone"
 			scrolling="auto">
 		</iframe>
 		<script>

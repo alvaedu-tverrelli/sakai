@@ -88,7 +88,7 @@ function whichradio(el) {
 			var id = $(this).prop('id');
 			if(id.indexOf(colId) !== -1 && $(this).is(':checked')) {
 				el.checked = false;
-				alert("You are only allowed one selection per column, please try again.");
+				alert(matrixChoicesAlert);
 				allowChange = false;
 			}
 		});
@@ -96,3 +96,12 @@ function whichradio(el) {
 
 	return allowChange;
 }
+
+function returnToHostUrl(url) {
+
+  if (url) {
+    parent.location.href = url;
+    return false;
+  }
+}
+

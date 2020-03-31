@@ -64,6 +64,7 @@ import org.sakaiproject.tool.assessment.facade.EventLogFacade;
 import org.sakaiproject.tool.assessment.facade.PublishedAssessmentFacade;
 import org.sakaiproject.tool.assessment.services.FinFormatException;
 import org.sakaiproject.tool.assessment.services.GradingService;
+import org.sakaiproject.tool.assessment.services.PersistenceService;
 import org.sakaiproject.tool.assessment.services.SaLengthException;
 import org.sakaiproject.tool.assessment.services.assessment.EventLogService;
 import org.sakaiproject.tool.assessment.services.assessment.PublishedAssessmentService;
@@ -89,6 +90,9 @@ import org.sakaiproject.tool.cover.SessionManager;
 import org.sakaiproject.tool.cover.ToolManager;
 import org.sakaiproject.util.ResourceLoader;
 
+import lombok.Getter;
+import lombok.Setter;
+
 /**
  *
  * @author casong
@@ -105,7 +109,6 @@ public class DeliveryBean
   //SAM-2517
   private ServerConfigurationService serverConfigurationService;
   
-  private static final String MATHJAX_ENABLED = "mathJaxEnabled";
   private static final String MATHJAX_SRC_PATH_SAKAI_PROP = "portal.mathjax.src.path";
   private static final String MATHJAX_SRC_PATH = ServerConfigurationService.getString(MATHJAX_SRC_PATH_SAKAI_PROP);
   
@@ -137,6 +140,12 @@ public class DeliveryBean
   private String confirmation;
   private String outcome;
   private String receiptEmailSetting;
+  @Getter @Setter
+  private Map<String, MediaData> submissionFiles = new HashMap<>();
+  
+  public List<MediaData> getSubmissionFilesList() {
+	return new ArrayList<MediaData>(submissionFiles.values());
+  }
 
   //Settings
   private String questionLayout;
@@ -157,6 +166,8 @@ public class DeliveryBean
   private java.util.Date retractDate;
   private boolean statsAvailable;
   private boolean submitted;
+  // True if the assessment was completely submitted
+  private boolean assessmentSubmitted = false;
   private boolean graded;
   private String graderComment;
   private List<AssessmentGradingAttachment> assessmentGradingAttachmentList;
@@ -1187,9 +1198,19 @@ public class DeliveryBean
     return submitted;
   }
 
+  public boolean isAssessmentSubmitted()
+  {
+    return assessmentSubmitted;
+  }
+
   public void setSubmitted(boolean submitted)
   {
     this.submitted = submitted;
+  }
+
+  public void setAssessmentSubmitted(boolean assessmentSubmitted)
+  {
+    this.assessmentSubmitted = assessmentSubmitted;
   }
 
   public boolean isGraded()
@@ -1611,6 +1632,8 @@ public class DeliveryBean
 	  PublishedAssessmentService publishedAssessmentService = new PublishedAssessmentService();
 	  String siteId = publishedAssessmentService.getPublishedAssessmentOwner(adata.getPublishedAssessmentId());
 	  String resource = "siteId=" + AgentFacade.getCurrentSiteId() + ", submissionId=" + local_assessmentGradingID;
+
+	  setAssessmentSubmitted(true);
 
 	  if (!isFromTimer) {
 		  if (this.actionMode == TAKE_ASSESSMENT_VIA_URL) // this is for accessing via published url
@@ -2889,7 +2912,7 @@ public class DeliveryBean
   }
 
   public void attachToItemContentBean(ItemGradingData itemGradingData, String questionId){
-    List list = new ArrayList();
+    List<ItemGradingData> list = new ArrayList<>();
     list.add(itemGradingData);
     //find out sectionId from questionId
     log.debug("**** attachToItemContentBean, questionId={}", questionId);
@@ -2905,23 +2928,21 @@ public class DeliveryBean
     SectionContentsBean partSelected = null;
 
     //get all partContents
-    List parts = getPageContents().getPartsContents();
-    for (int i=0; i<parts.size(); i++){
-      SectionContentsBean part = (SectionContentsBean)parts.get(i);
+    List<SectionContentsBean> parts = getPageContents().getPartsContents();
+    for (SectionContentsBean part : parts) {
       log.debug("**** question's sectionId{}", sectionId);
       log.debug("**** partId{}", part.getSectionId());
-      if (sectionId.equals(part.getSectionId())){
+      if (sectionId.equals(part.getSectionId())) {
         partSelected = part;
         break;
       }
     }
     //locate the itemContentBean - the hard way, sigh...
-    List items = new ArrayList();
+    List<ItemContentsBean> items = new ArrayList<>();
     if (partSelected!=null)
       items = partSelected.getItemContents();
-    for (int j=0; j<items.size(); j++){
-      ItemContentsBean item = (ItemContentsBean)items.get(j);
-      if ((publishedItem.getItemId()).equals(item.getItemData().getItemId())){ // comparing itemId not object
+    for (ItemContentsBean item : items) {
+      if ((publishedItem.getItemId()).equals(item.getItemData().getItemId())) { // comparing itemId not object
         item.setItemGradingDataArray(list);
         break;
       }
@@ -3223,7 +3244,11 @@ public class DeliveryBean
     if (adata!=null){
       assessmentGrading = service.load(adata.getAssessmentGradingId().toString(), false);
     }
-    
+
+    if (!canAccess(isViaUrlLogin)) {
+      return "accessDenied";
+    }
+
     if (isRemoved()){
         return "isRemoved";
     }
@@ -3359,7 +3384,11 @@ public class DeliveryBean
   }
   
   public String checkBeforeProceed(boolean isSubmitForGrade, boolean isFromTimer){
-	  return checkBeforeProceed(isSubmitForGrade, isFromTimer, false);
+	  boolean isViaUrlLogin = false;
+	  if(AgentFacade.getCurrentSiteId() == null){
+	    isViaUrlLogin = true;
+	  }
+	  return checkBeforeProceed(isSubmitForGrade, isFromTimer, isViaUrlLogin);
   }
 
   private boolean getHasSubmissionLeft(int numberRetake){
@@ -3396,18 +3425,23 @@ public class DeliveryBean
   }
   
   public boolean pastDueDate(){
-    boolean pastDue = true;
+    boolean pastDueDate = true;
     Date currentDate = new Date();
-		Date dueDate;
-		if (extendedTimeDeliveryService.hasExtendedTime()) {
-			dueDate = extendedTimeDeliveryService.getDueDate();
-		} else {
-			dueDate = publishedAssessment.getAssessmentAccessControl().getDueDate();
-		}
-    if (dueDate == null || dueDate.after(currentDate)){
-        pastDue = false;
+    Date due = extendedTimeDeliveryService.hasExtendedTime() ? extendedTimeDeliveryService.getDueDate() : publishedAssessment.getAssessmentAccessControl().getDueDate();
+
+    if (due == null) {
+      if (AssessmentAccessControlIfc.ACCEPT_LATE_SUBMISSION.equals(publishedAssessment.getAssessmentAccessControl().getLateHandling())) {
+        Date retract = extendedTimeDeliveryService.hasExtendedTime() ? extendedTimeDeliveryService.getRetractDate() : publishedAssessment.getAssessmentAccessControl().getRetractDate();
+        if (due == null && retract != null) {
+          due = retract;
+        }
+      }
     }
-    return pastDue;
+
+    if (due == null || due.after(currentDate)) {
+      pastDueDate = false;
+    }
+    return pastDueDate;
   }
 
   public boolean isAcceptLateSubmission() {
@@ -3435,6 +3469,17 @@ public class DeliveryBean
         isRetracted = false;
     }
     return isRetracted;
+  }
+
+  private boolean canAccess(boolean fromUrl) {
+    if (getAnonymousLogin()) {
+      return true;
+    }
+
+    String siteId = fromUrl ? publishedAssessment.getOwnerSiteId() : AgentFacade.getCurrentSiteId();
+    return PersistenceService.getInstance()
+        .getAuthzQueriesFacade()
+        .hasPrivilege(SamigoConstants.AUTHZ_TAKE_ASSESSMENT, siteId);
   }
 
   private boolean isRemoved(){
@@ -3511,8 +3556,11 @@ public class DeliveryBean
 	      return returnUrl;
 	  StringBuilder url = new StringBuilder(ServerConfigurationService.getString("portalPath"));
 	  url.append("/site/");
-	  PublishedAssessmentService publishedAssessmentService = new PublishedAssessmentService();
-	  String currentSiteId = publishedAssessmentService.getPublishedAssessmentSiteId(getAssessmentId());
+	  String currentSiteId = AgentFacade.getCurrentSiteId();
+	  if(currentSiteId == null){
+	      PublishedAssessmentService publishedAssessmentService = new PublishedAssessmentService();
+	      currentSiteId = publishedAssessmentService.getPublishedAssessmentSiteId(getAssessmentId());
+	  }
 	  url.append(currentSiteId);
 	  url.append("/page/");
 	  url.append(getCurrentPageId(currentSiteId));
@@ -3529,6 +3577,7 @@ public class DeliveryBean
     this.timerId = timerId;
   }
 
+  
 	private Site getCurrentSite(String id) {
 		Site site = null;
 		//Placement placement = ToolManager.getCurrentPlacement();
@@ -3539,6 +3588,22 @@ public class DeliveryBean
 			log.error(e.getMessage(), e);
 		}
 		return site;
+	}
+	
+	public String getAudioQuestionLink() {
+		Site currentSite = getCurrentSite(getSiteId());
+		String placement = null;
+		
+		if (currentSite != null) {
+			placement = ToolManager.getCurrentPlacement().getId();
+		}
+
+		if (placement != null) {
+			return "/portal/tool/" + placement + "/jsf/author/audioRecordingPopup.faces";
+		}
+		else {
+			return "/samigo-app/jsf/author/audioRecordingPopup.faces";
+		}
 	}
 	
 	private String getCurrentPageId(String id) {
@@ -3740,68 +3805,60 @@ public class DeliveryBean
 		  String radioId = (String) FacesContext.getCurrentInstance().getExternalContext().getRequestParameterMap().get("radioId");
 		  StringBuilder redrawAnchorName = new StringBuilder("p");
 		  String tmpAnchorName = "";
-		  List parts = this.pageContents.getPartsContents();
+		  List<SectionContentsBean> parts = this.pageContents.getPartsContents();
 
-		  for (int i=0; i<parts.size(); i++) {
-			  SectionContentsBean sectionContentsBean = (SectionContentsBean) parts.get(i);
-			  String partSeq = sectionContentsBean.getNumber();
-			  
-			  List items = sectionContentsBean.getItemContents();
-			  for (int j=0; j<items.size(); j++) {
-				  ItemContentsBean item = (ItemContentsBean)items.get(j);
-				  
-				  //Just delete the checkbox of the current question
-				  if (!item.getItemData().getItemId().toString().equals(radioId)) continue;
+        for (SectionContentsBean part : parts) {
+          String partSeq = part.getNumber();
 
-				  String itemSeq = item.getItemData().getSequence().toString();
-				  redrawAnchorName.append(partSeq);
-				  redrawAnchorName.append("q");
-				  redrawAnchorName.append(itemSeq);
-				  if (tmpAnchorName.equals("") || tmpAnchorName.compareToIgnoreCase(redrawAnchorName.toString()) > 0) {
-					  tmpAnchorName = redrawAnchorName.toString();
-				  }
-				  
-				  if (item.getItemData().getTypeId().longValue() == TypeIfc.MULTIPLE_CHOICE.longValue() || 
-						  item.getItemData().getTypeId().longValue() == TypeIfc.MULTIPLE_CORRECT_SINGLE_SELECTION.longValue() ||
-						  item.getItemData().getTypeId().longValue() == TypeIfc.MULTIPLE_CHOICE_SURVEY.longValue() ||
-						  item.getItemData().getTypeId().longValue() == TypeIfc.MATRIX_CHOICES_SURVEY.longValue()) {
-					  item.setUnanswered(true);
-					  if(item.getItemData().getTypeId().longValue() == TypeIfc.MATRIX_CHOICES_SURVEY.longValue()){
-						  for (int k=0; k<item.getMatrixArray().size(); k++) {
-							  MatrixSurveyBean selection = (MatrixSurveyBean)item.getMatrixArray().get(k);
-							  selection.setResponseFromCleanRadioButton();
-						  }
-					  }else{
-						  for (int k=0; k<item.getSelectionArray().size(); k++) {
-							  SelectionBean selection = (SelectionBean)item.getSelectionArray().get(k);
-							  //selection.setResponse(false);
-							  selection.setResponseFromCleanRadioButton();
-						  }
-					  }
-					  
-					  List itemGradingData = new ArrayList();
-					  for( ItemGradingData itemgrading : item.getItemGradingDataArray() ){
-						  if (itemgrading.getItemGradingId() != null && itemgrading.getItemGradingId().intValue() > 0) {
-							  itemGradingData.add(itemgrading);
-							  itemgrading.setPublishedAnswerId(null);
-						  }
-					  }
-					  item.setItemGradingDataArray(itemGradingData);
-				  }
+          List<ItemContentsBean> items = part.getItemContents();
+          for (ItemContentsBean item : items) {
+            //Just delete the checkbox of the current question
+            if (!item.getItemData().getItemId().toString().equals(radioId)) continue;
 
-				  if (item.getItemData().getTypeId().longValue() == TypeIfc.TRUE_FALSE.longValue()) {
-					  item.setResponseId(null);
-					  Iterator iter = item.getItemGradingDataArray().iterator();
-					  if (iter.hasNext())
-					  {
-						  ItemGradingData data = (ItemGradingData) iter.next();
-						  data.setPublishedAnswerId(null);
-					  }
-				  }
-				  item.setReview(false);
-				  item.setRationale("");
-			  }
-		  }
+            String itemSeq = item.getItemData().getSequence().toString();
+            redrawAnchorName.append(partSeq);
+            redrawAnchorName.append("q");
+            redrawAnchorName.append(itemSeq);
+            if (tmpAnchorName.equals("") || tmpAnchorName.compareToIgnoreCase(redrawAnchorName.toString()) > 0) {
+              tmpAnchorName = redrawAnchorName.toString();
+            }
+
+            if (item.getItemData().getTypeId().longValue() == TypeIfc.MULTIPLE_CHOICE.longValue() ||
+                    item.getItemData().getTypeId().longValue() == TypeIfc.MULTIPLE_CORRECT_SINGLE_SELECTION.longValue() ||
+                    item.getItemData().getTypeId().longValue() == TypeIfc.MULTIPLE_CHOICE_SURVEY.longValue() ||
+                    item.getItemData().getTypeId().longValue() == TypeIfc.MATRIX_CHOICES_SURVEY.longValue()) {
+              item.setUnanswered(true);
+              if (item.getItemData().getTypeId().longValue() == TypeIfc.MATRIX_CHOICES_SURVEY.longValue()) {
+                for (int k = 0; k < item.getMatrixArray().size(); k++) {
+                  MatrixSurveyBean selection = (MatrixSurveyBean) item.getMatrixArray().get(k);
+                  selection.setResponseFromCleanRadioButton();
+                }
+              } else {
+                for (int k = 0; k < item.getSelectionArray().size(); k++) {
+                  SelectionBean selection = (SelectionBean) item.getSelectionArray().get(k);
+                  //selection.setResponse(false);
+                  selection.setResponseFromCleanRadioButton();
+                }
+              }
+
+              List<ItemGradingData> itemGradingData = new ArrayList<>();
+              for (ItemGradingData itemgrading : item.getItemGradingDataArray()) {
+                if (itemgrading.getItemGradingId() != null && itemgrading.getItemGradingId().intValue() > 0) {
+                  itemGradingData.add(itemgrading);
+                  itemgrading.setPublishedAnswerId(null);
+                }
+              }
+              item.setItemGradingDataArray(itemGradingData);
+            }
+
+            if (item.getItemData().getTypeId().longValue() == TypeIfc.TRUE_FALSE.longValue()) {
+              item.setResponseId(null);
+              item.getItemGradingDataArray().stream().findAny().ifPresent(d -> d.setPublishedAnswerId(null));
+            }
+            item.setReview(false);
+            item.setRationale("");
+          }
+        }
 
 		  syncTimeElapsedWithServer();
 		  
@@ -4056,13 +4113,12 @@ public class DeliveryBean
 	  public boolean getIsMathJaxEnabled(){ 
 		  PublishedAssessmentService publishedAssessmentService = new PublishedAssessmentService();
 		  String siteId = publishedAssessmentService.getPublishedAssessmentOwner(Long.parseLong(getAssessmentId()));
-		  String strMathJaxEnabled = getCurrentSite(siteId).getProperties().getProperty(MATHJAX_ENABLED); 
-		  return StringUtils.contains(strMathJaxEnabled, "sakai.samigo");
+		  return Boolean.parseBoolean(getCurrentSite(siteId).getProperties().getProperty(Site.PROP_SITE_MATHJAX_ALLOWED));
 	  }
 	  public String getMathJaxHeader(){
 		  StringBuilder headMJ = new StringBuilder();
-		  headMJ.append("<script type=\"text/x-mathjax-config\">\nMathJax.Hub.Config({\ntex2jax: { inlineMath: [['$$','$$'],['\\\\(','\\\\)']] }, TeX: { equationNumbers: { autoNumber: 'AMS' } }\n});\n</script>\n");
-		  headMJ.append("<script src=\"").append(MATHJAX_SRC_PATH).append("\"  language=\"JavaScript\" type=\"text/javascript\"></script>\n");
+		  headMJ.append("<script type=\"text/x-mathjax-config\">\nMathJax.Hub.Config({\nmessageStyle: \"none\",\ntex2jax: { inlineMath: [['$$','$$'],['\\\\(','\\\\)']] }, TeX: { equationNumbers: { autoNumber: 'AMS' } }\n});\n</script>\n");
+		  headMJ.append("<script src=\"").append(MATHJAX_SRC_PATH).append("\" type=\"text/javascript\"></script>\n");
 		  return headMJ.toString();
 	  }
 

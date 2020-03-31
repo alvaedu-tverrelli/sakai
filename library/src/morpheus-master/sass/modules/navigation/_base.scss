@@ -468,13 +468,16 @@ body.is-logged-out{
 		position: relative;
 
 		.#{$namespace}userNav__submenuitem--username, .#{$namespace}userNav__submenuitem--userid{
-			display: inline-block;
-			max-width: 100px;
-			overflow: hidden;
-			position: relative;
-			text-overflow: ellipsis;
 			text-decoration: none;
-			white-space: nowrap;
+
+			span.textlink {
+				display: inline-block;
+				max-width: 100px;
+				overflow: hidden;
+				position: relative;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+			}
 		}
 	}
 
@@ -550,7 +553,7 @@ body.is-logged-out{
 				}
 			}
 		}
-		.#{$namespace}userNav__submenuitem--username, .#{$namespace}userNav__submenuitem--userid{
+		.#{$namespace}userNav__submenuitem--username span.textlink, .#{$namespace}userNav__submenuitem--userid span.textlink {
 			@media #{$phone}{
 				display: none;
 			}

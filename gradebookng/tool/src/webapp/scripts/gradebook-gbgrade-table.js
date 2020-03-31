@@ -23,7 +23,7 @@ GbGradeTable.unpackJsonScores = function (s, rowCount, columnCount) {
             currentRow = []
         }
 
-        currentRow.push(parsedArray[i] < 0 ? "" : GbGradeTable.localizeNumber(parsedArray[i]));
+        currentRow.push(parsedArray[i] == null ? "" : GbGradeTable.localizeNumber(parsedArray[i]));
     }
 
     result.push(currentRow);
@@ -169,6 +169,10 @@ $(document).ready(function() {
        $("#gradeMenuTooltip").html().trim().toString()),
     gradeHeaderMenuTooltip: TrimPath.parseTemplate(
        $("#gradeHeaderMenuTooltip").html().trim().toString()),
+    newGradeItemPopoverTitle: TrimPath.parseTemplate(
+       $("#newGradeItemPopoverTitle").html().trim().toString()),
+    newGradeItemPopoverMessage: TrimPath.parseTemplate(
+       $("#newGradeItemPopoverMessage").html().trim().toString()),
   };
 
 });
@@ -250,15 +254,17 @@ GbGradeTable.cellRenderer = function (instance, td, row, col, prop, value, cellP
   var $td = $(td);
   var index = col - GbGradeTable.FIXED_COLUMN_OFFSET;
   var student = instance.getDataAtCell(row, GbGradeTable.STUDENT_COLUMN_INDEX);
+
   var column = instance.view.settings.columns[col]._data_;
 
   // key needs to contain all values the cell requires for render
   // otherwise it won't rerender when those values change
   var hasComment = column.type === "assignment" ? GbGradeTable.hasComment(student, column.assignmentId) : false;
+  var isDropped = column.type === "assignment" ? GbGradeTable.hasDropped(student, column.assignmentId) : false;
   var scoreState = GbGradeTable.getCellState(row, col, instance);
   var isReadOnly = column.type === "assignment" ? GbGradeTable.isReadOnly(student, column.assignmentId) : false;
   var hasConcurrentEdit = column.type === "assignment" ? GbGradeTable.hasConcurrentEdit(student, column.assignmentId) : false;
-  var keyValues = [row, index, value, student.eid, hasComment, isReadOnly, hasConcurrentEdit, column.type, scoreState];
+  var keyValues = [row, index, value, student.eid, hasComment, isReadOnly, hasConcurrentEdit, column.type, scoreState, isDropped];
   var cellKey = GbGradeTable.cleanKey(keyValues.join("_"));
 
   var wasInitialised = $.data(td, 'cell-initialised');
@@ -364,6 +370,13 @@ GbGradeTable.cellRenderer = function (instance, td, row, col, prop, value, cellP
       externalId: column.externalId,
       externalAppName: column.externalAppName,
     });
+    // Mark negative scores as invalid
+    if (typeof value == 'string' && value[0] == '-') {
+      $cellDiv.addClass('gb-external-invalid');
+      notifications.push({
+        type: 'external-invalid'
+      });
+    }
   } else if (isReadOnly) {
     $cellDiv.addClass("gb-read-only");
     notifications.push({
@@ -419,6 +432,8 @@ GbGradeTable.cellRenderer = function (instance, td, row, col, prop, value, cellP
     $(gbNotification).removeClass("gb-flag-extra-credit");
     $cellDiv.removeClass("gb-extra-credit");
   }
+
+  $cellDiv.toggleClass("gb-dropped-grade-cell", isDropped && scoreState !== "error" && scoreState !== "invalid");
 
   if (column.type == 'category') {
     $cellDiv.addClass('gb-category-average');
@@ -578,6 +593,7 @@ GbGradeTable.renderTable = function (elementId, tableData) {
   }
 
   GbGradeTable.FIXED_COLUMN_OFFSET = GbGradeTable.getFixedColumns().length;
+  GbGradeTable.COURSE_GRADE_COLUMN_INDEX = GbGradeTable.FIXED_COLUMN_OFFSET - 1; // course grade is always the last fixed column
   GbGradeTable.domElement.addClass('gb-fixed-columns-' + GbGradeTable.FIXED_COLUMN_OFFSET);
 
   GbGradeTable.grades = GbGradeTable.mergeColumns(GbGradeTable.unpack(tableData.serializedGrades,
@@ -626,7 +642,12 @@ GbGradeTable.renderTable = function (elementId, tableData) {
   };
 
   GbGradeTable.calculateIdealWidth = function() {
-    return MorpheusViewportHelper.isPhone() ? $("#pageBody").width() - 40 : $("#pageBody").width() - $("#toolMenuWrap").width() - 60;
+    if (GbGradeTable.columns.length > 0) {
+        return MorpheusViewportHelper.isPhone() ? $("#pageBody").width() - 40 : $("#pageBody").width() - $("#toolMenuWrap").width() - 60;
+    }
+
+    var scrollbarWidth = GbGradeTable.students.length > 0 ? 16 : 0;
+    return GbGradeTable.getColumnWidths().reduce(function (acc, cur) { return acc + cur; }, 0) + scrollbarWidth;
   };
 
   GbGradeTable.instance = new Handsontable(document.getElementById(elementId), {
@@ -732,7 +753,7 @@ GbGradeTable.renderTable = function (elementId, tableData) {
       // show visual cue that columns are hidden
       // check for last of the fixed columns
       if (col == GbGradeTable.FIXED_COLUMN_OFFSET - 1) { //GbGradeTable.instance.getSettings().fixedColumnsLeft - 1) {
-        if (GbGradeTable.columns[0].hidden &&
+        if (GbGradeTable.columns[0] && GbGradeTable.columns[0].hidden &&
             $th.find(".gb-hidden-column-visual-cue").length == 0) {
           $th.find(".relative").append("<a href='javascript:void(0);' class='gb-hidden-column-visual-cue'></a>");
         }
@@ -1244,11 +1265,38 @@ GbGradeTable.colModelForAssignment = function(assignmentId) {
   throw "colModelForAssignment: column not found for " + assignmentId;
 };
 
+// returns the gradebook items included in this category, as AssignmentColumn objects
+GbGradeTable.itemsInCategory = function(categoryId) {
+    return GbGradeTable.columns.filter(function(col) {
+        return col.categoryId === categoryId && col.type === "assignment";
+    });
+};
+
+GbGradeTable.updateHasDroppedScores = function(student, assignmentIndex, dropped) {
+    var hasDroppedScores = student.hasDroppedScores;
+    var flag = dropped ? '1' : '0';
+    student.hasDroppedScores = hasDroppedScores.substr(0, assignmentIndex) + flag + hasDroppedScores.substr(assignmentIndex + 1);
+};
+
+GbGradeTable.moveItemFlag = function(flagString, fromIndex, toIndex) {
+    if (fromIndex === toIndex)
+    {
+        return flagString;
+    }
+    var tmp = flagString[fromIndex];
+    var removed = flagString.substr(0, fromIndex) + flagString.substr(fromIndex + 1);
+    return removed.substr(0, toIndex) + tmp + removed.substr(toIndex);
+};
+
 GbGradeTable.hasComment = function(student, assignmentId) {
   var assignmentIndex = $.inArray(GbGradeTable.colModelForAssignment(assignmentId), GbGradeTable.columns);
   return student.hasComments[assignmentIndex] === "1";
 };
 
+GbGradeTable.hasDropped = function(student, assignmentId) {
+  var assignmentIndex = $.inArray(GbGradeTable.colModelForAssignment(assignmentId), GbGradeTable.columns);
+  return student.hasDroppedScores[assignmentIndex] === "1";
+};
 
 GbGradeTable.isReadOnly = function(student, assignmentId) {
   if (student.readonly == null) {
@@ -1398,11 +1446,21 @@ GbGradeTable.updateComment = function(assignmentId, studentId, comment) {
 };
 
 GbGradeTable.redrawCell = function(row, col) {
-  var $cell = $(GbGradeTable.instance.getCell(row, col));
-  $cell.removeData('cell-initialised');
-
-  GbGradeTable.instance.render();
+    GbGradeTable.redrawCells([[row, col]])
 };
+
+GbGradeTable.redrawCells = function(cells) {
+    cells.forEach(function(cell) {
+        var row = cell[0];
+        var col = cell[1];
+        var $cell = $(GbGradeTable.instance.getCell(row, col));
+        $cell.removeData('cell-initialised');
+    });
+
+    GbGradeTable.instance.render();
+};
+
+
 
 GbGradeTable.formatCategoryAverage = function(value) {
   if (value != null && (value+"").length > 0 && value != "-") {
@@ -1423,10 +1481,10 @@ GbGradeTable.redrawTable = function(force) {
     GbGradeTable.currentSortColumn = 0;
     GbGradeTable.currentSortDirection = 'desc';
 
-    GbGradeTable.instance.loadData(GbGradeTable.getFilteredData());
     GbGradeTable.instance.updateSettings({
       columns: GbGradeTable.getFilteredColumns()
     });
+    GbGradeTable.instance.loadData(GbGradeTable.getFilteredData());
     GbGradeTable.refreshSummaryLabels();
     GbGradeTable.forceRedraw = false;
   }, 100);
@@ -2210,9 +2268,19 @@ GbGradeTable.setupDragAndDrop = function () {
           moveColumn(GbGradeTable.grades, sourceColIndex, targetColIndex);
 
           /* And the header columns */
-          moveColumn([GbGradeTable.columns],
-                     (sourceColIndex - numberOfFixedColumns),
-                     (targetColIndex - numberOfFixedColumns));
+          var adjustedSource = sourceColIndex - numberOfFixedColumns;
+          var adjustedTarget = targetColIndex - numberOfFixedColumns;
+          moveColumn([GbGradeTable.columns], adjustedSource, adjustedTarget);
+
+          /* And the comment/concurrent/dropped flag strings in the student objects */
+          var hasCategories = GbGradeTable.settings.isCategoriesEnabled;
+          GbGradeTable.students.forEach(function(student) {
+              if (hasCategories) {
+                  student.hasDroppedScores = GbGradeTable.moveItemFlag(student.hasDroppedScores, adjustedSource, adjustedTarget);
+              }
+              student.hasComments = GbGradeTable.moveItemFlag(student.hasComments, adjustedSource, adjustedTarget);
+              student.hasConcurrentEdit = GbGradeTable.moveItemFlag(student.hasConcurrentEdit, adjustedSource, adjustedTarget);
+          });
 
           GbGradeTable.redrawTable(true);
         };
@@ -2836,7 +2904,7 @@ GbGradeTable.syncCourseGrade = function(studentId, courseGradeData) {
 };
 
 
-GbGradeTable.syncCategoryAverage = function(studentId, categoryId, categoryScore) {
+GbGradeTable.syncCategoryAverage = function(studentId, categoryId, categoryScore, droppedItems) {
     var categoryScoreAsLocaleString = GbGradeTable.localizeNumber(categoryScore);
 
     // update table
@@ -2851,6 +2919,19 @@ GbGradeTable.syncCategoryAverage = function(studentId, categoryId, categoryScore
     var modelRow = GbGradeTable.modelIndexForStudent(studentId);
     var modelCol = $.inArray(GbGradeTable.colModelForCategoryId(categoryId), GbGradeTable.columns);
     GbGradeTable.grades[modelRow][modelCol + GbGradeTable.FIXED_COLUMN_OFFSET] = categoryScore;
+
+    // update dropped status of all items in this category
+    var categoryItems = GbGradeTable.itemsInCategory(categoryId);
+    var cellsToRedraw = [];
+    categoryItems.forEach(function(col) {
+        var dropped = droppedItems.indexOf(col.assignmentId) > -1;
+        var columnIndex = GbGradeTable.colForAssignment(col.assignmentId);
+        var student = GbGradeTable.modelForStudent(studentId);
+        GbGradeTable.updateHasDroppedScores(student, columnIndex - GbGradeTable.FIXED_COLUMN_OFFSET, dropped);
+        cellsToRedraw.push([tableRow, columnIndex]);
+    });
+
+    GbGradeTable.redrawCells(cellsToRedraw);
 };
 
 
@@ -2896,12 +2977,16 @@ GbGradeTable.setScore = function(studentId, assignmentId, oldScore, newScore) {
 
         // update the course grade cell
         if (data.courseGrade) {
-          GbGradeTable.syncCourseGrade(studentId, data.courseGrade);
+            setTimeout(function () {
+                GbGradeTable.syncCourseGrade(studentId, data.courseGrade);
+            }, 0);
         }
 
         // update the category average cell
         if (assignment.categoryId) {
-          GbGradeTable.syncCategoryAverage(studentId, assignment.categoryId, data.categoryScore);
+            setTimeout(function () {
+                GbGradeTable.syncCategoryAverage(studentId, assignment.categoryId, data.categoryScore, data.categoryDroppedItems);
+            }, 0);
         }
 
         GbGradeTable.syncScore(studentId, assignmentId, newScore);
@@ -2948,13 +3033,32 @@ GbGradeTable.addReadyCallback = function(callback) {
 };
 
 
-GbGradeTable.focusColumnForAssignmentId = function(assignmentId) {
-    if (assignmentId) {
-        GbGradeTable.addReadyCallback(function() {
-            var col = GbGradeTable.colForAssignment(assignmentId);
-            GbGradeTable.instance.selectCell(0, col);
-        });
-    }
+GbGradeTable.focusColumnForAssignmentId = function(assignmentId, showPopupForNewItem) {
+  if (assignmentId) {
+      GbGradeTable.addReadyCallback(function() {
+          var col = GbGradeTable.colForAssignment(assignmentId);
+          GbGradeTable.instance.selectCell(0, col);
+          if(showPopupForNewItem === true){
+            
+            var $selectedField = $('.current.highlight .relative');
+          
+            $selectedField.attr('data-toggle','popover');
+            $selectedField.attr('data-placement','top');
+            $selectedField.attr('data-container','body');
+            $selectedField.attr('data-content',GbGradeTable.templates['newGradeItemPopoverMessage'].process());
+            $selectedField.attr('data-title',GbGradeTable.templates['newGradeItemPopoverTitle'].process());
+
+            $('body').on('click', function (e) {
+              if ($(e.target).data('toggle') !== 'popover'
+                  && $(e.target).parents('.popover.in').length === 0) { 
+                  $('[data-toggle="popover"]').popover('hide');
+              }
+            });
+            $selectedField.popover();
+            $selectedField.popover('show');
+          }
+      });
+  }
 };
 
 
@@ -3038,7 +3142,8 @@ GradebookAPI = {};
 GradebookAPI.isAnotherUserEditing = function(siteId, timestamp, onSuccess, onError) {
   var endpointURL = "/direct/gbng/isotheruserediting/" + siteId + ".json";
   var params = {
-    since: timestamp
+    since: timestamp,
+    auto: true // indicate that the request is automatic, not from a user action
   };
   GradebookAPI._GET(endpointURL, params, onSuccess, onError);
 };

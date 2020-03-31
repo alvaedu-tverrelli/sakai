@@ -49,7 +49,7 @@ $(document).ready(function(){
 	#end
 
 	#if ($!canSubmit)
-		#if ($alertMessage)<div class="alertMessage">$tlang.getString("gen.alert") $alertMessage</div><div class="clear"></div>#end
+		#if ($alertMessage)<div class="alertMessage"><strong>$tlang.getString("gen.alert")</strong> $alertMessage</div><div class="clear"></div>#end
 		#if ($!submission && $dateSubmitted)
 			## if there is a submitted submission
 			## get the properies
@@ -212,11 +212,7 @@ $(document).ready(function(){
 							<div class="itemSummaryValue highlight">
 								<strong>
 									#if ($gradeScale != 1)
-										#if ($!override)
-											$override
-										#else
-											$!service.getGradeDisplay($submission.Grade, $assignment.TypeOfGrade, $!assignment.ScaleFactor)
-										#end
+										$!grade
 									#else
 										$tlang.getString("gen.nograd")
 									#end
@@ -268,8 +264,7 @@ $(document).ready(function(){
 					</div>
 				</div>
 			#end
-			#set($allowStudentViewReport = $assignment.Properties.get("s_view_report")) 
-			#if($!submitted && $!dateSubmitted && $allowReviewService && $assignment.ContentReview && $!allowStudentViewReport.equals('true'))
+			#if($allowReviewService && $assignment.ContentReview && $!submission && $!service.isContentReviewVisibleForSubmission($!submission))
 				<div class="row">
 					<div class="col-lg-4 col-sm-6 col-xs-12">
 						<div class="itemSummaryHeader">$reviewServiceName&nbsp;$tlang.getString("review.report")</div>
@@ -319,7 +314,7 @@ $(document).ready(function(){
 ##					<div class="col-lg-4 col-sm-6 col-xs-12">
 ##						<div class="itemSummaryValue">
 ##							#foreach ($entry in $submission.getSubmissionLog())
-##								$entry<br>
+##								$validator.escapeHtml($entry)<br>
 ##							#end
 ##						</div>
 ##					</div>
@@ -336,35 +331,7 @@ $(document).ready(function(){
 		#end
 
 		## Assignment Attachments
-		#set ($aAttachments = $assignment.Attachments)
-		#if ($aAttachments)
-			#set ($size = $aAttachments.size())
-			#if ($size > 0)
-				<h4>
-					$tlang.getString("gen.addres2")
-				</h4>
-				<ul class="attachList indnt1">
-					#foreach ($attachmentReference in $aAttachments)
-						#set ($reference = $assignmentAttachmentReferences.get($attachmentReference))
-						#if ($reference)
-							#set ($props = false)
-							#set ($props = $reference.Properties)
-							#if ($!props)
-								<li>
-									#if ($props.getBooleanProperty($props.NamePropIsCollection))
-										<img src = "#imageLink($contentTypeImageService.getContentTypeImage("folder"))" border="0" alt="$tlang.getString("gen.folatt")" />
-									#else
-										<img src = "#imageLink($contentTypeImageService.getContentTypeImage($props.getProperty($props.NamePropContentType)))" border="0" alt="$tlang.getString("gen.filatt")" />
-									#end
-									<a href="$reference.Url" target="_blank">$validator.escapeHtml($props.getPropertyFormatted($props.NamePropDisplayName))</a>
-									#propertyDetails($props)
-								</li>
-							#end
-						#end
-					#end
-				</ul>
-			#end
-		#end
+		#attachmentFragment($assignment.Attachments $assignmentAttachmentReferences $!decoratedUrlMap)
 
 			## model answer
 			#if($allowViewModelAnswer)
@@ -555,8 +522,7 @@ $(document).ready(function(){
 							<span style="font-size: smaller; color: blue;">	
 								#set($gusers = $!service.getSortedGroupUsers($group))
 								#foreach ($user in $gusers)
-									$user.getDisplayName()
-									##$!userDirectoryService.getUser($user).getDisplayName()
+									$validator.escapeHtml($user.getDisplayName()) ($validator.escapeHtml($user.getDisplayId()))
 									#if ($velocityCount < $gusers.size()),#end
 								#end
 							</span>	
@@ -579,7 +545,7 @@ $(document).ready(function(){
 			#if (!$submissionType != 4 && !$!deleted.equalsIgnoreCase("true") && $!allowAddAssignment && $!allowSubmitByInstructor && $!student) 
 				<h4>$tlang.getString("submitforstudent")</h4>
 				<p class="instruction">
-					$student.getDisplayName()
+					$validator.escapeHtml($student.getDisplayName())
 					<input type="hidden" name="submit_on_behalf_of" id="submit_on_behalf_of" value="$student.id" />		
 				</p>
 			#end
@@ -614,6 +580,19 @@ $(document).ready(function(){
 										#end
 									</em>
 								</p>
+							#end
+							#if ($plagiarismEULALink)
+								<p class="checkbox highlightPanel form-required">
+									<label for="$name_plagiarism_eula_agreement">
+										#if ($value_plagiarism_eula_agreement.equals("true"))
+											<input id="$name_plagiarism_eula_agreement" type="checkbox" name="$name_plagiarism_eula_agreement" value="true" checked="checked"/>
+										#else
+											<input id="$name_plagiarism_eula_agreement" type="checkbox" name="$name_plagiarism_eula_agreement" value="true"/>
+										#end
+										$tlang.getString("review.eula.agreement")&nbsp;<a href="$plagiarismEULALink" target="_blank">$tlang.getString("review.eula")</a>
+									</label>
+								</p>
+								<input type="hidden" name="$name_check_plagiarism_eula_agreement" id="$name_check_plagiarism_eula_agreement" value="true" checked="checked"/>
 							#end
 							</p>
 							<table border="0">
@@ -904,7 +883,7 @@ $(document).ready(function(){
 				#end
 			#end
 
-				#if ($returned && $dateReturned && ($dateSubmitted && $dateReturned && $dateReturned.isAfter($dateSubmitted) || !$dateSubmitted))
+				#if ($returned && $dateReturned && ($dateSubmitted && $dateReturned && $dateReturned.isAfter($dateSubmitted) || !$dateSubmitted || !$!submitted))
 					#if (($!submission.FeedbackComment) && ($submission.FeedbackComment.trim().length()>0))
 						#if ($submissionType==2)
 							<h3>$tlang.getString("gen.addinst2")</h3>
@@ -1025,9 +1004,7 @@ $(document).ready(function(){
 							<input class="disableme" type="button" name="save" accesskey="d" id="save" value="$tlang.getString("gen.savdra")"
 								onclick="SPNR.disableControlsAndSpin( this, null ); ASN.submitForm( 'addSubmissionForm', 'save', null, null ); return false;" />
 							#end
-							#if ($!linkInvoked)
-								<input class="disableme" type="submit" accesskey="x" onClick="SPNR.disableControlsAndSpin( this, null ); window.close();" name="eventSubmit_doConfirm_assignment_submission" value="$tlang.getString("gen.closeexit")" />
-							#else
+							#if (!$!linkInvoked)
 								<input class="disableme" type="button" name="cancel" accesskey="x" id="cancel" value="$tlang.getString("gen.can")"
 									onclick="ASN_SVS.confirmDiscardOrSubmit( '$name_submission_text', $!new_attachments ); return false;" />
 							#end
@@ -1136,9 +1113,7 @@ $(document).ready(function(){
 							</div>
 						#end
 					#end
-		#if ($!linkInvoked)
-			<input type="submit" accesskey="x" onClick="SPNR.disableControlsAndSpin( this, null ); window.close();" name="eventSubmit_doConfirm_assignment_submission" value="$tlang.getString("gen.closeexit")" class="disableme"/>
-		#else
+		#if (!$!linkInvoked)
 			<p class="act">
 				<input type="button" name="cancel" accesskey="x" id="cancel" value="$tlang.getString("gen.don")" onclick="ASN_SVS.confirmDiscardOrSubmit( '$name_submission_text', $!new_attachments ); return false;" />
 			</p>

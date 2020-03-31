@@ -338,16 +338,15 @@ public class AssignmentDetailsBean extends EnrollmentTableBean {
         				categoryList = tmpCatList;
         			}
 
-        			if (categoryList != null) {
-                		final Iterator catIter = categoryList.iterator();
-                		while (catIter.hasNext()) {
-            				final Category myCat = (Category) catIter.next();
-            				final List catAssigns = myCat.getAssignmentList();
-            				if (catAssigns != null) {
-            					assignments.addAll(catAssigns);
-            				}
-            			}
-                	}
+					final Iterator catIter = categoryList.iterator();
+					while (catIter.hasNext()) {
+						final Category myCat = (Category) catIter.next();
+						final List catAssigns = myCat.getAssignmentList();
+						if (catAssigns != null) {
+							assignments.addAll(catAssigns);
+						}
+					}
+
                 	// we also need to retrieve all of the assignments that have not
                 	// yet been assigned a category
         			if (!isUserAbleToGradeAll() && (isUserHasGraderPermissions() && !getGradebookPermissionService().getPermissionForUserForAllAssignment(getGradebookId(), getUserUid()))) {
@@ -584,10 +583,12 @@ public class AssignmentDetailsBean extends EnrollmentTableBean {
 			log.debug("About to save " + this.updatedComments.size() + " updated comments");
 		}
         if(this.updatedGradeRecords.size() > 0){
-            getGradebookBean().getEventTrackingService().postEvent("gradebook.updateItemScores","/gradebook/"+getGradebookId()+"/"+this.updatedGradeRecords.size()+"/"+getAuthzLevel());
+			getGradebookBean().postEvent("gradebook.updateItemScores",
+					"/gradebook/" + getGradebookId() + "/" + this.updatedGradeRecords.size() + "/" + getAuthzLevel(), true);
         }
         if(this.updatedComments.size() > 0){
-            getGradebookBean().getEventTrackingService().postEvent("gradebook.comment","/gradebook/"+getGradebookId()+"/"+this.updatedComments.size()+"/"+getAuthzLevel());
+			getGradebookBean().postEvent("gradebook.comment",
+					"/gradebook/" + getGradebookId() + "/" + this.updatedComments.size() + "/" + getAuthzLevel(), true);
         }
     }
 
@@ -597,7 +598,9 @@ public class AssignmentDetailsBean extends EnrollmentTableBean {
 	public void processUpdateScores(final ActionEvent event) {
 		try {
 			for (final AssignmentGradeRecord agr : this.updatedGradeRecords) {
-				getGradebookBean().getEventTrackingService().postEvent("gradebook.updateItemScore","/gradebook/"+getGradebookUid()+"/"+agr.getAssignment().getName()+"/"+agr.getStudentId()+"/"+agr.getPointsEarned()+"/"+getAuthzLevel());
+				getGradebookBean().postEvent("gradebook.updateItemScore", "/gradebook/" + getGradebookUid() + "/"
+						+ agr.getAssignment().getName() + "/" + agr.getStudentId() + "/" + agr.getPointsEarned() + "/" + getAuthzLevel(),
+						true);
 			}
 			saveScores();
 		} catch (final StaleObjectModificationException e) {
@@ -616,10 +619,12 @@ public class AssignmentDetailsBean extends EnrollmentTableBean {
 			log.debug("About to save " + this.updatedComments.size() + " updated comments");
 		}
         if(this.updatedGradeRecords.size() > 0){
-            getGradebookBean().getEventTrackingService().postEvent("gradebook.updateItemScores","/gradebook/"+getGradebookId()+"/"+this.updatedGradeRecords.size()+"/"+getAuthzLevel());
+			getGradebookBean().postEvent("gradebook.updateItemScores",
+					"/gradebook/" + getGradebookId() + "/" + this.updatedGradeRecords.size() + "/" + getAuthzLevel(), true);
         }
         if(this.updatedComments.size() > 0){
-            getGradebookBean().getEventTrackingService().postEvent("gradebook.comment","/gradebook/"+getGradebookId()+"/"+this.updatedComments.size()+"/"+getAuthzLevel());
+			getGradebookBean().postEvent("gradebook.comment",
+					"/gradebook/" + getGradebookId() + "/" + this.updatedComments.size() + "/" + getAuthzLevel(), true);
         }
 
         String messageKey = null;

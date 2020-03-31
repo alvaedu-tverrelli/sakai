@@ -35,6 +35,7 @@ import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
+import javax.persistence.Index;
 import javax.persistence.JoinColumn;
 import javax.persistence.Lob;
 import javax.persistence.MapKeyColumn;
@@ -47,8 +48,14 @@ import lombok.NoArgsConstructor;
 import lombok.ToString;
 import org.hibernate.annotations.Cache;
 import org.hibernate.annotations.CacheConcurrencyStrategy;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 import org.hibernate.annotations.GenericGenerator;
 import org.hibernate.annotations.Type;
+
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 
 /**
  * Assignment represents a specific assignment for a specific section or class.
@@ -87,11 +94,14 @@ import org.hibernate.annotations.Type;
 
 @Entity
 @Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
-@Table(name = "ASN_ASSIGNMENT")
+@Table(name = "ASN_ASSIGNMENT", indexes = {
+        @Index(name = "IDX_ASN_ASSIGNMENT_CONTEXT", columnList = "CONTEXT")
+})
 @Data
 @NoArgsConstructor
 @ToString(exclude = {"authors", "submissions", "groups", "properties", "attachments"})
 @EqualsAndHashCode(of = "id")
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
 public class Assignment {
 
     @Id
@@ -162,8 +172,8 @@ public class Assignment {
     @Column(name = "POSITION")
     private Integer position;
 
-    @Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
     @OneToMany(mappedBy = "assignment", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference
     private Set<AssignmentSubmission> submissions = new HashSet<>();
 
     @Cache(usage = CacheConcurrencyStrategy.NONSTRICT_READ_WRITE)
@@ -172,17 +182,20 @@ public class Assignment {
     @Lob
     @Column(name = "VALUE", length = 65535)
     @CollectionTable(name = "ASN_ASSIGNMENT_PROPERTIES", joinColumns = @JoinColumn(name = "ASSIGNMENT_ID"))
+    @Fetch(FetchMode.SUBSELECT)
     private Map<String, String> properties = new HashMap<>();
 
     @Cache(usage = CacheConcurrencyStrategy.NONSTRICT_READ_WRITE)
     @ElementCollection
     @CollectionTable(name = "ASN_ASSIGNMENT_GROUPS", joinColumns = @JoinColumn(name = "ASSIGNMENT_ID"))
+    @Fetch(FetchMode.SUBSELECT)
     @Column(name = "GROUP_ID")
     private Set<String> groups = new HashSet<>();
 
     @Cache(usage = CacheConcurrencyStrategy.NONSTRICT_READ_WRITE)
     @ElementCollection
     @CollectionTable(name = "ASN_ASSIGNMENT_ATTACHMENTS", joinColumns = @JoinColumn(name = "ASSIGNMENT_ID"))
+    @Fetch(FetchMode.SUBSELECT)
     @Column(name = "ATTACHMENT", length = 1024)
     private Set<String> attachments = new HashSet<>();
 

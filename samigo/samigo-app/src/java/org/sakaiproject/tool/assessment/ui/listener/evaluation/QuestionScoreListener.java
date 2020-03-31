@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
+import javax.faces.context.FacesContext;
 import javax.faces.event.AbortProcessingException;
 import javax.faces.event.ActionEvent;
 import javax.faces.event.ActionListener;
@@ -69,6 +70,7 @@ import org.sakaiproject.tool.assessment.ui.listener.util.ContextUtil;
 import org.sakaiproject.tool.assessment.util.BeanSort;
 import org.sakaiproject.util.FormattedText;
 import org.sakaiproject.util.ResourceLoader;
+import org.sakaiproject.tool.assessment.data.ifc.shared.TypeIfc;
 
 // end testing
 
@@ -98,15 +100,9 @@ import org.sakaiproject.util.ResourceLoader;
 	// private static EvaluationListenerUtil util;
 	private static BeanSort bs;
 
-	private static final String noAnswer = (String) ContextUtil
-			.getLocalizedString(
-					"org.sakaiproject.tool.assessment.bundle.EvaluationMessages",
-					"no_answer");
-
-	private static final String noneOfTheAbove = (String) ContextUtil
-			.getLocalizedString(
-					"org.sakaiproject.tool.assessment.bundle.EvaluationMessages",
-					"none_above");
+	private static final String MSG_BUNDLE = "org.sakaiproject.tool.assessment.bundle.EvaluationMessages";
+	private static final String noAnswer = ContextUtil.getLocalizedString(MSG_BUNDLE, "no_answer");
+	private static final String noneOfTheAbove = ContextUtil.getLocalizedString(MSG_BUNDLE, "none_above");
 
 	/**
 	 * Standard process action method.
@@ -122,9 +118,7 @@ import org.sakaiproject.util.ResourceLoader;
 				.lookupBean("questionScores");
 
 		// Reset the search field
-		String defaultSearchString = ContextUtil.getLocalizedString(
-				"org.sakaiproject.tool.assessment.bundle.EvaluationMessages",
-				"search_default_student_search_string");
+		String defaultSearchString = ContextUtil.getLocalizedString(MSG_BUNDLE, "search_default_student_search_string");
 		bean.setSearchString(defaultSearchString);
 
 		// we probably want to change the poster to be consistent
@@ -150,6 +144,9 @@ import org.sakaiproject.util.ResourceLoader;
 	 */
 	public void processValueChange(ValueChangeEvent event) {
 		log.debug("QuestionScore CHANGE LISTENER.");
+		ResetQuestionScoreListener reset = new ResetQuestionScoreListener();
+		reset.processAction(null);
+
 		QuestionScoresBean bean = (QuestionScoresBean) ContextUtil.lookupBean("questionScores");
 		TotalScoresBean totalBean = (TotalScoresBean) ContextUtil.lookupBean("totalScores");
 		HistogramScoresBean histogramBean = (HistogramScoresBean) ContextUtil.lookupBean("histogramScores");
@@ -186,6 +183,9 @@ import org.sakaiproject.util.ResourceLoader;
 		if (!questionScores(publishedId, bean, toggleSubmissionSelection)) {
 			throw new RuntimeException("failed to call questionScores.");
 		}
+
+		FacesContext.getCurrentInstance().getApplication().getNavigationHandler().handleNavigation(FacesContext.getCurrentInstance(), null, "questionScores");
+
 	}
 
 	/**
@@ -377,7 +377,7 @@ import org.sakaiproject.util.ResourceLoader;
 				log.debug("questionScores(): this section has no students");
 				bean.setAgents(agents);
 				bean.setAllAgents(agents);
-				bean.setTotalPeople(Integer.toString(bean.getAgents().size()));
+				bean.setTotalPeople(Integer.toString(agents.size()));
 				bean.setAnonymous(totalBean.getAnonymous());
 				//return true;
 			}
@@ -556,22 +556,39 @@ import org.sakaiproject.util.ResourceLoader;
 				results.setItemGradingArrayList(answerList);
 				// The list is sorted by item id so that it will come back from the student in a 
 				// predictable order. This is also required by the getCalcQResult method.
-				Collections.sort(answerList, new Comparator<ItemGradingData>() {
-					public int compare(ItemGradingData i1, ItemGradingData i2) {
+				if (TypeIfc.CALCULATED_QUESTION.equals(Long.parseLong(bean.getTypeId()))) { // CALCULATED_QUESTION
+					// list is sorted by answer id for calculated question
+					Collections.sort(answerList, new Comparator<ItemGradingData>() {
+						public int compare(ItemGradingData i1, ItemGradingData i2) {
 						if (i1 == i2) {
 							return 0;
-						}
-						else if (i1 == null || i1.getPublishedItemId() == null) {
+						} else if (i1 == null || i1.getPublishedAnswerId() == null) {
 							return -1;
-						}
-						else if (i2 == null || i2.getPublishedItemId() == null) {
+						} else if (i2 == null || i2.getPublishedAnswerId() == null) {
 							return 1;
+						} else {
+							return NumberUtils.compare(i1.getPublishedAnswerId(),i2.getPublishedAnswerId());
 						}
-						else {
+					   }
+					});
+
+				} else { // Non calculated question
+					// The list is sorted by item id so that it will come back from the student in a 
+					// predictable order. This is also required by the getCalcQResult method. 
+					Collections.sort(answerList, new Comparator<ItemGradingData>() {
+						public int compare(ItemGradingData i1, ItemGradingData i2) {
+						if (i1 == i2) {
+							return 0;
+						} else if (i1 == null || i1.getPublishedItemId() == null) {
+							return -1;
+						} else if (i2 == null || i2.getPublishedItemId() == null) {
+							return 1;
+						} else {
 							return NumberUtils.compare(i1.getPublishedItemId(),i2.getPublishedItemId());
 						}
-					}
-				});
+					   }
+					});
+				}
 				Iterator iter2 = answerList.iterator();
 				List itemGradingAttachmentList = new ArrayList();
 				Map<Long, Set<String>> fibmap = new HashMap<Long, Set<String>>();
@@ -632,7 +649,7 @@ import org.sakaiproject.util.ResourceLoader;
 
 					if ("4".equals(bean.getTypeId())) {
 						if (rb == null) { 	 
-			        		rb = new ResourceLoader("org.sakaiproject.tool.assessment.bundle.EvaluationMessages");
+			        		rb = new ResourceLoader(MSG_BUNDLE);
 			        	}
 						if ("true".equals(answerText)) {
 							answerText = rb.getString("true_msg");
@@ -744,8 +761,10 @@ import org.sakaiproject.util.ResourceLoader;
 					 */
 
 					//SAM-755-"checkmark" indicates right, add "X" to indicate wrong
-					String checkmarkGif = "<img src='/samigo-app/images/delivery/checkmark.gif'>";
-					String crossmarkGif = "<img src='/samigo-app/images/crossmark.gif'>";
+					String correct = ContextUtil.getLocalizedString(MSG_BUNDLE, "alt_correct");
+					String incorrect = ContextUtil.getLocalizedString(MSG_BUNDLE, "alt_incorrect");
+					String checkmarkGif = String.format("<span title=\"%s\" class=\"icon-sakai--check feedBackCheck\"></span>", correct);
+					String crossmarkGif = String.format("<span title=\"%s\" class=\"icon-sakai--delete feedBackCross\"></span>", incorrect);
 					if (gdataAnswer != null) {
 						answerText = FormattedText.escapeHtml(answerText, true);
 						if (bean.getTypeId().equals("8") || bean.getTypeId().equals("11")) {
@@ -790,8 +809,7 @@ import org.sakaiproject.util.ResourceLoader;
 						}
 						else if(!bean.getTypeId().equals("3")){
 							if((gdataAnswer.getIsCorrect() != null && gdataAnswer.getIsCorrect()) || 
-								(gdataAnswer.getPartialCredit() != null && gdataAnswer.getPartialCredit() > 0) ||
-								(delegate.isDistractor(gdataAnswer.getItemText())) ){
+								(gdataAnswer.getPartialCredit() != null && gdataAnswer.getPartialCredit() > 0)){
 								answerText = checkmarkGif + answerText;
 							}else if(gdataAnswer.getIsCorrect() != null && !gdataAnswer.getIsCorrect()){
 								answerText = crossmarkGif + answerText;
@@ -944,11 +962,10 @@ import org.sakaiproject.util.ResourceLoader;
 			if (bean.getTypeId().equals("9")) {
 				agents = sortMatching(agents);
 			}
+
 			bean.setAgents(agents);
 			bean.setAllAgents(agents);
-			bean
-					.setTotalPeople(Integer.valueOf(bean.getAgents().size())
-							.toString());
+			bean.setTotalPeople(Integer.valueOf(agents.size()).toString());
 			bean.setAgentResultsByItemGradingId(agentResultsByItemGradingIdMap);
 		}
 
@@ -968,6 +985,9 @@ import org.sakaiproject.util.ResourceLoader;
 			for (int s = 0; s < thisItemOptions.length; s++) {
 				int endOfCheckmark = thisItemOptions[s].indexOf(">");
 				int colonAt = thisItemOptions[s].indexOf(":");
+				if(endOfCheckmark==-1||colonAt==-1) {
+					continue;
+				}
 				String thisSequence = thisItemOptions[s].substring(endOfCheckmark, colonAt);
 				StringBuilder editItemBuffer = new StringBuilder();
 				editItemBuffer.append(thisSequence).append("|").append(thisItemOptions[s]);
@@ -977,7 +997,9 @@ import org.sakaiproject.util.ResourceLoader;
 			StringBuilder optionBuffer = new StringBuilder();
 			for (String thisItemOption : thisItemOptions) {
 				int dlmIndex = thisItemOption.indexOf('|');
-				optionBuffer.append(thisItemOption.substring(dlmIndex + 1)).append("<br/>");
+				if (dlmIndex != -1) {
+					optionBuffer.append(thisItemOption.substring(dlmIndex + 1)).append("<br/>");
+				}
 			}
 			log.debug("sortedOptions{}", optionBuffer);
 			thisAgentResult.setAnswer(optionBuffer.toString());
@@ -1004,7 +1026,7 @@ import org.sakaiproject.util.ResourceLoader;
 		log.debug("getItemScores: itemScoresMap ==null ?" + itemScoresMap);
 		log.debug("getItemScores: isValueChange ?" + isValueChange);
 
-		if (itemScoresMap == null || isValueChange || questionScoresBean.getIsAnyItemGradingAttachmentListModified()) {
+		if (itemScoresMap == null || isValueChange || questionScoresBean.isAnyItemGradingAttachmentListModified()) {
 			log
 					.debug("getItemScores: itemScoresMap == null or isValueChange == true ");
 			log.debug("getItemScores: isValueChange = " + isValueChange);
@@ -1012,7 +1034,7 @@ import org.sakaiproject.util.ResourceLoader;
 			questionScoresBean.setItemScoresMap(itemScoresMap);
 			// reset this anyway (because the itemScoresMap will be refreshed as well as the 
 			// attachment list)
-			questionScoresBean.setIsAnyItemGradingAttachmentListModified(false); 
+			questionScoresBean.setAnyItemGradingAttachmentListModified(false);
 		}
 		log
 				.debug("getItemScores: itemScoresMap.size() "

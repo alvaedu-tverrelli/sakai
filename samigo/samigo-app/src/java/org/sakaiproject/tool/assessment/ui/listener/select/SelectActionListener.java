@@ -554,11 +554,11 @@ public class SelectActionListener
   // agent is authorizaed and filter out the one that does not meet the
   // takeable criteria.
   // SAK-1464: we also want to filter out assessment released To Anonymous Users
-  private List getTakeableList(List assessmentList, Map h, List updatedAssessmentNeedResubmitList, List updatedAssessmentList) {
+  private List getTakeableList(List assessmentList, Map <Long,Integer> h, List updatedAssessmentNeedResubmitList, List updatedAssessmentList) {
     List takeableList = new ArrayList();
     GradingService gradingService = new GradingService();
     Map<Long, StudentGradingSummaryData> numberRetakeHash = gradingService.getNumberRetakeHash(AgentFacade.getAgentString());
-    Map<Long, Long> actualNumberRetake = gradingService.getActualNumberRetakeHash(AgentFacade.getAgentString());
+    Map<Long, Integer> actualNumberRetake = gradingService.getActualNumberRetakeHash(AgentFacade.getAgentString());
     ExtendedTimeDeliveryService extendedTimeDeliveryService;
     for (int i = 0; i < assessmentList.size(); i++) {
       PublishedAssessmentFacade f = (PublishedAssessmentFacade)assessmentList.get(i);
@@ -584,7 +584,7 @@ public class SelectActionListener
     return takeableList;
   }
 
-  public boolean isAvailable(PublishedAssessmentFacade f, Map h, Map numberRetakeHash, Map actualNumberRetakeHash, List updatedAssessmentNeedResubmitList, List updatedAssessmentList) {
+  public boolean isAvailable(PublishedAssessmentFacade f, Map <Long, Integer> h, Map<Long, StudentGradingSummaryData> numberRetakeHash, Map <Long, Integer> actualNumberRetakeHash, List updatedAssessmentNeedResubmitList, List updatedAssessmentList) {
     boolean returnValue = false;
     //1. prepare our significant parameters
     Integer status = f.getStatus();
@@ -594,12 +594,27 @@ public class SelectActionListener
     Date retractDate = f.getRetractDate();
     boolean acceptLateSubmission = AssessmentAccessControlIfc.ACCEPT_LATE_SUBMISSION.equals(f.getLateHandling());
 
+    if (dueDate == null && (retractDate != null && acceptLateSubmission)) {
+        dueDate = retractDate;
+    }
+
     if (!Integer.valueOf(1).equals(status)) {
     	return false;
     }
     
     if (startDate != null && startDate.after(currentDate)) {
     	return false;
+    }
+
+    int totalSubmitted = 0;
+
+    //boolean notSubmitted = false;
+    if (h.get(f.getPublishedAssessmentId()) != null){
+      totalSubmitted = ((Integer) h.get(f.getPublishedAssessmentId()));
+    }
+    
+    if (acceptLateSubmission && (dueDate != null && dueDate.before(currentDate)) && retractDate == null && totalSubmitted == 0) {
+      return true;
     }
     
     if (acceptLateSubmission
@@ -621,12 +636,6 @@ public class SelectActionListener
     if (numberRetakeHash.get(f.getPublishedAssessmentId()) != null) {
     	numberRetake = (((StudentGradingSummaryData) numberRetakeHash.get(f.getPublishedAssessmentId())).getNumberRetake());
     }
-    int totalSubmitted = 0;
-    
-    //boolean notSubmitted = false;
-    if (h.get(f.getPublishedAssessmentId()) != null){
-      totalSubmitted = ( (Integer) h.get(f.getPublishedAssessmentId()));
-    }
     
       //2. time to go through all the criteria
     // Tests if dueDate has passed
@@ -642,7 +651,7 @@ public class SelectActionListener
 			} else {
 				int actualNumberRetake = 0;
 				if (actualNumberRetakeHash.get(f.getPublishedAssessmentId()) != null) {
-					actualNumberRetake = ((Integer) actualNumberRetakeHash.get(f.getPublishedAssessmentId()));
+					actualNumberRetake = (actualNumberRetakeHash.get(f.getPublishedAssessmentId()));
 				}
 				if (actualNumberRetake < numberRetake) {
 					returnValue = true;
@@ -655,7 +664,7 @@ public class SelectActionListener
     		if (retractDate == null || retractDate.after(currentDate)) {
 				int actualNumberRetake = 0;
 				if (actualNumberRetakeHash.get(f.getPublishedAssessmentId()) != null) {
-					actualNumberRetake = ((Integer) actualNumberRetakeHash.get(f.getPublishedAssessmentId()));
+					actualNumberRetake = (actualNumberRetakeHash.get(f.getPublishedAssessmentId()));
 				}
 				if (actualNumberRetake < numberRetake) {
 					returnValue = true;

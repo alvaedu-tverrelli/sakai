@@ -163,7 +163,8 @@
 	}
 
 	&:focus {
-		outline-color: darken( $button-border-color, 50% ) !important;
+		outline: 5px groove $focus-outline-color !important;
+		outline-offset: 2px !important;
 	}
 
 	&:hover{
@@ -225,7 +226,7 @@
 	@include sakai_primary_button();
 }
 
-.button, button.ui-state-default, .btn.btn-default {
+button:not(.fc-button), .button, button.ui-state-default, .btn.btn-default {
 	@include sakai_secondary_button();
 }
 

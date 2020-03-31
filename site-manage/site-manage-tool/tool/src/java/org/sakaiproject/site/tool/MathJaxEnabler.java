@@ -37,24 +37,26 @@ public class MathJaxEnabler
     private static final String ENABLED_SAKAI_PROP = "portal.mathjax.enabled";
     private static final String ENABLED_SAKAI_PROP_NEW_SITE = "portal.mathjax.newSites.enabled";
     private static final String SRC_PATH_SAKAI_PROP = "portal.mathjax.src.path";
+    private static final String HELP_URL_SAKAI_PROP = "portal.mathjax.help.url";
     private static final String VERSION_SERVICE_SAKAI_PROP = "version.service";
     private static final String VERSION_SERVICE_DEFAULT = "Sakai";
     private static final boolean ENABLED_SAKAI_PROP_DEFAULT = true;
     private static final boolean ENABLED_SAKAI_NEW_SITE_DEFAULT = false;
     
-    private static final String SITE_PROP_MATHJAX_ENABLED = "mathJaxAllowed";
     private static final String STATE_KEY_IS_MATHJAX_ENABLED_FOR_SITE = "isMathJaxEnabledForSite";
     private static final String CONTEXT_IS_MATHJAX_INSTALLED_KEY = "isMathJaxInstalled";
     private static final String CONTEXT_SAKAI_SERVICE_KEY = "sakaiService";
     private static final String CONTEXT_DO_ENABLE_MATHJAX_KEY = "doEnableMathJax";
     private static final String CONTEXT_MATHJAX_ENABLED_TOOL_ID_SUFFIX_KEY = "mathJaxToolIdSuffix";
     private static final String CONTEXT_MATHJAX_ENABLED_TOOL_ID_SUFFIX_VALUE = "-jax";
+    private static final String CONTEXT_MATHJAX_HELP_URL = "mathJaxHelpURL";
     private static final String PARAM_MATHJAX_ENABLED_KEY = "isMathJaxEnabledForSite";
         
     private static final String SRC_PATH = ServerConfigurationService.getString(SRC_PATH_SAKAI_PROP);
     private static final boolean ENABLED_AT_SYSTEM_LEVEL = ServerConfigurationService.getBoolean(ENABLED_SAKAI_PROP, ENABLED_SAKAI_PROP_DEFAULT) && !SRC_PATH.trim().isEmpty();
     private static final boolean ENABLED_AT_NEW_SITE_CREATION_LEVEL = ServerConfigurationService.getBoolean(ENABLED_SAKAI_PROP_NEW_SITE, ENABLED_SAKAI_NEW_SITE_DEFAULT) && ENABLED_AT_SYSTEM_LEVEL;
     private static final String SAKAI_SERVICE = ServerConfigurationService.getString(VERSION_SERVICE_SAKAI_PROP, VERSION_SERVICE_DEFAULT);
+    private static final String HELP_URL = ServerConfigurationService.getString(HELP_URL_SAKAI_PROP, ServerConfigurationService.getPortalUrl() + "/help/TOCDisplay/content.hlp?docId=howdoiaddlatexlanguagetomycoursesite");
     
     /**
      * Add MathJax settings to the context for the edit tools page
@@ -65,6 +67,8 @@ public class MathJaxEnabler
      */
     public static boolean addMathJaxSettingsToEditToolsContext(Context context, Site site, SessionState state)
     {
+        context.put(CONTEXT_MATHJAX_HELP_URL, HELP_URL);
+
         if (!ENABLED_AT_SYSTEM_LEVEL  || context == null || site == null || state == null || !isMathJaxEnabledForSite(site, state))
         {
             return false;
@@ -73,7 +77,7 @@ public class MathJaxEnabler
         context.put(CONTEXT_IS_MATHJAX_INSTALLED_KEY, Boolean.TRUE);
         context.put(CONTEXT_SAKAI_SERVICE_KEY, SAKAI_SERVICE);
         context.put(CONTEXT_MATHJAX_ENABLED_TOOL_ID_SUFFIX_KEY, CONTEXT_MATHJAX_ENABLED_TOOL_ID_SUFFIX_VALUE);
-        
+
         return true;
     }
     
@@ -138,9 +142,9 @@ public class MathJaxEnabler
             boolean isMathJaxEnabledForSite = (Boolean) state.getAttribute(STATE_KEY_IS_MATHJAX_ENABLED_FOR_SITE);
             ResourcePropertiesEdit props = site.getPropertiesEdit();
             if (isMathJaxEnabledForSite) {
-                props.addProperty(SITE_PROP_MATHJAX_ENABLED, Boolean.TRUE.toString());
+                props.addProperty(Site.PROP_SITE_MATHJAX_ALLOWED, Boolean.TRUE.toString());
             } else {
-                props.removeProperty(SITE_PROP_MATHJAX_ENABLED);
+                props.removeProperty(Site.PROP_SITE_MATHJAX_ALLOWED);
             }
         }
 
@@ -158,7 +162,7 @@ public class MathJaxEnabler
     	if (ENABLED_AT_SYSTEM_LEVEL && site != null && state != null) {
     		
     		String enabled = String.valueOf(ENABLED_AT_NEW_SITE_CREATION_LEVEL);
-        	site.getProperties().addProperty(SITE_PROP_MATHJAX_ENABLED, enabled);
+        	site.getProperties().addProperty(Site.PROP_SITE_MATHJAX_ALLOWED, enabled);
         	state.setAttribute(STATE_KEY_IS_MATHJAX_ENABLED_FOR_SITE, Boolean.valueOf(enabled));
     		
     		return true;
@@ -180,19 +184,19 @@ public class MathJaxEnabler
             return false;
         }
 
-        Boolean mathJaxEnabled = (Boolean) state.getAttribute(STATE_KEY_IS_MATHJAX_ENABLED_FOR_SITE);
-        if (mathJaxEnabled == null)
+        Boolean mathJaxAllowed = (Boolean) state.getAttribute(STATE_KEY_IS_MATHJAX_ENABLED_FOR_SITE);
+        if (mathJaxAllowed == null)
         {
             return false;
         }
 
-        if (mathJaxEnabled.booleanValue())
+        if (mathJaxAllowed.booleanValue())
         {
-            site.getPropertiesEdit().addProperty(SITE_PROP_MATHJAX_ENABLED, Boolean.toString(true));
+            site.getPropertiesEdit().addProperty(Site.PROP_SITE_MATHJAX_ALLOWED, Boolean.toString(true));
         }
         else
         {
-            site.getPropertiesEdit().removeProperty(SITE_PROP_MATHJAX_ENABLED);
+            site.getPropertiesEdit().removeProperty(Site.PROP_SITE_MATHJAX_ALLOWED);
         }
 
         return true;
@@ -258,7 +262,7 @@ public class MathJaxEnabler
 
         if (mathJaxEnabled == null) // no state information, read from site properties instead
         {
-            boolean enabled = Boolean.parseBoolean(site.getProperties().getProperty(SITE_PROP_MATHJAX_ENABLED));
+            boolean enabled = Boolean.parseBoolean(site.getProperties().getProperty(Site.PROP_SITE_MATHJAX_ALLOWED));
             state.setAttribute(STATE_KEY_IS_MATHJAX_ENABLED_FOR_SITE, Boolean.valueOf(enabled));
             return enabled;
         }
