@@ -47,15 +47,10 @@
          border-color: light grey;
        }
        
-       #delivPageWrapper
-       {
-            width: 100%
-            float: left;
-       }
-       
        #delivAssessmentWrapper
        {
             width: 96%;
+            float: left;
        }
       </style>
 
@@ -69,6 +64,12 @@
 	<h:outputText value="#{delivery.mathJaxHeader}" escape="false" rendered="#{delivery.actionString=='takeAssessmentViaUrl' and delivery.isMathJaxEnabled}"/>
       </head>
 	<body>
+
+  <h:panelGroup rendered="#{delivery.assessmentSubmitted}">
+    <%@ include file="/jsf/delivery/assessmentHasBeenSubmittedContent.jsp" %>
+  </h:panelGroup>
+
+  <h:panelGroup rendered="#{!delivery.assessmentSubmitted}">
  
       <h:outputText value="<a name='top'></a>" escape="false" />
       
@@ -106,7 +107,7 @@
 		</div>
  
 <div class="portletBody Mrphs-sakai-samigo">
- <h:outputText value="<div style='#{delivery.settings.divBgcolor};#{delivery.settings.divBackground}'>" escape="false"/>
+<div>
 
 <!-- content... -->
 <h:form id="takeAssessmentForm" enctype="multipart/form-data"
@@ -305,7 +306,7 @@ document.links[newindex].onclick();
 </h:panelGroup>
 
 <div id="delivPageWrapper">
-  <div id="delivAssessmentWrapper">
+<h:outputText value="<div id='delivAssessmentWrapper' style='#{delivery.settings.divBgcolor};#{delivery.settings.divBackground}'>" escape="false"/>
 
     <!-- IF A SECURE DELIVERY MODULE HAS BEEN SELECTED, INJECT ITS HTML FRAGMENT (IF ANY) HERE -->
     <h:outputText  value="#{delivery.secureDeliveryHTMLFragment}" escape="false"  />
@@ -599,6 +600,7 @@ document.links[newindex].onclick();
 	questionProgress.access(<h:outputText value="#{delivery.navigation}"/>, <h:outputText value="#{delivery.questionLayout}"/>);
     questionProgress.setUp();
 </script>
+</h:panelGroup>
     </body>
   </html>
 </f:view>
