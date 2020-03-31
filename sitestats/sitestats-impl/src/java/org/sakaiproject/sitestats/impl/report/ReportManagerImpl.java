@@ -57,7 +57,6 @@ import org.apache.poi.hssf.usermodel.HSSFRow;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.util.WorkbookUtil;
-import org.apache.xpath.operations.Bool;
 import org.hibernate.Criteria;
 import org.hibernate.criterion.Expression;
 import org.springframework.core.io.ClassPathResource;
@@ -408,28 +407,29 @@ public class ReportManagerImpl extends HibernateDaoSupport implements ReportMana
 		params.setWhenTo(rpp.fDate);
 
 		// who (users, groups, roles)
-		rpp.userIds = null;
+		rpp.userIds = new ArrayList<String>();
 		rpp.inverseUserSelection = false;
 		if(params.getWho().equals(ReportManager.WHO_ALL)){
-			;
+			try{
+				Site site = M_ss.getSite(rpp.siteId);
+				rpp.userIds.addAll(site.getUsers());
+			}catch(IdUnusedException e){
+				log.error("No site with specified siteId.");
+			}
 		}else if(params.getWho().equals(ReportManager.WHO_ROLE) && rpp.siteId != null){
-			rpp.userIds = new ArrayList<String>();
 			try{
 				Site site = M_ss.getSite(rpp.siteId);
 				rpp.userIds.addAll(site.getUsersHasRole(params.getWhoRoleId()));
 			}catch(IdUnusedException e){
 				log.error("No site with specified siteId.");
 			}
-
 		}else if(params.getWho().equals(ReportManager.WHO_GROUPS) && rpp.siteId != null){
-			rpp.userIds = new ArrayList<String>();
 			try{
 				Site site = M_ss.getSite(rpp.siteId);
 				rpp.userIds.addAll(site.getGroup(params.getWhoGroupId()).getUsers());
 			}catch(IdUnusedException e){
 				log.error("No site with specified siteId.");
 			}
-
 		}else if(params.getWho().equals(ReportManager.WHO_CUSTOM)){
 			rpp.userIds = params.getWhoUserIds();
 		}else{
@@ -454,8 +454,7 @@ public class ReportManagerImpl extends HibernateDaoSupport implements ReportMana
 
 		return rpp;
 	}
-	
-	
+
 	/* (non-Javadoc)
 	 * @see org.sakaiproject.sitestats.api.report.ReportManager#getReportFormattedParams()
 	 */

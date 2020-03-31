@@ -20,9 +20,12 @@ public class CourseGradeChart extends BaseChart {
 
 	private final String siteId;
 
-	public CourseGradeChart(final String id, final String siteId) {
+	private CourseGrade studentGrade;
+
+	public CourseGradeChart(final String id, final String siteId, CourseGrade studentGrade) {
 		super(id);
 		this.siteId = siteId;
+		this.studentGrade = studentGrade;
 	}
 
 	/**
@@ -33,7 +36,7 @@ public class CourseGradeChart extends BaseChart {
 	 */
 	public void refresh(final AjaxRequestTarget target, final Map<String, Double> schema) {
 		final GbChartData data = this.getData(schema);
-		target.appendJavaScript("renderChart('" + toJson(data) + "')");
+		target.appendJavaScript("renderChartData('" + toJson(data) + "')");
 	}
 
 	/**
@@ -53,6 +56,9 @@ public class CourseGradeChart extends BaseChart {
 		data.setYAxisLabel(MessageHelper.getString("settingspage.gradingschema.chart.yaxis"));
 		data.setChartType("horizontalBar");
 		data.setChartId(this.getMarkupId());
+		if (this.studentGrade != null) {
+			data.setStudentGradeRange(this.studentGrade.getDisplayGrade());
+		}
 
 		return data;
 	}

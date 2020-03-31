@@ -37,6 +37,9 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import javax.faces.application.FacesMessage;
+import javax.faces.bean.ManagedBean;
+import javax.faces.bean.ManagedProperty;
+import javax.faces.bean.SessionScoped;
 import javax.faces.component.UIComponent;
 import javax.faces.context.ExternalContext;
 import javax.faces.context.FacesContext;
@@ -44,16 +47,18 @@ import javax.faces.model.SelectItem;
 import javax.faces.validator.ValidatorException;
 import javax.servlet.http.HttpServletRequest;
 
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import org.sakaiproject.authz.api.PermissionsHelper;
 import org.sakaiproject.chat2.model.ChatMessage;
 import org.sakaiproject.chat2.model.ChatChannel;
 import org.sakaiproject.chat2.model.ChatManager;
 import org.sakaiproject.chat2.model.ChatFunctions;
-import org.sakaiproject.component.cover.ServerConfigurationService;
+import org.sakaiproject.component.api.ServerConfigurationService;
 import org.sakaiproject.component.cover.ComponentManager;
 import org.sakaiproject.event.api.EventTrackingService;
 import org.sakaiproject.exception.IdUnusedException;
@@ -70,11 +75,14 @@ import org.sakaiproject.user.api.UserNotDefinedException;
 import org.sakaiproject.user.cover.UserDirectoryService;
 import org.sakaiproject.util.DateFormatterUtil;
 import org.sakaiproject.util.ResourceLoader;
-import org.sakaiproject.util.Validator;
+import org.sakaiproject.util.api.FormattedText;
 
 @Slf4j
+@Getter @Setter
+@ManagedBean(name="ChatTool")
+@SessionScoped
 public class ChatTool {
-   /*  */
+
    private static final String IFRAME_ROOM_USERS = "Presence";
    
    /* various pages that we can go to within the tool */
@@ -113,19 +121,17 @@ public class ChatTool {
    
    private static final String HIDDEN_START_ISO_DATE = "chatStartDateISO8601";
    private static final String HIDDEN_END_ISO_DATE = "chatEndDateISO8601";
-   
-   /* All the managers */
-   /**   The work-horse of chat   */
+
+   @ManagedProperty(value="#{Components[\"org.sakaiproject.chat2.model.ChatManager\"]}")
    private ChatManager chatManager;
-   
-   /**   The tool manager   */
+   @ManagedProperty(value="#{Components[\"org.sakaiproject.component.api.ServerConfigurationService\"]}")
+   private ServerConfigurationService serverConfigurationService;
+   @ManagedProperty(value="#{Components[\"org.sakaiproject.tool.api.ActiveToolManager\"]}")
    private ToolManager toolManager;
    
-   /* All the private variables */
    /** The current channel the user is in */
    private DecoratedChatChannel currentChannel = null;
    
-   /** The current channel the user is editing */
    private DecoratedChatChannel currentChannelEdit = null;
    
    /** The current message the user is deleting */
@@ -133,7 +139,6 @@ public class ChatTool {
    
    private DecoratedSynopticOptions currentSynopticOptions = null;
    
-   /** The location where the new message text goes */
    private String newMessageText = "";
    
    /** display the time (1), date(2), both(3), neither(0), or uniqueid(4) */
@@ -142,7 +147,6 @@ public class ChatTool {
    /** display all messages (-1), past 3 days (0) */
    private int messageOptions = MESSAGEOPTIONS_NULL;
    
-   /** The id of the placement of this sakai tool.  the jsf tool bean needs this for passing to the delivery  */
    private String placementId = "";
    
    /** the worksite the tool is in */
@@ -201,6 +205,10 @@ public class ChatTool {
            throw new RuntimeException("Failed to redirect to " + url, e);
       }
       return "";
+   }
+
+   public String getToolUrl() {
+       return serverConfigurationService.getPortalUrl() + "/site/" + getWorksite().getId() + "/tool/" + placementId;
    }
    
    public int getPollInterval() {
@@ -787,13 +795,6 @@ public class ChatTool {
     }
    
    /**
-    * @return the currentChannelEdit
-    */
-   public DecoratedChatChannel getCurrentChannelEdit() {
-      return currentChannelEdit;
-   }
-
-   /**
     * @param currentChannelEdit the currentChannelEdit to set
     */
    public void setCurrentChannelEdit(DecoratedChatChannel currentChannelEdit) {
@@ -847,19 +848,6 @@ public class ChatTool {
       }
       return dso;
    }
-   /**
-    * @return the synopticOptions
-    */
-   public DecoratedSynopticOptions getCurrentSynopticOptions() {
-      return currentSynopticOptions;
-   }
-
-   /**
-    * @param synopticOptions the synopticOptions to set
-    */
-   public void setCurrentSynopticOptions(DecoratedSynopticOptions currentSynopticOptions) {
-      this.currentSynopticOptions = currentSynopticOptions;
-   }
 
    /**
     * This creates select items out of the channels available to the tool
@@ -890,14 +878,6 @@ public class ChatTool {
       }
       
       return items;
-   }
-   
-   /**
-    * gets the chatManager
-    * @return ChatManager
-    */
-   public ChatManager getChatManager() {
-      return chatManager;
    }
    
    public String getViewOptions() {
@@ -942,31 +922,6 @@ public class ChatTool {
       this.messageOptions = Integer.parseInt(messageOptions);
    }
 
-   public String getNewMessageText() {
-      return newMessageText;
-   }
-
-   public void setNewMessageText(String newMessageText) {
-      this.newMessageText = newMessageText;
-   }
-
-   /**
-    * Sets the chatManager
-    * @param chatManager ChatManager
-    */
-   public void setChatManager(ChatManager chatManager) {
-      this.chatManager = chatManager;
-   }
-
-
-   public ToolManager getToolManager() {
-      return toolManager;
-   }
-
-   public void setToolManager(ToolManager toolManager) {
-      this.toolManager = toolManager;
-   }
-   
    public boolean getDisplayDate()
    {
       int val = Integer.parseInt(getViewOptions());
@@ -1166,7 +1121,7 @@ public class ChatTool {
       if (numMessages > getChatManager().getMessagesMax()) {
           numMessages = getChatManager().getMessagesMax();
       }
-      List<ChatMessage> messages = new ArrayList<ChatMessage>();
+      List<ChatMessage> messages = new ArrayList<>();
       try {
          ChatChannel channel = (currentChannel==null) ? null : currentChannel.getChatChannel();
          messages = getChatManager().getChannelMessages(channel, context, limitDate, 0, numMessages, sortAsc);
@@ -1175,7 +1130,7 @@ public class ChatTool {
          setErrorMessage(PERMISSION_ERROR, new String[] {ChatFunctions.CHAT_FUNCTION_READ});
       }
       
-      List<DecoratedChatMessage> decoratedMessages = new ArrayList<DecoratedChatMessage>();
+      List<DecoratedChatMessage> decoratedMessages = new ArrayList<>();
       
       for (ChatMessage message : messages) {         
          DecoratedChatMessage decoratedMessage = new DecoratedChatMessage(this, message, chatManager);
@@ -1291,21 +1246,9 @@ public class ChatTool {
          new FacesMessage(getMessageFromBundle(errorMsg, extras)));
    }
    
-   public String getServerUrl() {
-      return ServerConfigurationService.getServerUrl();
-   }
-   
    //********************************************************************
    // Utilities
 
-   /**
-    * Gets the id of the tool we are in
-    * @return String
-    */
-   public String getToolString() {
-      return placementId;
-   }   
-   
    /**
     * Gets the id of the site we are in
     * @return String
@@ -1319,7 +1262,7 @@ public class ChatTool {
     * @return
     */
    public String getFramePlacementId() {
-      return Validator.escapeJavascript("Main" + getToolManager().getCurrentPlacement().getId());
+      return ComponentManager.get(FormattedText.class).escapeJavascript("Main" + getToolManager().getCurrentPlacement().getId());
    }
    
    
@@ -1362,14 +1305,6 @@ public class ChatTool {
          toolBundle = new ResourceLoader(bundle);
       }
       return toolBundle.getString(key);
-   }
-
-   public String getToolContext() {
-      return toolContext;
-   }
-
-   public void setToolContext(String toolContext) {
-      this.toolContext = toolContext;
    }
 
    public void validatePositiveNumber(FacesContext context, UIComponent component, Object value){

@@ -47,7 +47,7 @@ import java.util.Map.Entry;
 
 import lombok.extern.slf4j.Slf4j;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import org.sakaiproject.alias.api.Alias;
 import org.sakaiproject.alias.api.AliasService;
@@ -111,12 +111,12 @@ import org.sakaiproject.util.CalendarEventType;
 import org.sakaiproject.util.CalendarUtil;
 import org.sakaiproject.util.EntryProvider;
 import org.sakaiproject.util.FileItem;
-import org.sakaiproject.util.FormattedText;
 import org.sakaiproject.util.MergedList;
 import org.sakaiproject.util.MergedListEntryProviderFixedListWrapper;
 import org.sakaiproject.util.ParameterParser;
 import org.sakaiproject.util.ResourceLoader;
 import org.sakaiproject.util.Validator;
+import org.sakaiproject.util.api.FormattedText;
 
 /**
  * The schedule tool.
@@ -735,7 +735,7 @@ extends VelocityPortletStateAction
 			eVector = eventVector;
 		}
 		
-		public Vector getEventsBerDay(int index)
+		public Vector getEventsPerDay(int index)
 		{
 			Vector dayVector = new Vector();
 
@@ -869,7 +869,7 @@ extends VelocityPortletStateAction
 		public String trimFormattedText(String formattedText, int maxNumOfChars)
 		{
 			StringBuilder sb = new StringBuilder();
-			FormattedText.trimFormattedText(formattedText, maxNumOfChars, sb);
+			ComponentManager.get(FormattedText.class).trimFormattedText(formattedText, maxNumOfChars, sb);
 			return sb.toString();
 		}
 	}
@@ -1704,7 +1704,7 @@ extends VelocityPortletStateAction
 			{
 				addAlert(sstate, rb.getString("java.alert.subsurlempty"));
 			}
-			else if(!FormattedText.validateURL(calendarUrl))
+			else if(!ComponentManager.get(FormattedText.class).validateURL(calendarUrl))
 			{
 				addAlert(sstate,rb.getString("java.alert.subsurlinvalid"));
 			}
@@ -3016,7 +3016,9 @@ extends VelocityPortletStateAction
 						context.put("assignmenturl", (String) assignData.get("assignmentUrl"));
 						context.put("assignmentTitle", (String) assignData.get("assignmentTitle"));
 					}catch(SecurityException e){
-						context.put(ALERT_MSG_KEY,rb.getString("java.alert.opendate"));
+						final String openDateErrorDescription = rb.getFormattedMessage("java.alert.opendatedescription",
+								calEvent.getField(CalendarUtil.NEW_ASSIGNMENT_OPEN_DATE_ANNOUNCED));
+						context.put(ALERT_MSG_KEY, rb.getString("java.alert.opendate") + " " + openDateErrorDescription);
 						context.put(NOT_OPEN_EVENT_FLAG_CONTEXT_VAR, TRUE_STRING);
 						return;
  					}
@@ -3120,6 +3122,8 @@ extends VelocityPortletStateAction
 		int stateYear = b.getYear();
 		int stateMonth = b.getMonth();
 		int stateDay = b.getDay();
+		context.put("todayYear", Integer.valueOf(stateYear));
+
 		if ((sstate.getAttribute(STATE_YEAR) != null) && (sstate.getAttribute(STATE_MONTH) != null) && (sstate.getAttribute(STATE_DAY) != null))
 		{
 			stateYear = ((Integer)sstate.getAttribute(STATE_YEAR)).intValue();
@@ -3197,8 +3201,9 @@ extends VelocityPortletStateAction
 		
 		context.put("selectedView", rb.getString("java.byyear"));
 		
-		context.put("dayOfWeekNames", calObj.getCalendarDaysOfWeekNames(false));
+		context.put("isDefaultView", isDefaultView(state, ToolManager.getCurrentPlacement()));
 		
+		context.put("dayOfWeekNames", calObj.getCalendarDaysOfWeekNames(false));
 	} // buildYearContext
 	
 	
@@ -3227,6 +3232,9 @@ extends VelocityPortletStateAction
 		int stateYear = b.getYear();
 		int stateMonth = b.getMonth();
 		int stateDay = b.getDay();
+		context.put("todayYear", Integer.valueOf(stateYear));
+		context.put("todayMonth", Integer.valueOf(stateMonth));
+		
 		if ((sstate.getAttribute(STATE_YEAR) != null) && (sstate.getAttribute(STATE_MONTH) != null) && (sstate.getAttribute(STATE_DAY) != null))
 		{
 			stateYear = ((Integer)sstate.getAttribute(STATE_YEAR)).intValue();
@@ -3277,9 +3285,21 @@ extends VelocityPortletStateAction
 		
 		context.put("selectedView", rb.getString("java.bymonth"));
 		
+		context.put("isDefaultView", isDefaultView(state, ToolManager.getCurrentPlacement()));
+		
 		context.put("dayOfWeekNames", calObj.getCalendarDaysOfWeekNames(false));
 		
+		context.put("monthInt", Integer.valueOf(calObj.getMonthInteger()));
 	} // buildMonthContext
+
+
+	protected boolean isDefaultView(CalendarActionState state, Placement currentPlacement)
+	{
+		String currentView = state.getState();
+		String defaultView = currentPlacement.getPlacementConfig().getProperty( PORTLET_CONFIG_DEFAULT_VIEW);
+		
+		return StringUtils.equals(defaultView, currentView);
+	}
 	
 	
 	protected Vector getNewEvents(int year, int month, int day, CalendarActionState state, RunData rundata, int time, int numberofcycles,Context context,CalendarEventVector CalendarEventVectorObj)
@@ -3581,6 +3601,8 @@ extends VelocityPortletStateAction
 
 		context.put("selectedView", rb.getString("java.byday"));
 		
+		context.put("isDefaultView", isDefaultView(state, ToolManager.getCurrentPlacement()));
+		
 		context.put("dayName", calendarUtilGetDay(calObj.getDay_Of_Week(true)));
 
 	} // buildDayContext
@@ -3703,7 +3725,6 @@ extends VelocityPortletStateAction
 		{
 			
 			Vector eventVector = new Vector();
-			Vector eventVector1;
 			dateObj2 =	new MyDate();
 			dateObj2.setTodayDate(calObj.getMonthInteger(),calObj.getDayOfMonth(),calObj.getYear());
 			dateObj2.setDayName(calendarUtilGetDay(calObj.getDay_Of_Week(true)));
@@ -3714,15 +3735,7 @@ extends VelocityPortletStateAction
 			
 			if(state.getCurrentPage().equals("third"))
 			{
-				eventVector1 = new Vector();
-				// JS -- the third page starts at 2PM(14 o'clock), and lasts 20 half-hour
 				eventVector = getNewEvents(calObj.getYear(),calObj.getMonthInteger(),calObj.getDayOfMonth(), state, runData,THIRD_PAGE_START_HOUR,NUMBER_OF_SECTIONS,context,CalendarEventVectorObj);
-				
-				for(int index = 0;index<eventVector1.size();index++)
-				{
-					eventVector.add(eventVector.size(),eventVector1.get(index));
-				}
-				
 				// Reminder: weekview vm is using 0..6
 				pageStartTime[i-1] = TimeService.newTimeLocal(calObj.getYear(),calObj.getMonthInteger(),calObj.getDayOfMonth(), THIRD_PAGE_START_HOUR, 0, 0, 0);
 				pageEndTime[i-1] = TimeService.newTimeLocal(calObj.getYear(),calObj.getMonthInteger(),calObj.getDayOfMonth(), THIRD_PAGE_START_HOUR+NUMBER_HOURS_PER_PAGE, 59, 0, 0);
@@ -3738,15 +3751,7 @@ extends VelocityPortletStateAction
 			}
 			else
 			{
-				eventVector1 = new Vector();
-				// JS -- the first page starts at 12AM(0 o'clock), and lasts 20 half-hour
-				eventVector1 = getNewEvents(calObj.getYear(),calObj.getMonthInteger(),calObj.getDayOfMonth(), state, runData, FIRST_PAGE_START_HOUR,NUMBER_OF_SECTIONS,context,CalendarEventVectorObj);
-				
-				for(int index = 0;index<eventVector1.size();index++)
-				{
-					eventVector.insertElementAt(eventVector1.get(index),index);
-				}
-				
+				eventVector = getNewEvents(calObj.getYear(),calObj.getMonthInteger(),calObj.getDayOfMonth(), state, runData, FIRST_PAGE_START_HOUR,NUMBER_OF_SECTIONS,context,CalendarEventVectorObj);
 				// Reminder: weekview vm is using 0..6
 				pageStartTime[i-1] = TimeService.newTimeLocal(calObj.getYear(),calObj.getMonthInteger(),calObj.getDayOfMonth(), 0, 0, 0, 0);
 				pageEndTime[i-1] = TimeService.newTimeLocal(calObj.getYear(),calObj.getMonthInteger(),calObj.getDayOfMonth(), FIRST_PAGE_START_HOUR+NUMBER_HOURS_PER_PAGE, 59, 0, 0);
@@ -3760,6 +3765,9 @@ extends VelocityPortletStateAction
 			if (i > dayofweek)
 				calObj.nextDate();
 		}
+
+		//Since the third page start time is dynamic, need to add it to the context
+		context.put("thirdPageStartHour", THIRD_PAGE_START_HOUR);
 		
 		calObj.setDay(yearObj.getYear(),monthObj1.getMonth(),dayObj.getDay());
 		context.put("week", weekObj);
@@ -3806,6 +3814,8 @@ extends VelocityPortletStateAction
 		context.put("pageEndTime", pageEndTime);
 		
 		context.put("selectedView", rb.getString("java.byweek"));
+		
+		context.put("isDefaultView", isDefaultView(state, ToolManager.getCurrentPlacement()));
 
 		context.put("dayOfWeekNames", calObj.getCalendarDaysOfWeekNames(false));
 		
@@ -5102,12 +5112,10 @@ extends VelocityPortletStateAction
 			addAlert(sstate, rb.getString("java.alert.youcreate"));
 		}
 		
-		
 		String returnState = state.getReturnState();
 		state.setState(returnState);
 		
 	}	 // doBack
-	
 	
 	
 	/**
@@ -5310,7 +5318,7 @@ extends VelocityPortletStateAction
 	
 	
 	/**
-	 * Action doToday is requested when the user click on "Go to today" button
+	 * Action doToday is requested when the user click on "Go to today" button; goes to today's date in the current view
 	 */
 	public void doToday(RunData data, Context context)
 	{
@@ -5327,12 +5335,6 @@ extends VelocityPortletStateAction
 		sstate.setAttribute(STATE_YEAR, Integer.valueOf(b.getYear()));
 		sstate.setAttribute(STATE_MONTH, Integer.valueOf(b.getMonth()));
 		sstate.setAttribute(STATE_DAY, Integer.valueOf(b.getDay()));
-		
-		state.setState("day");
-		
-		//for dropdown menu display purpose
-		sstate.setAttribute(STATE_SELECTED_VIEW, rb.getString("java.byday"));
-		
 	}	 // doToday
 	
 	
@@ -6198,7 +6200,7 @@ extends VelocityPortletStateAction
 				if(returnState.compareTo(CalendarAction.STATE_INITED) == 0) {
 					returnState = this.defaultStateView;
 				}
-				if (returnState.endsWith("!!!fromDescription"))
+				if (StringUtils.endsWith(returnState, "!!!fromDescription"))
 				{
 					state.setReturnState(returnState.substring(0, returnState.indexOf("!!!fromDescription")));
 					state.setState("description");
@@ -7381,6 +7383,9 @@ extends VelocityPortletStateAction
 		context.put("realDate", TimeService.newTime());
 		
 		context.put("selectedView", rb.getString("java.listeve"));
+		
+		context.put("isDefaultView", isDefaultView(state, ToolManager.getCurrentPlacement()));
+		
 		context.put("tlang",rb);
 
 		context.put("calendarFormattedText", new CalendarFormattedText());
@@ -7391,10 +7396,10 @@ extends VelocityPortletStateAction
 
 	}	 // buildListContext
 	
-	private void buildPrintMenu( VelocityPortlet portlet,
+	private void buildPrintLink( VelocityPortlet portlet,
 								 RunData runData,
 								 CalendarActionState state,
-								 Menu bar_print )
+								 Context context )
 	{
 		String stateName = state.getState();
 		
@@ -7531,8 +7536,8 @@ extends VelocityPortletStateAction
 			
 			Reference calendarRef = EntityManager.newReference(state.getPrimaryCalendarReference());
 			
-			// Add PDF print menu option				
-			String accessPointUrl = ServerConfigurationService.getAccessUrl()
+			// Create the PDF print version URL
+			String printableVersionUrl = ServerConfigurationService.getAccessUrl()
 			+ CalendarService.calendarPdfReference(calendarRef.getContext(), 
 														calendarRef.getId(),
 														printType,
@@ -7541,7 +7546,7 @@ extends VelocityPortletStateAction
 														dailyStartTime,
 														dateDesc);
 			
-			bar_print.add(new MenuEntry(rb.getString("java.print"), "").setUrl(accessPointUrl));
+			context.put("printableVersionUrl", printableVersionUrl);
 		}
 	}
 	/**
@@ -7630,7 +7635,7 @@ extends VelocityPortletStateAction
 		
 		//2nd menu bar for the PDF print only
 		Menu bar_print = new MenuImpl(portlet, runData, "CalendarAction");
-		buildPrintMenu( portlet, runData, state, bar_print );	
+		buildPrintLink( portlet, runData, state, context );	
       
 		if (SiteService.allowUpdateSite(ToolManager.getCurrentPlacement().getContext()))
 		{
@@ -7654,7 +7659,6 @@ extends VelocityPortletStateAction
 		stateForMenus.setAttribute(MenuItem.STATE_MENU, bar);
 		context.put("tlang",rb);
 		context.put(Menu.CONTEXT_MENU, bar);
-		context.put("menu_PDF", bar_print);
 		context.put(Menu.CONTEXT_ACTION, "CalendarAction");
 		
 	}	 // buildMenu
@@ -7716,10 +7720,8 @@ extends VelocityPortletStateAction
 		SessionState sstate = ((JetspeedRunData) rundata).getPortletSessionState(((JetspeedRunData) rundata).getJs_peid());
 		String view = state.getState();
 		Placement placement = ToolManager.getCurrentPlacement();
-		placement.getPlacementConfig().setProperty(
-																 PORTLET_CONFIG_DEFAULT_VIEW, view );
+		placement.getPlacementConfig().setProperty( PORTLET_CONFIG_DEFAULT_VIEW, view );
 		saveOptions();
-		addAlert(sstate, rb.getString("java.alert.default_view"));
 	}
 	
 	/**
@@ -8107,7 +8109,7 @@ extends VelocityPortletStateAction
 		StringBuilder alertMsg = new StringBuilder();
 		try
 		{
-			String text = FormattedText.processFormattedText(strFromBrowser, alertMsg);
+			String text = ComponentManager.get(FormattedText.class).processFormattedText(strFromBrowser, alertMsg);
 			if (alertMsg.length() > 0) addAlert(state, alertMsg.toString());
 			return text;
 		}
@@ -8127,7 +8129,7 @@ extends VelocityPortletStateAction
 	{
 		// get the index for the month. Note, the index is increased by 1, u need to deduct 1 first
 		CalendarUtil calUtil = new CalendarUtil();
-		String[] months = calUtil.getCalendarMonthNames(false);
+		String[] months = calUtil.getCalendarMonthNames(true);
 
 		if (l_month >12) 
 		{
@@ -8269,6 +8271,3 @@ extends VelocityPortletStateAction
 	} 
 		
 }	 // CalendarAction
-
-
-

@@ -15,13 +15,13 @@
  */
 package org.sakaiproject.contentreview.turnitin;
 
-import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
@@ -40,8 +40,8 @@ import java.util.TreeSet;
 
 import javax.servlet.http.HttpServletRequest;
 
-import org.apache.commons.lang.ArrayUtils;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.validator.routines.EmailValidator;
 import org.sakaiproject.api.common.edu.person.SakaiPerson;
 import org.sakaiproject.api.common.edu.person.SakaiPersonManager;
@@ -52,6 +52,7 @@ import org.sakaiproject.content.api.ContentResource;
 import org.sakaiproject.contentreview.advisors.ContentReviewSiteAdvisor;
 import org.sakaiproject.contentreview.dao.ContentReviewConstants;
 import org.sakaiproject.contentreview.dao.ContentReviewItem;
+import org.sakaiproject.contentreview.exception.ContentReviewProviderException;
 import org.sakaiproject.contentreview.exception.QueueException;
 import org.sakaiproject.contentreview.exception.ReportException;
 import org.sakaiproject.contentreview.exception.SubmissionException;
@@ -861,19 +862,9 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 						.compareTo("21") == 0) {
 			log.debug("Create Class successful");
 		} else {
-			if ("218".equals(rcode) || "9999".equals(rcode)) {
-				throw new TransientSubmissionException("Create Class not successful. Message: "
-						+ ((CharacterData) (root.getElementsByTagName("rmessage").item(0).getFirstChild())).getData()
-								.trim()
-						+ ". Code: " + ((CharacterData) (root.getElementsByTagName("rcode").item(0).getFirstChild()))
-								.getData().trim());
-			} else {
-				throw new SubmissionException("Create Class not successful. Message: "
-						+ ((CharacterData) (root.getElementsByTagName("rmessage").item(0).getFirstChild())).getData()
-								.trim()
-						+ ". Code: " + ((CharacterData) (root.getElementsByTagName("rcode").item(0).getFirstChild()))
-								.getData().trim());
-			}
+			String rmessage = ((CharacterData) (root.getElementsByTagName("rmessage").item(0).getFirstChild())).getData().trim();
+			throw new ContentReviewProviderException(getFormattedMessage("enrolment.class.creation.error.with.code", rmessage, rcode),
+				createLastError(doc->createFormattedMessageXML(doc, "enrolment.class.creation.error.with.code", rmessage, rcode)));
 		}
 	}
 
@@ -1196,22 +1187,15 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 			int rcode = new Integer(
 					((CharacterData) (root.getElementsByTagName("rcode").item(0).getFirstChild())).getData().trim())
 							.intValue();
+			String rmessage = ((CharacterData) (root.getElementsByTagName("rmessage").item(0).getFirstChild())).getData().trim();
 			if ((rcode > 0 && rcode < 100) || rcode == 419) {
 				log.debug("Create FirstDate Assignment successful");
-				log.debug("tii returned "
-						+ ((CharacterData) (root.getElementsByTagName("rmessage").item(0).getFirstChild())).getData()
-								.trim()
-						+ ". Code: " + rcode);
+				log.debug("tii returned {}. Code: {}", rmessage, rcode);
 			} else {
-				log.debug("FirstDate Assignment creation failed with message: "
-						+ ((CharacterData) (root.getElementsByTagName("rmessage").item(0).getFirstChild())).getData()
-								.trim()
-						+ ". Code: " + rcode);
-				// log.debug(root);
-				throw new TransientSubmissionException("FirstDate Create Assignment not successful. Message: "
-						+ ((CharacterData) (root.getElementsByTagName("rmessage").item(0).getFirstChild())).getData()
-								.trim()
-						+ ". Code: " + rcode, Integer.valueOf(rcode));
+				log.debug("FirstDate Assignment creation failed with message: {}. Code: {}", rmessage, rcode);
+				String errorMessage = getFormattedMessage("assignment.creation.error.with.code", rmessage, rcode);
+				TransientSubmissionException tse = new TransientSubmissionException(errorMessage, Integer.valueOf(rcode));
+				throw new ContentReviewProviderException(errorMessage, createLastError(doc->createFormattedMessageXML(doc, "assignment.creation.error.with.code", rmessage, rcode)), tse);
 			}
 		}
 		log.debug("going to attempt second update");
@@ -1221,22 +1205,19 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 		Document document = turnitinConn.callTurnitinReturnDocument(params);
 
 		Element root = document.getDocumentElement();
+		String rmessage = ((CharacterData) (root.getElementsByTagName("rmessage").item(0).getFirstChild())).getData().trim();
 		int rcode = new Integer(
 				((CharacterData) (root.getElementsByTagName("rcode").item(0).getFirstChild())).getData().trim())
 						.intValue();
 		if ((rcode > 0 && rcode < 100) || rcode == 419) {
 			log.debug("Create Assignment successful");
-			log.debug("tii returned "
-					+ ((CharacterData) (root.getElementsByTagName("rmessage").item(0).getFirstChild())).getData().trim()
-					+ ". Code: " + rcode);
+			log.debug("tii returned {}. Code: {}", rmessage, rcode);
 		} else {
-			log.debug("Assignment creation failed with message: "
-					+ ((CharacterData) (root.getElementsByTagName("rmessage").item(0).getFirstChild())).getData().trim()
-					+ ". Code: " + rcode);
+			log.debug("Assignment creation failed with message: {}. Code: {}", rmessage, rcode);
 			// log.debug(root);
-			throw new TransientSubmissionException("Create Assignment not successful. Message: "
-					+ ((CharacterData) (root.getElementsByTagName("rmessage").item(0).getFirstChild())).getData().trim()
-					+ ". Code: " + rcode, Integer.valueOf(rcode));
+			String errorMessage = getFormattedMessage("assignment.creation.error.with.code", rmessage, rcode);
+			TransientSubmissionException tse = new TransientSubmissionException(errorMessage, Integer.valueOf(rcode));
+			throw new ContentReviewProviderException(errorMessage, createLastError(doc->createFormattedMessageXML(doc, "assignment.creation.error.with.code", rmessage, rcode)), tse);
 		}
 
 		if (sessionid != null) {
@@ -1268,19 +1249,19 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 		try {
 			user = userDirectoryService.getUser(userId);
 		} catch (Exception t) {
-			throw new SubmissionException("Cannot get user information", t);
+			throw new ContentReviewProviderException(t.getLocalizedMessage(), createLastError(doc->createFormattedMessageXML(doc, "enrolment.user.idunusedexception")));
 		}
 
 		log.debug("Enrolling user " + user.getEid() + "(" + userId + ")  in class " + siteId);
 
 		String ufn = getUserFirstName(user);
 		if (ufn == null) {
-			throw new SubmissionException("User has no first name");
+			throw new ContentReviewProviderException("First name required for user: " + userId, createLastError(doc->createFormattedMessageXML(doc, "enrolment.first.name.required")));
 		}
 
 		String uln = getUserLastName(user);
 		if (uln == null) {
-			throw new SubmissionException("User has no last name");
+			throw new ContentReviewProviderException("Last name required for user: " + userId, createLastError(doc->createFormattedMessageXML(doc, "enrolment.last.name.required")));
 		}
 
 		String utp = "1";
@@ -1363,7 +1344,7 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 			if (uem == null) {
 				log.error("User: " + user.getEid() + " has no valid email");
 				item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_USER_DETAILS_CODE);
-				item.setLastError("no valid email");
+				setLastError(item, doc->createFormattedMessageXML(doc, "enrolment.email.required"));
 				crqs.update(item);
 				errors++;
 				continue;
@@ -1373,7 +1354,7 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 			if (ufn == null || ufn.equals("")) {
 				log.error("Submission attempt unsuccessful - User has no first name");
 				item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_USER_DETAILS_CODE);
-				item.setLastError("has no first name");
+				setLastError(item, doc->createFormattedMessageXML(doc, "enrolment.first.name.required"));
 				crqs.update(item);
 				errors++;
 				continue;
@@ -1383,7 +1364,7 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 			if (uln == null || uln.equals("")) {
 				log.error("Submission attempt unsuccessful - User has no last name");
 				item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_USER_DETAILS_CODE);
-				item.setLastError("has no last name");
+				setLastError(item, doc->createFormattedMessageXML(doc, "enrolment.last.name.required"));
 				crqs.update(item);
 				errors++;
 				continue;
@@ -1392,15 +1373,9 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 			if (!turnitinConn.isUseSourceParameter()) {
 				try {
 					createClass(item.getSiteId());
-				} catch (SubmissionException t) {
-					log.error("Submission attempt unsuccessful: Could not create class", t);
-					item.setLastError("Class creation error: " + t.getMessage());
-					item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_RETRY_CODE);
-					crqs.update(item);
-					errors++;
-					continue;
-				} catch (TransientSubmissionException tse) {
-					item.setLastError("Class creation error: " + tse.getMessage());
+				} catch (Exception e) {
+					log.error("Submission attempt unsuccessful: Could not create class", e);
+					setLastError(item, e, doc->createFormattedMessageXML(doc, "enrolment.class.creation.error", e.getLocalizedMessage()));
 					item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_RETRY_CODE);
 					crqs.update(item);
 					errors++;
@@ -1412,14 +1387,8 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 				enrollInClass(item.getUserId(), uem, item.getSiteId());
 			} catch (Exception t) {
 				log.error("Submission attempt unsuccessful: Could not enroll user in class", t);
-
-				if (t.getClass() == IOException.class) {
-					item.setLastError("Enrolment error: " + t.getMessage());
-					item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_RETRY_CODE);
-				} else {
-					item.setLastError("Enrolment error: " + t.getMessage());
-					item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_RETRY_CODE);
-				}
+				setLastError(item, t, doc->createFormattedMessageXML(doc, "enrolment.generic.error", t.getLocalizedMessage()));
+				item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_RETRY_CODE);
 				crqs.update(item);
 				errors++;
 				continue;
@@ -1431,26 +1400,23 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 					if (tiiresult.get("rcode") != null && !tiiresult.get("rcode").equals("85")) {
 						createAssignment(item.getSiteId(), item.getTaskId());
 					}
-				} catch (SubmissionException se) {
-					item.setLastError("Assign creation error: " + se.getMessage());
-					item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_NO_RETRY_CODE);
-					if (se.getErrorCode() != null) {
-						item.setErrorCode(se.getErrorCode());
+				} catch (Exception e) {
+					setLastError(item, e);
+					Throwable cause = e.getCause() == null ? e : e.getCause();
+					Long status = cause instanceof SubmissionException ? ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_NO_RETRY_CODE : ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_RETRY_CODE;
+					item.setStatus(status);
+					Integer errorCode = null;
+					if (cause instanceof TransientSubmissionException) {
+						errorCode = ((TransientSubmissionException) cause).getErrorCode();
+					} else if (cause instanceof SubmissionException) {
+						errorCode = ((SubmissionException) cause).getErrorCode();
+					}
+					if (errorCode != null) {
+						item.setErrorCode(errorCode);
 					}
 					crqs.update(item);
 					errors++;
 					continue;
-				} catch (TransientSubmissionException tse) {
-					item.setLastError("Assign creation error: " + tse.getMessage());
-					item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_RETRY_CODE);
-					if (tse.getErrorCode() != null) {
-						item.setErrorCode(tse.getErrorCode());
-					}
-
-					crqs.update(item);
-					errors++;
-					continue;
-
 				}
 			}
 
@@ -1485,14 +1451,14 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 			} catch (PermissionException e2) {
 				log.error("Submission failed due to permission error.", e2);
 				item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_NO_RETRY_CODE);
-				item.setLastError("Permission exception: " + e2.getMessage());
+				setLastError(item, doc->createFormattedMessageXML(doc, "submission.permission.exception"));
 				crqs.update(item);
 				errors++;
 				continue;
 			} catch (TypeException e) {
 				log.error("Submission failed due to content Type error.", e);
 				item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_NO_RETRY_CODE);
-				item.setLastError("Type Exception: " + e.getMessage());
+				setLastError(item, doc->createFormattedMessageXML(doc, "submission.type.exception", e.getLocalizedMessage()));
 				crqs.update(item);
 				errors++;
 				continue;
@@ -1536,17 +1502,9 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 			Document document = null;
 			try {
 				document = turnitinConn.callTurnitinReturnDocument(params, true);
-			} catch (TransientSubmissionException e) {
+			} catch (Exception e) {
 				item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_RETRY_CODE);
-				item.setLastError(
-						"Error Submitting Assignment for Submission: " + e.getMessage() + ". Assume unsuccessful");
-				crqs.update(item);
-				errors++;
-				continue;
-			} catch (SubmissionException e) {
-				item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_RETRY_CODE);
-				item.setLastError(
-						"Error Submitting Assignment for Submission: " + e.getMessage() + ". Assume unsuccessful");
+				setLastError(item, doc->createFormattedMessageXML(doc, "submission.transient.submission.exception", e.getLocalizedMessage()));
 				crqs.update(item);
 				errors++;
 				continue;
@@ -1583,7 +1541,7 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 					crqs.update(item);
 				} else {
 					log.warn("invalid external id");
-					item.setLastError("Submission error: no external id received");
+					setLastError(item, doc->createFormattedMessageXML(doc, "submission.no.external.id"));
 					item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_RETRY_CODE);
 					errors++;
 					crqs.update(item);
@@ -1616,7 +1574,9 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 					item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_NO_RETRY_CODE);
 					errors++;
 				}
-				item.setLastError("Submission Error: " + rMessage + "(" + rCode + ")");
+				final String arg1 = rMessage;
+				final String arg2 = rCode;
+				setLastError(item, doc->createFormattedMessageXML(doc, "submission.error.with.code", arg1, arg2));
 				item.setErrorCode(Integer.valueOf(rCode));
 				crqs.update(item);
 
@@ -1690,6 +1650,10 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 
 	public void checkForReports() {
 		checkForReportsBulk();
+	}
+
+	public void syncRosters() {
+		processSyncQueue();
 	}
 
 	/*
@@ -1847,16 +1811,10 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 
 				try {
 					document = turnitinConn.callTurnitinReturnDocument(params);
-				} catch (TransientSubmissionException e) {
-					log.warn("Update failed due to TransientSubmissionException error: " + e.toString(), e);
+				} catch (Exception e) {
+					log.warn("Update failed:", e);
 					currentItem.setStatus(ContentReviewConstants.CONTENT_REVIEW_REPORT_ERROR_RETRY_CODE);
-					currentItem.setLastError(e.getMessage());
-					crqs.update(currentItem);
-					break;
-				} catch (SubmissionException e) {
-					log.warn("Update failed due to SubmissionException error: " + e.toString(), e);
-					currentItem.setStatus(ContentReviewConstants.CONTENT_REVIEW_REPORT_ERROR_RETRY_CODE);
-					currentItem.setLastError(e.getMessage());
+					setLastError(currentItem, doc->createFormattedMessageXML(doc, "report.generic.error", e.getLocalizedMessage()));
 					crqs.update(currentItem);
 					break;
 				}
@@ -2105,9 +2063,10 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 			log.debug("Assignment creation failed with message: "
 					+ ((CharacterData) (root.getElementsByTagName("rmessage").item(0).getFirstChild())).getData().trim()
 					+ ". Code: " + rcode);
-			throw new SubmissionException("Create Assignment not successful. Message: "
-					+ ((CharacterData) (root.getElementsByTagName("rmessage").item(0).getFirstChild())).getData().trim()
-					+ ". Code: " + rcode);
+			throw new SubmissionException(
+				getFormattedMessage("assignment.creation.error.with.code",
+					((CharacterData) (root.getElementsByTagName("rmessage").item(0).getFirstChild())).getData().trim(),
+					rcode));
 		}
 	}
 
@@ -2234,11 +2193,17 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 		return uln;
 	}
 
-	public String getLocalizedStatusMessage(String messageCode, String userRef) {
-
+	private ResourceLoader getResourceLoader(String userRef) {
 		String userId = EntityReference.getIdFromRef(userRef);
-		ResourceLoader resourceLoader = new ResourceLoader(userId, "turnitin");
-		return resourceLoader.getString(messageCode);
+		return new ResourceLoader(userId, "turnitin");
+	}
+
+	public String getFormattedMessage(String key, Object... args) {
+		return getResourceLoader().getFormattedMessage(key, args);
+	}
+
+	public String getLocalizedStatusMessage(String messageCode, String userRef) {
+		return getResourceLoader(userRef).getString(messageCode);
 	}
 
 	public String getReviewError(String contentId) {
@@ -2439,7 +2404,7 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 			 * Use ResourceLoader to resolve the file types.
 			 * If the resource loader doesn't find the file extenions, log a warning and return the [missing key...] messages
 			 */
-			ResourceLoader resourceLoader = new ResourceLoader("turnitin");
+			ResourceLoader resourceLoader = getResourceLoader();
 			for( String fileExtension : acceptableFileExtensions ) {
 				String key = KEY_FILE_TYPE_PREFIX + fileExtension;
 				if (!resourceLoader.getIsValid(key)) {
@@ -2590,4 +2555,345 @@ public class TurnitinReviewServiceImpl extends BaseContentReviewService {
 	public void webhookEvent(HttpServletRequest request, int providerId, Optional<String> customParam) {
 		//Auto-generated method stub
 	}
+
+	/**
+	 * This method takes a Sakai Site ID and returns the xml document from
+	 * Turnitin that lists all the instructors and students for that Turnitin
+	 * course.
+	 *
+	 * @param sakaiSiteID
+	 * @return
+	 */
+	private Document getEnrollmentDocument(String sakaiSiteID) {
+		Map instinfo = getInstructorInfo(sakaiSiteID);
+
+		Map params = TurnitinAPIUtil.packMap(null,
+				"fid","19",
+				"fcmd","5",
+				"utp","2",
+				"ctl",sakaiSiteID,
+				"cid",sakaiSiteID,
+				"src","9",
+				"encrypt","0"
+				);
+		params.putAll(instinfo);
+
+		Document togo = null;
+		try {
+			togo = turnitinConn.callTurnitinWDefaultsReturnDocument(params);
+		} catch (SubmissionException e) {
+			log.error("Error getting enrollment document for sakai site: "
+					+ sakaiSiteID, e);
+		} catch (TransientSubmissionException e) {
+			log.error("Error getting enrollment document for sakai site: "
+					+ sakaiSiteID, e);
+		}
+		return togo;
+	}
+
+	/**
+	 * This will make an API call to Turnitin to fetch the list of instructors
+	 * and students for the site.  Remember that in Turnitin, a user can be
+	 * <strong>both</strong> a student and an instructor.
+	 *
+	 * @param sakaiSiteID
+	 * @return An Map. The first element is a List<String> of instructor ids,
+	 * the second element is a List<String> of student ids.
+	 */
+	private Map<String, List<String>> getInstructorsStudentsForSite(String sakaiSiteID) {
+
+		List<String> instructorIds = new ArrayList<String>();
+		List<String> studentIds = new ArrayList<String>();
+		Document doc = getEnrollmentDocument(sakaiSiteID);
+
+		if (doc == null) {
+			return null;
+		}
+
+		NodeList instructors = doc.getElementsByTagName("instructor");
+
+		for (int i = 0; i < instructors.getLength(); i++) {
+			Element nextInst = (Element) instructors.item(i);
+			String instUID = nextInst.getElementsByTagName("uid").item(0).getTextContent();
+			instructorIds.add(instUID);
+		}
+
+		NodeList students = doc.getElementsByTagName("student");
+
+		for (int i = 0 ; i < students.getLength(); i++) {
+			Element nextStud = (Element) students.item(i);
+			String studUID = nextStud.getElementsByTagName("uid").item(0).getTextContent();
+			studentIds.add(studUID);
+		}
+
+		Map<String, List<String>> togo = new HashMap<>();
+		togo.put("instructor", instructorIds);
+		togo.put("student", studentIds);
+
+		return togo;
+	}
+
+	/**
+	 * This method swap a users role in a Turnitin site. The currentRole should
+	 * be accurate for the users current information otherwise the method may
+	 * fail (this all depends on calls to Turnitin's Webservice API's). So if
+	 * you pass in a site, a user, and the value 1 (student) that user should be
+	 * switched to an instructor in that site.
+	 *
+	 * @param siteId
+	 * @param user
+	 * @param currentRole The current role using Turnitin codes. In Turnitin a
+	 * value of 1 always represents a student and a value of 2 represents an
+	 * instructor.
+	 * @return
+	 */
+	private boolean swapTurnitinRoles(String siteId, User user, int currentRole ) {
+
+		if (user != null) {
+			String uem = getEmail(user);
+			Map params = TurnitinAPIUtil.packMap(turnitinConn.getBaseTIIOptions(),
+					"fid","19","fcmd", "3", "uem", uem, "uid", user.getId(),
+					"ufn", user.getFirstName(), "uln", user.getLastName(),
+					"username", user.getDisplayName(), "ctl", siteId, "cid", siteId,
+					"utp", currentRole+"",
+					"tem", getInstructorInfo(siteId).get("uem"));
+
+			Map ret = new HashMap();
+			try {
+				ret = turnitinConn.callTurnitinWDefaultsReturnMap(params);
+			} catch (SubmissionException e) {
+				log.error("Error syncing Turnitin site: " + siteId + " user: " + user.getEid(), e);
+			} catch (TransientSubmissionException e) {
+				log.error("Error syncing Turnitin site: " + siteId + " user: " + user.getEid(), e);
+			}
+
+			// A Successful return should look like:
+			// {rmessage=Successful!, rcode=93}
+			if (ret.containsKey("rcode") && ret.get("rcode").equals("93")) {
+				log.info("Successfully swapped user roles for site: " + siteId + " user: " + user.getEid() + " oldRole: " + currentRole);
+				return true;
+			}
+
+			// Special case: ignore return code 450 (unable to swap role because the user is the only instructor)
+			// This is typically because there is more than one Sakai user in the site with the same email address,
+			// and Turnitin is not distinguishing between them despite the uid being supplied.
+			if (ret.containsKey("rcode") && ret.get("rcode").equals("450")) {
+				log.info("Response code 450 (user is only instructor in the site); not changing user role for site: " + siteId + " user: " + user.getEid());
+				return true;
+			}
+		}
+		else {
+			// This was successful because the user doesn't exist in our Sakai
+			// installation, and so we don't need to sync them at all.
+			return true;
+		}
+
+		log.warn("Unable to swap user roles for site: " + siteId + " user: " + user.getEid() + " oldRole: " + currentRole);
+		return false;
+	}
+
+	/**
+	 * Add an instructor to a class in Turnitin, allowing them to properly
+	 * access assignments created by other instructors. (Only applicable to SRC 9)
+	 * @param siteId Sakai site ID
+	 * @param userId Sakai User ID
+	 * @throws SubmissionException
+	 * @throws TransientSubmissionException
+	 */
+	@SuppressWarnings("unchecked")
+	private void addInstructor(String siteId, String userId) throws SubmissionException, TransientSubmissionException {
+		log.info("Adding Instructor ("+userId+") to site: " + siteId);
+		User user;
+		try {
+			user = userDirectoryService.getUser(userId);
+		} catch (Exception t) {
+			throw new SubmissionException ("(addInstructor)Cannot get user information.", t);
+		}
+		String cpw = turnitinConn.getDefaultClassPassword();
+		String ctl = siteId;
+		String fcmd = "2";
+		String fid = "2";
+		String utp = "2";
+		String cid = siteId;
+		String uem = getEmail(user);
+		if (uem == null || uem.trim().isEmpty()) {
+			log.debug("User " + userId + " has no email address");
+			throw new SubmissionException ("User has no email address");
+		}
+		String uid = user.getId();
+		String ufn = user.getFirstName();
+		if (ufn == null || ufn.trim().isEmpty()) {
+			log.debug("User " + userId + " has no first name");
+			throw new SubmissionException ("User has no first name");
+		}
+		String uln = user.getLastName();
+		if (uln == null || uln.trim().isEmpty()) {
+			log.debug("User " + userId + " has no last name");
+			throw new SubmissionException ("User has no last name");
+		}
+		String dis = turnitinConn.isInstructorAccountNotified() ? "0" : "1"; // dis=1 means disable sending email to the user
+
+		Document document = null;
+
+		Map params = TurnitinAPIUtil.packMap(turnitinConn.getBaseTIIOptions(),
+				"uid", uid,
+				"cid", cid,
+				"cpw", cpw,
+				"ctl", ctl,
+				"fcmd", fcmd,
+				"fid", fid,
+				"uem", uem,
+				"ufn", ufn,
+				"uln", uln,
+				"utp", utp,
+				"dis", dis
+				);
+		document = turnitinConn.callTurnitinReturnDocument(params);
+
+		Element root = document.getDocumentElement();
+		String rcode = ((CharacterData) (root.getElementsByTagName("rcode").item(0).getFirstChild())).getData().trim();
+
+		if (((CharacterData) (root.getElementsByTagName("rcode").item(0).getFirstChild())).getData().trim().compareTo("20") == 0 ||
+				((CharacterData) (root.getElementsByTagName("rcode").item(0).getFirstChild())).getData().trim().compareTo("21") == 0 ) {
+			log.debug("Add instructor successful");
+		} else {
+			if ("218".equals(rcode) || "9999".equals(rcode)) {
+				throw new TransientSubmissionException("Create Class not successful. Message: " + ((CharacterData) (root.getElementsByTagName("rmessage").item(0).getFirstChild())).getData().trim() + ". Code: " + ((CharacterData) (root.getElementsByTagName("rcode").item(0).getFirstChild())).getData().trim());
+			} else {
+				throw new SubmissionException("Create Class not successful. Message: " + ((CharacterData) (root.getElementsByTagName("rmessage").item(0).getFirstChild())).getData().trim() + ". Code: " + ((CharacterData) (root.getElementsByTagName("rcode").item(0).getFirstChild())).getData().trim());
+			}
+		}
+	}
+	/**
+	 * Looks up a Sakai {@link org.sakaiproject.user.api.User} by userid,
+	 * returns null if they do not exist.
+	 *
+	 * @param userid
+	 * @return the User object or null if the user does not exist in the Sakai
+	 * installation.
+	 */
+	private User getUser(String userid) {
+		User user = null;
+		try {
+			user = userDirectoryService.getUser(userid);
+		} catch (UserNotDefinedException e) {
+			log.warn("Attemping to lookup user for Turnitn Sync that does not exist: " + userid, e);
+		}
+		return user;
+	}
+
+	/**
+	 * Return a Map containing all users of x type enrolled on a site
+	 * @param siteId Sakai site ID
+	 * @param role specific user role e.g. 'instructor'
+	 * @return
+	 */
+	@SuppressWarnings("unchecked")
+	private Map getAllUsers(String siteId, String role) {
+		String ROLE = "section.role."+role;
+		Map<String,String> users = new HashMap<>();
+		Site site = null;
+		try {
+			site = siteService.getSite(siteId);
+			Set<String> instIds = site.getUsersIsAllowed(ROLE);
+			List<User> activeUsers = userDirectoryService.getUsers(instIds);
+			for (int i = 0; i < activeUsers.size(); i++) {
+				User user = activeUsers.get(i);
+				users.put(user.getId(),user.getId());
+			}
+		} catch (IdUnusedException e) {
+			log.error("Unable to fetch site in getAllUsers: " + siteId, e);
+		} catch (Exception e) {
+			log.error("Exception in getAllUsers", e);
+		}
+		return users;
+	}
+	/**
+	 * The primary method of this class. Syncs the enrollment between a Sakai
+	 * Site and it's corresponding
+	 *
+	 * @param sakaiSiteID
+	 */
+	private boolean syncSiteWithTurnitin(String sakaiSiteID) {
+		boolean success = true;
+
+		Site site = null;
+		try {
+			site = siteService.getSite(sakaiSiteID);
+		} catch (IdUnusedException e) {
+			log.info("Ignoring site " + sakaiSiteID + " which no longer exists.");
+			return true;
+		}
+
+		Map<String, List<String>> enrollment = getInstructorsStudentsForSite(sakaiSiteID);
+
+		if (enrollment == null) {
+			return false;
+		}
+
+		// Only run if using SRC 9
+		if (turnitinConn.isUseSourceParameter()) {
+			// Enroll all instructors
+			log.debug("Enrolling all instructors");
+			Map<String,String> allInstructors = getAllUsers(sakaiSiteID,"instructor");
+			for (String key : allInstructors.keySet()) {
+				try {
+					addInstructor(sakaiSiteID,allInstructors.get(key));
+				} catch (SubmissionException e) {
+					log.warn("SubmissionException from syncSiteWithTurnitin", e);
+				} catch(TransientSubmissionException e){
+					log.warn("TransientSubmissionException from syncSiteWithTurnitin", e);
+				} catch(Exception e){
+					log.error("Unknown error", e);
+				}
+			}
+		} else {
+			log.debug("Checking users with Turnitin student role");
+			for (String uid: enrollment.get("student")) {
+				if (site.isAllowed(uid, "section.role.instructor")) {
+					// User has an instructor role in Sakai - change Turnitin role from student to instructor
+					boolean status = swapTurnitinRoles(sakaiSiteID, getUser(uid), 1);
+					if (status == false) {
+						success = false;
+					}
+				}
+			}
+		}
+
+		log.debug("Checking users with Turnitin instructor role");
+		for (String uid: enrollment.get("instructor")) {
+			if (!site.isAllowed(uid, "section.role.instructor")) {
+				// User does not have instructor role in Sakai - change Turnitin role from instructor to student
+				boolean status = swapTurnitinRoles(sakaiSiteID, getUser(uid), 2);
+				if (status == false) {
+					success = false;
+				}
+			}
+		}
+
+		return success;
+	}
+
+	/**
+	 * This is the main processing method that's meant to be periodically run
+	 * by a quartz job or other script. It will sync all the Sakai Sites that
+	 * have been put in the queue due to site updates or something.
+	 */
+	public void processSyncQueue() {
+
+		log.info("Running Turnitin Roster Sync");
+
+		List<String> items = crqs.getContentReviewItemsGroupedBySite(getProviderId());
+		for (String siteId : items) {
+			log.debug("Turnitin roster sync site: {}", siteId);
+			try {
+				syncSiteWithTurnitin(siteId);
+			} catch (Exception e) {
+				log.error("Unable to complete Turnitin Roster Sync for site", e);
+			}
+		}
+
+		log.info("Completed Turnitin Roster Sync");
+	}
+
 }

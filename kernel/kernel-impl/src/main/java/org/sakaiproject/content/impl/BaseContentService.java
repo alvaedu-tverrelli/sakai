@@ -23,11 +23,13 @@ package org.sakaiproject.content.impl;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
 import java.net.SocketException;
 import java.net.URI;
@@ -46,6 +48,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.SortedSet;
@@ -68,16 +71,25 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang.ArrayUtils;
-import org.apache.tika.io.TikaInputStream;
-import org.apache.tika.metadata.Metadata;
+import org.apache.commons.lang3.ArrayUtils;
+import fr.opensagres.odfdom.converter.xhtml.XHTMLConverter;
+
 import org.apache.tika.detect.DefaultDetector;
 import org.apache.tika.detect.Detector;
+import org.apache.tika.io.TikaInputStream;
+import org.apache.tika.metadata.Metadata;
 import org.apache.tika.mime.MimeTypes;
-
 import org.apache.tika.parser.txt.CharsetDetector;
 import org.apache.tika.parser.txt.CharsetMatch;
+
+import org.odftoolkit.odfdom.doc.OdfTextDocument;
+
+import org.zwobble.mammoth.DocumentConverter;
+import org.zwobble.mammoth.Result;
+
+import org.sakaiproject.authz.api.AuthzRealmLockException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -123,7 +135,6 @@ import org.sakaiproject.entity.api.EntityPermissionException;
 import org.sakaiproject.entity.api.EntityPropertyNotDefinedException;
 import org.sakaiproject.entity.api.EntityPropertyTypeException;
 import org.sakaiproject.entity.api.EntityTransferrer;
-import org.sakaiproject.entity.api.EntityTransferrerRefMigrator;
 import org.sakaiproject.entity.api.HardDeleteAware;
 import org.sakaiproject.entity.api.HttpAccess;
 import org.sakaiproject.entity.api.Reference;
@@ -150,6 +161,7 @@ import org.sakaiproject.exception.OverQuotaException;
 import org.sakaiproject.exception.PermissionException;
 import org.sakaiproject.exception.ServerOverloadException;
 import org.sakaiproject.exception.TypeException;
+import org.sakaiproject.exception.ZipFileNumberException;
 import org.sakaiproject.id.api.IdManager;
 import org.sakaiproject.memory.api.CacheRefresher;
 import org.sakaiproject.memory.api.MemoryService;
@@ -190,7 +202,7 @@ import static org.sakaiproject.content.util.IdUtil.isolateName;
  */
 @Slf4j
 public abstract class BaseContentService implements ContentHostingService, CacheRefresher, ContextObserver, EntityTransferrer, 
-SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRefMigrator, HardDeleteAware
+SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, HardDeleteAware
 {
 	protected static final long END_OF_TIME = 8000L * 365L * 24L * 60L * 60L * 1000L;
 	protected static final long START_OF_TIME = 365L * 24L * 60L * 60L * 1000L;
@@ -842,7 +854,7 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 			// Get resource bundle
 			String resourceClass = m_serverConfigurationService.getString(RESOURCECLASS, DEFAULT_RESOURCECLASS);
 			String resourceBundle = m_serverConfigurationService.getString(RESOURCEBUNDLE, DEFAULT_RESOURCEBUNDLE);
-			rb = new Resource().getLoader(resourceClass, resourceBundle);
+			rb = Resource.getResourceLoader(resourceClass, resourceBundle);
 
 			m_relativeAccessPoint = REFERENCE_ROOT;
 
@@ -2798,6 +2810,10 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 		{
 			log.debug("removeCollection: removing realm for : " + edit.getReference() + " : " + ignore);
 		}
+		catch (AuthzRealmLockException arle)
+		{
+			log.warn("GROUP LOCK REGRESSION: {}", arle.getMessage(), arle);
+		}
 
 		// track it (no notification)
 		String ref = edit.getReference(null);
@@ -4642,6 +4658,10 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 		{
 			log.debug("removeResource: removing realm for : " + edit.getReference() + " : " + ignore);
 		}
+		catch (AuthzRealmLockException arle)
+		{
+			log.warn("GROUP LOCK REGRESSION: {}", arle.getMessage(), arle);
+		}
 
 		// track it (no notification)
 		String ref = edit.getReference(null);
@@ -4705,6 +4725,10 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 		catch (GroupNotDefinedException ignore)
 		{
 			log.debug("removeResource: removing realm for : " + edit.getReference() + " : " + ignore);
+		}
+		catch (AuthzRealmLockException arle)
+		{
+			log.warn("GROUP LOCK REGRESSION: {}", arle.getMessage(), arle);
 		}
 
 	} // removeDeletedResource
@@ -7039,7 +7063,7 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 			else
 			{
 				// use the last part, the file name part of the id, for the download file name
-				String fileName = Validator.getFileName(ref.getId());
+				String fileName = FilenameUtils.getName(ref.getId());
 				String disposition = null;
 
 				if (Validator.letBrowserInline(contentType))
@@ -8181,14 +8205,8 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 	/**
 	 * {@inheritDoc}
 	 */
-	public void transferCopyEntities(String fromContext, String toContext, List resourceIds){
-		transferCopyEntitiesRefMigrator(fromContext, toContext, resourceIds);
-	}
+	public Map<String, String> transferCopyEntities(String fromContext, String toContext, List<String> resourceIds, List<String> options) {
 
-
-	public Map<String, String> transferCopyEntitiesRefMigrator(String fromContext, String toContext, List resourceIds)
-
-	{
 		Map transversalMap = new HashMap();
 		// default to import all resources
 		boolean toBeImported = true;
@@ -8323,19 +8341,14 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 
 						ResourceProperties oProperties = oResource.getProperties();
 						boolean isCollection = false;
-						try
-						{
+						try {
 							isCollection = oProperties.getBooleanProperty(ResourceProperties.PROP_IS_COLLECTION);
-						}
-						catch (Exception e)
-						{
+						} catch (Exception e) {
 						}
 
-						if (isCollection)
-						{
+						if (isCollection) {
 							// add collection
-							try
-							{
+							try {
 								ContentCollectionEdit edit = addCollection(nId);
 								// import properties
 								ResourcePropertiesEdit p = edit.getPropertiesEdit();
@@ -8348,27 +8361,13 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 								m_storage.commitCollection(edit);
 								((BaseCollectionEdit) edit).closeEdit();
 								nUrl = edit.getUrl();
-							}
-							catch (IdUsedException e)
-							{
-							}
-							catch (IdInvalidException e)
-							{
-							}
-							catch (PermissionException e)
-							{
-							}
-							catch (InconsistentException e)
-							{
+							} catch (IdUsedException|IdInvalidException|PermissionException|InconsistentException e) {
 							}
 							transversalMap.put(oResource.getId(), nId);
 							transversalMap.put(oResource.getUrl(), nUrl);
-							transversalMap.putAll(transferCopyEntitiesRefMigrator(oResource.getId(), nId, resourceIds));
-						}
-						else
-						{
-							try
-							{
+							transversalMap.putAll(transferCopyEntities(oResource.getId(), nId, resourceIds, null));
+						} else {
+							try {
 								// add resource
 								ContentResourceEdit edit = addResource(nId);
 								edit.setContentType(((ContentResource) oResource).getContentType());
@@ -8385,7 +8384,7 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 								//Register the events
 								this.eventTrackingService.post(this.eventTrackingService.newEvent(EVENT_RESOURCE_ADD, edit.getReference(), true, NotificationService.NOTI_NONE));
 								boolean contentUpdated = ((BaseResourceEdit) edit).m_body != null || ((BaseResourceEdit) edit).m_contentStream != null;
-								if(contentUpdated){
+								if (contentUpdated){
 									this.eventTrackingService.post(this.eventTrackingService.newEvent(EVENT_RESOURCE_UPD_NEW_VERSION, edit.getReference(), true, NotificationService.NOTI_NONE));
 								}
 								// complete the edit
@@ -8396,37 +8395,15 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 								transversalMap.put(oResource.getUrl(), nUrl);
 
 								ContentChangeHandler cch = m_resourceTypeRegistry.getContentChangeHandler(((ContentResource) oResource).getResourceType());
-								if (cch!=null){
+								if (cch != null) {
 									cch.copy(((ContentResource) oResource));
 								}
-							}
-							catch (PermissionException e)
-							{
-							}
-							catch (IdUsedException e)
-							{
-							}
-							catch (IdInvalidException e)
-							{
-							}
-							catch (InconsistentException e)
-							{
-							}
-							catch (ServerOverloadException e)
-							{
+							} catch (PermissionException|IdUsedException|IdInvalidException|InconsistentException|ServerOverloadException e) {
 							}
 						} // if
 					} // if
 				} // for
-			}
-			catch (IdUnusedException e)
-			{
-			}
-			catch (TypeException e)
-			{
-			}
-			catch (PermissionException e)
-			{
+			} catch (IdUnusedException|TypeException|PermissionException e) {
 			}
 		}
 		transversalMap.put("/fromContext", fromContext);
@@ -9735,6 +9712,11 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 			}
 			catch (AuthzPermissionException e)
 			{
+				log.warn(e.getMessage());
+			}
+			catch (AuthzRealmLockException arle)
+			{
+				log.warn("GROUP LOCK REGRESSION: {}", arle.getMessage(), arle);
 			}
 		}
 
@@ -13904,13 +13886,8 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 		return 0;
 	}
 
-	public void transferCopyEntities(String fromContext, String toContext, List ids, boolean cleanup)
-	{
-		transferCopyEntitiesRefMigrator(fromContext, toContext, ids, cleanup);
-	}
+	public Map<String, String> transferCopyEntities(String fromContext, String toContext, List<String> ids, List<String> options, boolean cleanup) {
 
-	public Map<String,String> transferCopyEntitiesRefMigrator(String fromContext, String toContext, List ids, boolean cleanup)
-	{	
 		Map transversalMap = new HashMap();
 		try
 		{
@@ -13920,7 +13897,7 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 				ContentCollection oCollection = getCollection(toContext);
 
 				if (!isSiteLevelCollection(oCollection.getId())) {
-					throw new IllegalArgumentException("transferCopyEntitiesRefMigrator operation rejected on non site collection: " + oCollection.getId());
+					throw new IllegalArgumentException("transferCopyEntities operation rejected on non site collection: " + oCollection.getId());
 				}
 
 				if(oCollection != null)
@@ -13979,11 +13956,10 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
 				}
 			}
 		}
-		catch (Exception e)
-		{
+		catch (Exception e) {
 			log.debug("BaseContentService Resources transferCopyEntities Error" + e);
 		}
-		transversalMap.putAll(transferCopyEntitiesRefMigrator(fromContext, toContext, ids));
+		transversalMap.putAll(transferCopyEntities(fromContext, toContext, ids, null));
 		
 		return transversalMap;
 	}
@@ -14311,7 +14287,8 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
         if (zipManifest == null) {
             log.error("Zip file for resource ("+resourceId+") has no zip manifest, cannot extract");
         } else if (zipManifest.size() >= maxZipExtractSize) {
-            log.warn("Zip file for resource ("+resourceId+") is too large to be expanded, size("+zipManifest.size()+") exceeds the max=("+maxZipExtractSize+") as specified in setting content.zip.expand.maxfiles");
+            log.warn("Zip file for resource {} is too large to be expanded, size {} exceeds the max {} as specified in setting content.zip.expand.maxfiles", resourceId, zipManifest.size(), maxZipExtractSize);
+            throw new ZipFileNumberException(resourceId);
         } else {
             // zip is not too large to extract so check if files are too large
             long totalSize = 0;
@@ -14383,7 +14360,44 @@ SiteContentAdvisorProvider, SiteContentAdvisorTypeRegistry, EntityTransferrerRef
     	
     	return url;
     }
-    
+
+    public Optional<String> getHtmlForRef(String ref) {
+
+        try {
+            ContentResource cr = getResource(ref);
+
+            byte[] content = cr.getContent();
+            String contentType = cr.getContentType();
+
+            switch (cr.getContentType()) {
+                case DOCX_MIMETYPE:
+                    try (InputStream in = cr.streamContent()) {
+                        Result<String> result = new DocumentConverter().convertToHtml(in);
+                        String html = result.getValue();
+                        if (log.isDebugEnabled()) {
+                            result.getWarnings().forEach(w -> log.debug("Warning while converting {} to html: {}", ref, w));
+                        }
+                        return Optional.of(html);
+                    }
+                case ODT_MIMETYPE:
+                    try (InputStream in = cr.streamContent()) {
+                        OdfTextDocument document = OdfTextDocument.loadDocument(in);
+                        StringWriter sw = new StringWriter();
+                        XHTMLConverter.getInstance().convert( document, sw, null );
+                        return Optional.of(sw.toString());
+                    } catch ( Throwable e ) {
+                        e.printStackTrace();
+                    }
+
+                    return Optional.of("");
+                default:
+            }
+        } catch (Exception e) {
+            log.error("Failed to get html for ref {}", ref, e);
+        }
+        return Optional.empty();
+    }
+
     /**
      * Helper to get the value for a given macro.
      * @param macroName

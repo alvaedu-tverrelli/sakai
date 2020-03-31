@@ -16,10 +16,19 @@
 			<style type="text/css">
 				@import url("/messageforums-tool/css/msgcntr.css");
 			</style>
-            <script type="text/javascript">includeLatestJQuery("msgcntr");</script>
-       		<script type="text/javascript" src="/messageforums-tool/js/sak-10625.js"></script>
-       		<script type="text/javascript" src="/messageforums-tool/js/forum.js"></script>
-			<script type="text/javascript" src="/messageforums-tool/js/messages.js"></script>
+            <script>includeLatestJQuery("msgcntr");</script>
+       		<script src="/messageforums-tool/js/sak-10625.js"></script>
+       		<script src="/messageforums-tool/js/forum.js"></script>
+			<script src="/messageforums-tool/js/messages.js"></script>
+        <script>
+            $(document).ready(function () {
+                var menuLink = $('#forumsMainMenuLink');
+                var menuLinkSpan = menuLink.closest('span');
+                menuLinkSpan.addClass('current');
+                menuLinkSpan.html(menuLink.text());
+            });
+        </script>
+        <%@ include file="/jsp/discussionForum/menu/forumsMenu.jsp" %>
      <h3><h:outputText value="#{msgs.cdfm_revise_forum_msg}" /></h3>
 
 			<table class="topicBloc topicBlocLone">
@@ -143,9 +152,8 @@
 --%>		        
 			<p style="padding:0" class="act">
         <h:commandButton action="#{ForumTool.processDfMsgRevisedPost}" value="#{msgs.cdfm_button_bar_post_revised_msg}" accesskey="s" styleClass="active blockMeOnClick" />
-       <%-- <h:commandButton action="#{ForumTool.processDfMsgSaveRevisedDraft}" value="#{msgs.cdfm_button_bar_save_draft}" /> --%>
         <h:commandButton action="#{ForumTool.processDfMsgRevisedCancel}" value="#{msgs.cdfm_button_bar_cancel}"  accesskey="x" />
-        <h:outputText styleClass="messageProgress" style="display:none" value="#{msgs.cdfm_processing_submit_message}" />
+        <h:outputText styleClass="sak-banner-info" style="display:none" value="#{msgs.cdfm_processing_submit_message}" />
         	</p>	
     </h:form>
      

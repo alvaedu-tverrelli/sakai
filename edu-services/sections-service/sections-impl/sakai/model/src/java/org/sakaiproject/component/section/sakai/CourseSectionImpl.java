@@ -30,20 +30,20 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.TimeZone;
 
-import lombok.extern.slf4j.Slf4j;
-
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.commons.lang3.builder.ToStringBuilder;
-
+import org.sakaiproject.authz.api.AuthzGroup.RealmLockMode;
+import org.sakaiproject.component.cover.ComponentManager;
+import org.sakaiproject.entity.api.ResourceProperties;
 import org.sakaiproject.section.api.coursemanagement.Course;
 import org.sakaiproject.section.api.coursemanagement.CourseSection;
 import org.sakaiproject.section.api.coursemanagement.Meeting;
-import org.sakaiproject.entity.api.ResourceProperties;
 import org.sakaiproject.site.api.Group;
-import org.sakaiproject.component.cover.ComponentManager;
-import org.sakaiproject.time.api.TimeService;
+import org.sakaiproject.time.api.UserTimeService;
+
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class CourseSectionImpl implements CourseSection, Comparable<CourseSection>, Serializable {
@@ -85,7 +85,7 @@ public class CourseSectionImpl implements CourseSection, Comparable<CourseSectio
     private transient Group group;
 
     // To get the time zone from user. 
-    private static final TimeService timeService = (TimeService)ComponentManager.get("org.sakaiproject.time.api.TimeService");
+    private static final UserTimeService userTimeService = ComponentManager.get(UserTimeService.class);
     
     /**
      * Convenience constructor to create a CourseSection with a single meeting.
@@ -128,8 +128,9 @@ public class CourseSectionImpl implements CourseSection, Comparable<CourseSectio
 		this.course = new CourseImpl(group.getContainingSite());
 		this.title = group.getTitle();
 		this.description = group.getDescription();
-		this.isLocked = group.isLocked(Group.LockMode.ALL);
-		this.isLockedForDeletion = group.isLocked(Group.LockMode.DELETE);
+		RealmLockMode lockMode = group.getRealmLock();
+		this.isLocked = RealmLockMode.ALL.equals(lockMode) || RealmLockMode.MODIFY.equals(lockMode);
+		this.isLockedForDeletion = RealmLockMode.ALL.equals(lockMode) || RealmLockMode.DELETE.equals(lockMode);
 
 		ResourceProperties props = group.getProperties();
 		this.category = props.getProperty(CourseSectionImpl.CATEGORY);
@@ -269,7 +270,7 @@ public class CourseSectionImpl implements CourseSection, Comparable<CourseSectio
     	}
     	SimpleDateFormat sdf = new SimpleDateFormat(CourseSectionImpl.TIME_FORMAT_DATE_TZ);
     	// Time zone from user
-    	TimeZone userTz = timeService.getLocalTimeZone();
+    	TimeZone userTz = userTimeService.getLocalTimeZone();
     	sdf.setTimeZone(userTz);
 
     	// Today at 0.00
@@ -302,7 +303,7 @@ public class CourseSectionImpl implements CourseSection, Comparable<CourseSectio
     			src.setTimeInMillis(src.getTimeInMillis());
     			
     			TimeZone srcTz = sdf.getTimeZone();
-    			TimeZone userTz = timeService.getLocalTimeZone();
+    			TimeZone userTz = userTimeService.getLocalTimeZone();
     			TimeZone serverTz = TimeZone.getDefault();
     			
     			Calendar now = new GregorianCalendar(userTz);
@@ -371,7 +372,7 @@ public class CourseSectionImpl implements CourseSection, Comparable<CourseSectio
     			src.setTime(sdf.parse(str));    			
     			
     			TimeZone srcTz = sdf.getTimeZone();
-    			TimeZone userTz = timeService.getLocalTimeZone();
+    			TimeZone userTz = userTimeService.getLocalTimeZone();
     			
     			Calendar user = new GregorianCalendar(userTz);
     			src.set(Calendar.DAY_OF_MONTH, user.get(Calendar.DAY_OF_MONTH));

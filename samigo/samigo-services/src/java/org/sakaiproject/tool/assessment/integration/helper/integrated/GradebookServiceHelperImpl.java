@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringEscapeUtils;
+import org.apache.commons.text.StringEscapeUtils;
 import org.apache.commons.math3.util.Precision;
 import org.sakaiproject.exception.IdUnusedException;
 import org.sakaiproject.service.gradebook.shared.GradebookExternalAssessmentService;
@@ -100,14 +100,9 @@ public class GradebookServiceHelperImpl implements GradebookServiceHelper
 				} catch (Exception ee) {
 					log.warn(siteId + " contains a page (" + page.getTitle() + ") without a valid tool registration");
 				}
-				if (toolId != null && toolId.equalsIgnoreCase("sakai.gradebook.tool")) {
-					return true;
-				} else if (toolId != null && toolId.equalsIgnoreCase("sakai.gradebook.gwt.rpc")) {
-					return true;
-				} else if (toolId != null && toolId.equalsIgnoreCase("sakai.gradebookng")) {
+				if (toolId != null && toolId.toLowerCase().contains("sakai.gradebook")) {
 					return true;
 				}
-
 			}
 		} catch (Exception e) {
 			log.warn(e.getMessage());
@@ -188,7 +183,7 @@ public void removeExternalAssessment(String gradebookUId,
 
     if (g.isGradebookDefined(gradebookUId))
     {
-      String title = StringEscapeUtils.unescapeHtml3(publishedAssessment.getTitle());
+      String title = StringEscapeUtils.unescapeHtml4(publishedAssessment.getTitle());
       if(!g.isAssignmentDefined(gradebookUId, title))
       {
           g.addExternalAssessment(gradebookUId,

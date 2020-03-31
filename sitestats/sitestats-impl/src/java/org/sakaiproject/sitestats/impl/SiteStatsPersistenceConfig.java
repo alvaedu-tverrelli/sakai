@@ -1,5 +1,21 @@
+/**
+ * Copyright (c) 2006-2018 The Apereo Foundation
+ *
+ * Licensed under the Educational Community License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *             http://opensource.org/licenses/ecl2
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.sakaiproject.sitestats.impl;
 
+import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.SessionFactory;
@@ -80,6 +96,7 @@ public class SiteStatsPersistenceConfig {
         return new String[] {
                 "org/sakaiproject/sitestats/impl/hbm/PrefsImpl.hbm.xml",
                 "org/sakaiproject/sitestats/impl/hbm/EventStatImpl.hbm.xml",
+                "org/sakaiproject/sitestats/impl/hbm/DetailedEventImpl.hbm.xml",
                 "org/sakaiproject/sitestats/impl/hbm/LessonBuilderStatImpl.hbm.xml",
                 "org/sakaiproject/sitestats/impl/hbm/ResourceStatImpl.hbm.xml",
                 "org/sakaiproject/sitestats/impl/hbm/SiteVisitsImpl.hbm.xml",
@@ -124,13 +141,14 @@ public class SiteStatsPersistenceConfig {
 
     private HikariDataSource getExternalDataSource() {
         if (externalDataSource == null) {
-            externalDataSource = new HikariDataSource();
-            externalDataSource.setUsername(serverConfigurationService.getString("sitestats.externalDb.username", serverConfigurationService.getString("username@org.sakaiproject.sitestats.externalDbDataSource", "sa")));
-            externalDataSource.setPassword(serverConfigurationService.getString("sitestats.externalDb.password", serverConfigurationService.getString("password@org.sakaiproject.sitestats.externalDbDataSource", "")));
-            externalDataSource.setJdbcUrl(serverConfigurationService.getString("sitestats.externalDb.jdbcUrl", serverConfigurationService.getString("url@org.sakaiproject.sitestats.externalDbDataSource", "jdbc:hsqldb:mem:sitestats_db")));
-            externalDataSource.setDriverClassName(serverConfigurationService.getString("sitestats.externalDb.driverClassName", serverConfigurationService.getString("driverClassName@org.sakaiproject.sitestats.externalDbDataSource", "org.hsqldb.jdbcDriver")));
-            externalDataSource.setConnectionTestQuery(serverConfigurationService.getString("sitestats.externalDb.connectionTestQuery", "SELECT 1"));
-            externalDataSource.setPoolName(serverConfigurationService.getString("sitestats.externalDb.poolName", "externalDBCP"));
+            HikariConfig config = new HikariConfig();
+            config.setUsername(serverConfigurationService.getString("sitestats.externalDb.username", serverConfigurationService.getString("username@org.sakaiproject.sitestats.externalDbDataSource", "sa")));
+            config.setPassword(serverConfigurationService.getString("sitestats.externalDb.password", serverConfigurationService.getString("password@org.sakaiproject.sitestats.externalDbDataSource", "")));
+            config.setJdbcUrl(serverConfigurationService.getString("sitestats.externalDb.jdbcUrl", serverConfigurationService.getString("url@org.sakaiproject.sitestats.externalDbDataSource", "jdbc:hsqldb:mem:sitestats_db")));
+            config.setDriverClassName(serverConfigurationService.getString("sitestats.externalDb.driverClassName", serverConfigurationService.getString("driverClassName@org.sakaiproject.sitestats.externalDbDataSource", "org.hsqldb.jdbcDriver")));
+            config.setPoolName(serverConfigurationService.getString("sitestats.externalDb.poolName", "externalDBCP"));
+            config.setMaximumPoolSize(serverConfigurationService.getInt("sitestats.externalDb.maxPoolSize", 5));
+            externalDataSource = new HikariDataSource(config);
             log.info("SiteStats configuring external database with pool name {}", externalDataSource.getPoolName());
         }
         return externalDataSource;

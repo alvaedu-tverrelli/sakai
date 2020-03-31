@@ -9,7 +9,7 @@
     <html xmlns="http://www.w3.org/1999/xhtml">
       <head><%= request.getAttribute("html.head") %>
       <title><h:outputText value="#{sectionActivityMessages.section_activity_report}"/></title>
-      <script type="text/javascript" src="/samigo-app/js/eventInfo.js"></script>
+      <script src="/samigo-app/js/eventInfo.js"></script>
       <link rel="stylesheet" type="text/css" href="/samigo-app/css/tool_sam.css">
       </head>
     <body onload="<%= request.getAttribute("html.body.onload") %>">
@@ -53,7 +53,7 @@
         </h:commandLink>
      </f:facet>
      <h:panelGroup rendered="#{!pageData.anonymousGrading}">
-		<h:commandLink title ="#{sectionActivityMessages.assessment_name}" action="gradeStudentResultFromSectionActivity" immediate="true" >
+		<h:commandLink title ="#{sectionActivityMessages.assessment_name}" action="studentScores" immediate="true" >
 		  <h:outputText value="#{pageData.assessmentName}"/>
 		   <f:actionListener type="org.sakaiproject.tool.assessment.ui.listener.evaluation.ResetTotalScoreListener" />
 		   <f:actionListener type="org.sakaiproject.tool.assessment.ui.listener.evaluation.TotalScoreListener" />
@@ -86,7 +86,7 @@
           </h:commandLink>    
       </f:facet>
       <h:panelGroup rendered="#{!pageData.anonymousGrading}">
-		<h:commandLink title ="#{sectionActivityMessages.assessment_name}" action="gradeStudentResultFromSectionActivity" immediate="true" >
+		<h:commandLink title ="#{sectionActivityMessages.assessment_name}" action="studentScores" immediate="true" >
 		  <h:outputText value="#{pageData.assessmentName}"/>
 		   <f:actionListener type="org.sakaiproject.tool.assessment.ui.listener.evaluation.ResetTotalScoreListener" />
 		   <f:actionListener type="org.sakaiproject.tool.assessment.ui.listener.evaluation.TotalScoreListener" />
@@ -119,7 +119,7 @@
       </h:commandLink> 
       </f:facet>
 	 <h:panelGroup rendered="#{!pageData.anonymousGrading}">
-		<h:commandLink title ="#{sectionActivityMessages.assessment_name}" action="gradeStudentResultFromSectionActivity" immediate="true" >
+		<h:commandLink title ="#{sectionActivityMessages.assessment_name}" action="studentScores" immediate="true" >
 		  <h:outputText value="#{pageData.assessmentName}"/>
 		   <f:actionListener type="org.sakaiproject.tool.assessment.ui.listener.evaluation.ResetTotalScoreListener" />
 		   <f:actionListener type="org.sakaiproject.tool.assessment.ui.listener.evaluation.TotalScoreListener" />
@@ -199,7 +199,7 @@
      </f:facet>
 	 <h:panelGroup>
 	  <h:outputText value="#{pageData.submitDate}">
-	  <f:convertDateTime pattern="#{generalMessages.output_data_picker_w_sec}"/>
+	    <f:convertDateTime dateStyle="medium" timeStyle="short" timeZone="#{author.userTimeZone}" />
 	  </h:outputText>	
      </h:panelGroup>
 	</h:column>
@@ -216,7 +216,7 @@
       </f:facet>
      <h:panelGroup>
 	  <h:outputText value="#{pageData.submitDate}">
-	  <f:convertDateTime pattern="#{generalMessages.output_data_picker_w_sec}"/>
+	    <f:convertDateTime dateStyle="medium" timeStyle="short" timeZone="#{author.userTimeZone}" />
 	  </h:outputText>	
      </h:panelGroup>
 	</h:column>
@@ -233,7 +233,7 @@
       </f:facet>
        <h:panelGroup>
 	  <h:outputText value="#{pageData.submitDate}">
-	  <f:convertDateTime pattern="#{generalMessages.output_data_picker_w_sec}"/>
+	    <f:convertDateTime dateStyle="medium" timeStyle="short" timeZone="#{author.userTimeZone}" />
 	  </h:outputText>	
      </h:panelGroup>
 	</h:column>

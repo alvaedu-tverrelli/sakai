@@ -19,7 +19,7 @@ import java.util.Locale;
 
 public class LTI13JJWTTest {
 
-	public static final String LTI_13_ISSUER = "https://sakaiproject.org/";
+	public static final String LTI_13_ISSUER = "https://www.sakailms.org/";
 	public static final String LTI_13_KEY_NONCE = "nonce";
 
 	// Close to a base64 pattern
@@ -45,7 +45,7 @@ public class LTI13JJWTTest {
 		}
 		assertTrue(good);
 
-		String subject = Jwts.parser().setSigningKey(key).parseClaimsJws(jws).getBody().getSubject();
+		String subject = Jwts.parser().setAllowedClockSkewSeconds(60).setSigningKey(key).parseClaimsJws(jws).getBody().getSubject();
 		assertEquals("Joe", subject);
 	}
 

@@ -6,25 +6,29 @@ import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
+import javax.persistence.Index;
 import javax.persistence.Table;
 import javax.persistence.Transient;
 
 import org.hibernate.annotations.Type;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 @Entity
-@Table(name = "BULLHORN_ALERTS")
+@Table(name = "BULLHORN_ALERTS", indexes = {
+    @Index(name = "IDX_BULLHORN_ALERTS_TO_USER", columnList = "TO_USER"),
+    @Index(name = "IDX_BULLHORN_ALERTS_EVENT_REF", columnList = "EVENT, REF")
+})
 @Data
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class BullhornAlert {
 
     @Id
     @Column(name = "ID", nullable = false)
     @GeneratedValue
+    @EqualsAndHashCode.Include
     private Long id;
-
-    @Column(name = "ALERT_TYPE", length = 8, nullable = false)
-    private String alertType;
 
     @Column(name = "FROM_USER", length = 99, nullable = false)
     private String fromUser;
@@ -52,7 +56,7 @@ public class BullhornAlert {
     private Instant eventDate;
 
     @Column(name="DEFERRED", nullable=false)
-    private Boolean deferred;
+    private Boolean deferred = Boolean.FALSE;
 
     @Transient
     private String fromDisplayName;

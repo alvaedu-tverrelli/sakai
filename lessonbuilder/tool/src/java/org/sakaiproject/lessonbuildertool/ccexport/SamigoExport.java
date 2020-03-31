@@ -31,12 +31,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import lombok.extern.slf4j.Slf4j;
-
-import org.apache.commons.lang.StringEscapeUtils;
-
-import uk.org.ponder.messageutil.MessageLocator;
-
+import org.apache.commons.text.StringEscapeUtils;
 import org.sakaiproject.lessonbuildertool.model.SimplePageToolDao;
 import org.sakaiproject.lessonbuildertool.service.LessonEntity;
 import org.sakaiproject.tool.assessment.data.ifc.assessment.AnswerIfc;
@@ -47,14 +42,17 @@ import org.sakaiproject.tool.assessment.data.ifc.assessment.PublishedAssessmentI
 import org.sakaiproject.tool.assessment.data.ifc.assessment.SectionDataIfc;
 import org.sakaiproject.tool.assessment.data.ifc.questionpool.QuestionPoolDataIfc;
 import org.sakaiproject.tool.assessment.data.ifc.shared.TypeIfc;
-import org.sakaiproject.tool.assessment.facade.QuestionPoolFacadeQueriesAPI;
 import org.sakaiproject.tool.assessment.facade.PublishedAssessmentFacade;
 import org.sakaiproject.tool.assessment.facade.PublishedAssessmentFacadeQueriesAPI;
 import org.sakaiproject.tool.assessment.facade.QuestionPoolFacade;
+import org.sakaiproject.tool.assessment.facade.QuestionPoolFacadeQueriesAPI;
 import org.sakaiproject.tool.assessment.services.assessment.AssessmentService;
 import org.sakaiproject.tool.assessment.services.assessment.PublishedAssessmentService;
-import org.sakaiproject.util.FormattedText;                                     
 import org.sakaiproject.user.cover.UserDirectoryService;
+import org.sakaiproject.util.FormattedText;
+
+import lombok.extern.slf4j.Slf4j;
+import uk.org.ponder.messageutil.MessageLocator;
 
 /*
  * set up as a singleton. But CCexport is not.
@@ -152,7 +150,7 @@ public class SamigoExport {
 	String publishedAssessmentString = samigoId.substring(i+1);
 	Long publishedAssessmentId = new Long(publishedAssessmentString);
 
-	PublishedAssessmentFacade assessment = pubService.getPublishedAssessment(publishedAssessmentString);
+	PublishedAssessmentFacade assessment = pubService.getPublishedAssessment(publishedAssessmentString, true);
 
 	List<ItemDataIfc> publishedItemList = preparePublishedItemList(assessment);
 
@@ -178,7 +176,7 @@ public class SamigoExport {
 	    out.println("xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.imsglobal.org/xsd/ims_qtiasiv1p2 http://www.imsglobal.org/profile/cc/ccv1p2/ccv1p2_qtiasiv1p2p1_v1p0.xsd\">");
 	}
 
-	out.println("  <assessment ident=\"QDB_1\" title=\"" + StringEscapeUtils.escapeXml(assessmentTitle) + "\">");
+	out.println("  <assessment ident=\"QDB_1\" title=\"" + StringEscapeUtils.escapeXml11(assessmentTitle) + "\">");
 	out.println("    <section ident=\"S_1\">");
 
 	outputQuestions(publishedItemList, null, assessmentTitle, out, errStream, ccExport, resource, version);
@@ -377,7 +375,7 @@ public class SamigoExport {
 		}
 	    }
 
-	    out.println("      <item ident=\"QUE_" + itemId + "\" title=\"" + StringEscapeUtils.escapeXml(title) + "\">");
+	    out.println("      <item ident=\"QUE_" + itemId + "\" title=\"" + StringEscapeUtils.escapeXml11(title) + "\">");
 	    out.println("        <itemmetadata>");
 	    out.println("          <qtimetadata>");
 	    out.println("            <qtimetadatafield>");
@@ -625,9 +623,9 @@ public class SamigoExport {
 			}
 
 			if (substr)
-			    out.println("              <varsubstring case=\"No\" respident=\"" + answerId + "\">" + StringEscapeUtils.escapeXml(answer) + "</varsubstring>");
+			    out.println("              <varsubstring case=\"No\" respident=\"" + answerId + "\">" + StringEscapeUtils.escapeXml11(answer) + "</varsubstring>");
 			else
-			    out.println("              <varequal case=\"No\" respident=\"" + answerId + "\">" + StringEscapeUtils.escapeXml(answer) + "</varequal>");
+			    out.println("              <varequal case=\"No\" respident=\"" + answerId + "\">" + StringEscapeUtils.escapeXml11(answer) + "</varequal>");
 		    }
 
 		    out.println("            </conditionvar>");

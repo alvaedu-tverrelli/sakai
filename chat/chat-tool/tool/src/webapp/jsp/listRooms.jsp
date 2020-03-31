@@ -1,18 +1,19 @@
 <f:view>
 	<sakai:view title="#{msgs.room_list_title}">
-		<h:form styleClass="list-rooms">
-			<sakai:tool_bar>
-				<h:commandLink id="addRoom" rendered="#{ChatTool.canCreateChannel}"
-					action="#{ChatTool.processActionAddRoom}" immediate="true">
-					<h:outputText value="#{msgs.add_room}" />
-				</h:commandLink>
-				<h:commandLink rendered="#{ChatTool.maintainer}"
-                action="#{ChatTool.processActionPermissions}">
-                <h:outputText
-                    value="#{msgs.permis}" />
-            </h:commandLink>
-			</sakai:tool_bar>
-			
+      <h:outputText value="#{Portal.latestJQuery}" escape="false"/>
+      <script src="/sakai-chat-tool/js/chatscript.js"></script>
+      <script>
+        $(document).ready( function () {
+          // Assign the current class to the tab in the template
+          var menuLink = $('#listRoomsForm\\:chatManageLink, #listRoomsForm\\:chatChangeRoomLink');
+          menuLink.addClass('current');
+          // Remove the link of the current option
+          menuLink.html(menuLink.find('a').text());
+        });
+      </script>
+
+		<h:form styleClass="list-rooms" id="listRoomsForm">
+            <%@ include file="chatMenu.jsp" %>
 			<sakai:view_title value="#{msgs.room_list_title}"/>  	
 
 			<h:messages rendered="#{!empty facesContext.maximumSeverity}" />
@@ -49,7 +50,7 @@
 							<h:outputText  styleClass="skip" value=" #{channel.chatChannel.title}: " /> <h:outputText value="#{msgs.delete_room_messages}" />
 						</h:commandLink>
 					</f:subview>
-					<f:subview id="defaultLink" rendered="#{(!channel.chatChannel.placementDefaultChannel || ChatTool.toolString != channel.chatChannel.placement) && ChatTool.maintainer}">
+					<f:subview id="defaultLink" rendered="#{(!channel.chatChannel.placementDefaultChannel || ChatTool.placementId != channel.chatChannel.placement) && ChatTool.maintainer}">
 						<h:commandLink action="#{channel.processActionSetAsDefaultRoom}" 
 							title="#{channel.setAsDefaultText}">
 							<h:outputText  styleClass="skip" value=" #{channel.chatChannel.title}: " /> <h:outputText value="#{msgs.set_default}" />

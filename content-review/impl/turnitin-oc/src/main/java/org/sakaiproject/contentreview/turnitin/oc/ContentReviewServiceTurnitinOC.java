@@ -16,11 +16,15 @@
 package org.sakaiproject.contentreview.turnitin.oc;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.DataOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -35,11 +39,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -48,17 +54,20 @@ import javax.servlet.http.HttpServletRequest;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.sakaiproject.assignment.api.AssignmentConstants;
 import org.sakaiproject.assignment.api.AssignmentService;
 import org.sakaiproject.assignment.api.model.Assignment;
 import org.sakaiproject.assignment.api.model.AssignmentSubmission;
+import org.sakaiproject.assignment.api.model.AssignmentSubmissionSubmitter;
+import org.sakaiproject.authz.api.AuthzGroupService;
 import org.sakaiproject.authz.api.SecurityAdvisor;
 import org.sakaiproject.authz.api.SecurityService;
 import org.sakaiproject.content.api.ContentHostingService;
 import org.sakaiproject.content.api.ContentResource;
 import org.sakaiproject.contentreview.dao.ContentReviewConstants;
 import org.sakaiproject.contentreview.dao.ContentReviewItem;
+import org.sakaiproject.contentreview.exception.ContentReviewProviderException;
 import org.sakaiproject.contentreview.exception.QueueException;
 import org.sakaiproject.contentreview.exception.ReportException;
 import org.sakaiproject.contentreview.exception.SubmissionException;
@@ -116,11 +125,15 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 	
 	@Setter
 	private SessionManager sessionManager;
+	
+	@Setter
+	private MemoryService memoryService;
+	
+	@Setter
+	private AuthzGroupService authzGroupService;
 
 	private static final String SERVICE_NAME = "Turnitin";
 	private static final String TURNITIN_OC_API_VERSION = "v1";
-	private static final int TURNITIN_OC_MAX_RETRY_MINUTES = 240; // 4 hours
-	private static final int TURNITIN_MAX_RETRY = 16;
 	private static final String INTEGRATION_FAMILY = "sakai";
 	private static final String CONTENT_TYPE_JSON = "application/json";
 	private static final String CONTENT_TYPE_BINARY = "application/octet-stream";
@@ -147,9 +160,32 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 	private static final String ALL_SOURCES = "all_sources";
 	private static final String MODES = "modes";
 	private static final String SIMILARITY = "similarity";
-	private static final String VIEWER_DEFAULT_PERMISSIONS = "viewer_default_permissions_set";
-	private static final String INSTRUCTOR = "INSTRUCTOR";
-	private static final String LEARNER = "LEARNER";
+	private static final String SAVE_CHANGES = "save_changes";
+	private static final String VIEW_SETTINGS = "view_settings";
+	private static final String VIEWER_PERMISSIONS = "viewer_permissions";
+	private static final String VIEWER_PERMISSION_MAY_VIEW_SUBMISSIONS_FULL_SOURCE = "may_view_submission_full_source";
+	private static final String VIEWER_PERMISSION_MAY_VIEW_MATCH_SUBMISSION_INFO = "may_view_match_submission_info";
+	private static final String VIEWER_DEFAULT_PERMISSIONS = "viewer_default_permission_set";
+	private enum ROLES{
+		INSTRUCTOR(Arrays.asList("Faculty", "Instructor", "Mentor", "Staff", "maintain", "Teaching Assistant")),
+		LEARNER(Arrays.asList("Learner", "Student", "access")),
+		EDITOR(Arrays.asList()),
+		USER(Arrays.asList("Alumni", "guest", "Member", "Observer", "Other")),
+		APPLICANT(Arrays.asList("ProspectiveStudent")),
+		ADMINISTRATOR(Arrays.asList("Administrator", "Admin")),
+		UNDEFINED(Arrays.asList());
+		
+		List<String> mappedRoles;
+		private ROLES(List<String> mappedRoles) {
+			this.mappedRoles = mappedRoles;
+		}
+		private void setMappedRoles(List<String> mappedRoles) {
+			this.mappedRoles = mappedRoles;
+		}
+		private List<String> getMappedRoles() {
+			return mappedRoles;
+		}
+	};
 	
 	private static final String GENERATE_REPORTS_IMMEDIATELY_AND_ON_DUE_DATE= "1";
 	private static final String GENERATE_REPORTS_ON_DUE_DATE = "2";	
@@ -162,10 +198,14 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 
 	private static final String SUBMISSION_COMPLETE_EVENT_TYPE = "SUBMISSION_COMPLETE";
 	private static final String SIMILARITY_COMPLETE_EVENT_TYPE = "SIMILARITY_COMPLETE";
+	private static final String SIMILARITY_UPDATED_EVENT_TYPE = "SIMILARITY_UPDATED";
 
 	private String serviceUrl;
 	private String apiKey;
 	private String sakaiVersion;
+	private int maxRetryMinutes;
+	private int maxRetry;
+	private boolean skipDelays;
 
 	private HashMap<String, String> BASE_HEADERS = new HashMap<String, String>();
 	private HashMap<String, String> SUBMISSION_REQUEST_HEADERS = new HashMap<String, String>();
@@ -173,8 +213,13 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 	private HashMap<String, String> CONTENT_UPLOAD_HEADERS = new HashMap<String, String>();
 	private HashMap<String, String> WEBHOOK_SETUP_HEADERS = new HashMap<String, String>();
 	
-	@Setter
-	private MemoryService memoryService;
+	private enum AUTO_EXCLUDE_SELF_MATCHING_SCOPE{
+		ALL,
+		NONE,
+		GROUP,
+		GROUP_CONTEXT
+	}
+	
 	//Caches requests for instructors so that we don't have to send a request for every student
 	private Cache EULA_CACHE;
 	private static final String EULA_LATEST_KEY = "latest";
@@ -207,7 +252,6 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 			".html",
 			".wpd",
 			".odt",
-			".hwp",
 			".txt"
 	};
 	private final String[] DEFAULT_ACCEPTABLE_MIME_TYPES = new String[] {
@@ -235,20 +279,25 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 			"text/html",
 			"application/wordperfect",
 			"application/vnd.oasis.opendocument.text",
-			"application/x-hwp",
 			"text/plain"
 	};
 
 	// Sakai.properties overriding the arrays above
-	private final String PROP_ACCEPT_ALL_FILES = "turnitin.accept.all.files";
+	private final String PROP_ACCEPT_ALL_FILES = "turnitin.oc.accept.all.files";
 
-	private final String PROP_ACCEPTABLE_FILE_EXTENSIONS = "turnitin.acceptable.file.extensions";
-	private final String PROP_ACCEPTABLE_MIME_TYPES = "turnitin.acceptable.mime.types";
+	private final String PROP_ACCEPTABLE_FILE_EXTENSIONS = "turnitin.oc.acceptable.file.extensions";
+	private final String PROP_ACCEPTABLE_MIME_TYPES = "turnitin.oc.acceptable.mime.types";
 
 	// A list of the displayable file types (ie. "Microsoft Word", "WordPerfect document", "Postscript", etc.)
-	private final String PROP_ACCEPTABLE_FILE_TYPES = "turnitin.acceptable.file.types";
+	private final String PROP_ACCEPTABLE_FILE_TYPES = "turnitin.oc.acceptable.file.types";
 
 	private final String KEY_FILE_TYPE_PREFIX = "file.type";
+	
+	private String autoExcludeSelfMatchingScope;
+	private Boolean mayViewSubmissionFullSourceOverrideStudent = null;
+	private Boolean mayViewMatchSubmissionInfoOverrideStudent = null;
+	private Boolean mayViewSubmissionFullSourceOverrideInstructor = null;
+	private Boolean mayViewMatchSubmissionInfoOverrideInstructor = null;
 
 	public void init() {
 		EULA_CACHE = memoryService.createCache("org.sakaiproject.contentreview.turnitin.oc.ContentReviewServiceTurnitinOC.LATEST_EULA_CACHE", new SimpleConfiguration<>(10000, 24 * 60 * 60, -1));
@@ -256,7 +305,38 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 		serviceUrl = serverConfigurationService.getString("turnitin.oc.serviceUrl", "");
 		apiKey = serverConfigurationService.getString("turnitin.oc.apiKey", "");
 		// Retrieve Sakai Version if null set default 		
-		sakaiVersion = Optional.ofNullable(serverConfigurationService.getString("version.sakai", "")).orElse("UNKNOWN");		
+		sakaiVersion = serverConfigurationService.getString("version.sakai", "UNKNOWN");
+
+		// Maximum delay between retries after recoverable errors
+		maxRetryMinutes = serverConfigurationService.getInt("turnitin.oc.max.retry.minutes", 240); // 4 hours
+		// Maximum number of retries for recoverable errors
+		maxRetry = serverConfigurationService.getInt("turnitin.oc.max.retry", 16);
+		// For local development only; do not set this in production:
+		skipDelays = serverConfigurationService.getBoolean("turnitin.oc.skip.delays", false);
+
+		autoExcludeSelfMatchingScope =Arrays.stream(AUTO_EXCLUDE_SELF_MATCHING_SCOPE.values())
+				.filter(e -> e.name().equalsIgnoreCase(serverConfigurationService.getString("turnitin.oc.auto_exclude_self_matching_scope")))
+				.findAny().orElse(AUTO_EXCLUDE_SELF_MATCHING_SCOPE.GROUP).name();
+		log.info("Exclude Scope: " + autoExcludeSelfMatchingScope);
+		
+		// Find any permission overrides, if not set, set value to null to skip overrides
+		mayViewSubmissionFullSourceOverrideStudent = StringUtils.isNotEmpty(serverConfigurationService.getString("turnitin.oc.may_view_submission_full_source.student")) 
+				? serverConfigurationService.getBoolean("turnitin.oc.may_view_submission_full_source.student", false)
+				: null;
+		mayViewMatchSubmissionInfoOverrideStudent = StringUtils.isNotEmpty(serverConfigurationService.getString("turnitin.oc.may_view_match_submission_info.student")) 
+				? serverConfigurationService.getBoolean("turnitin.oc.may_view_match_submission_info.student", false)
+				: null;
+		mayViewSubmissionFullSourceOverrideInstructor = StringUtils.isNotEmpty(serverConfigurationService.getString("turnitin.oc.may_view_submission_full_source.instructor")) 
+				? serverConfigurationService.getBoolean("turnitin.oc.may_view_submission_full_source.instructor", false)
+				: null;
+		mayViewMatchSubmissionInfoOverrideInstructor = StringUtils.isNotEmpty(serverConfigurationService.getString("turnitin.oc.may_view_match_submission_info.instructor")) 
+				? serverConfigurationService.getBoolean("turnitin.oc.may_view_match_submission_info.instructor", false)
+				: null;
+				
+		// Override default Sakai->Turnitin roles mapping
+		for(ROLES role : ROLES.values()) {
+			role.setMappedRoles(serverConfigurationService.getStringList("turnitin.oc.roles." + role.name().toLowerCase() + ".mapping", role.getMappedRoles()));
+		}
 
 		// Populate base headers that are needed for all calls to TCA
 		BASE_HEADERS.put(HEADER_NAME, INTEGRATION_FAMILY);
@@ -311,8 +391,9 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 		String id = null;
 		Map<String, Object> data = new HashMap<String, Object>();
 		List<String> types = new ArrayList<>();
-		types.add("SIMILARITY_COMPLETE");
-		types.add("SUBMISSION_COMPLETE");
+		types.add(SIMILARITY_UPDATED_EVENT_TYPE);
+		types.add(SIMILARITY_COMPLETE_EVENT_TYPE);
+		types.add(SUBMISSION_COMPLETE_EVENT_TYPE);
 
 		data.put("signing_secret", base64Encode(apiKey));
 		data.put("url", webhookUrl);
@@ -392,6 +473,11 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 	}
 
 	@Override
+	public void syncRosters() {
+		// Auto-generated method stub
+	}
+
+	@Override
 	public void createAssignment(final String contextId, final String assignmentRef, final Map opts)
 			throws SubmissionException, TransientSubmissionException {
 		// Auto-generated method stub
@@ -455,7 +541,8 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 		return null;
 	}
 	
-	public String getReviewReportRedirectUrl(String contentId, String assignmentRef, String userId, boolean isInstructor) {
+	@Override
+	public String getReviewReportRedirectUrl(String contentId, String assignmentRef, String userId, String contextId, boolean isInstructor) {
 		
 		// Set variables
 		String viewerUrl = null;
@@ -485,8 +572,28 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 				modes.put(MATCH_OVERVIEW, Boolean.TRUE);
 				modes.put(ALL_SOURCES, Boolean.TRUE);
 				similarity.put(MODES, modes);
+				Map<String, Object> viewSettings = new HashMap<>();
+				viewSettings.put(SAVE_CHANGES, Boolean.TRUE);
+				similarity.put(VIEW_SETTINGS, viewSettings);
 				data.put(SIMILARITY, similarity);
-				data.put(VIEWER_DEFAULT_PERMISSIONS, isInstructor ? INSTRUCTOR : LEARNER);
+				data.put(VIEWER_DEFAULT_PERMISSIONS, mapUserRole(userId, contextId, isInstructor));
+				//Check if there are any sakai.properties overrides for the default permissions
+				Map<String, Object> viewerPermissionsOverride = new HashMap<String, Object>();
+				if(!isInstructor && mayViewSubmissionFullSourceOverrideStudent != null) {
+					viewerPermissionsOverride.put(VIEWER_PERMISSION_MAY_VIEW_SUBMISSIONS_FULL_SOURCE, mayViewSubmissionFullSourceOverrideStudent);
+				}
+				if(!isInstructor && mayViewMatchSubmissionInfoOverrideStudent != null) {
+					viewerPermissionsOverride.put(VIEWER_PERMISSION_MAY_VIEW_MATCH_SUBMISSION_INFO, mayViewMatchSubmissionInfoOverrideStudent);
+				}
+				if(isInstructor && mayViewSubmissionFullSourceOverrideInstructor != null) {
+					viewerPermissionsOverride.put(VIEWER_PERMISSION_MAY_VIEW_SUBMISSIONS_FULL_SOURCE, mayViewSubmissionFullSourceOverrideInstructor);
+				}
+				if(isInstructor && mayViewMatchSubmissionInfoOverrideInstructor != null) {
+					viewerPermissionsOverride.put(VIEWER_PERMISSION_MAY_VIEW_MATCH_SUBMISSION_INFO, mayViewMatchSubmissionInfoOverrideInstructor);
+				}
+				if(viewerPermissionsOverride.size() > 0) {
+					data.put(VIEWER_PERMISSIONS, viewerPermissionsOverride);
+				}
 
 				// Check user preference for locale			
 				// If user has no preference set - get the system default
@@ -555,9 +662,30 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 		return Math.abs("TurnitinOC".hashCode());
 	}
 
-	public boolean isAcceptableContent(ContentResource arg0) {
-		// TODO: what does TII accept?
-		return true;
+	public boolean isAcceptableContent(ContentResource resource) {
+		if (serverConfigurationService.getBoolean(PROP_ACCEPT_ALL_FILES, false)) {
+			return true;
+		}
+
+		String mime = resource.getContentType();
+
+		// Check the mime type
+		Map<String, SortedSet<String>> acceptableExtensionsToMimeTypes = getAcceptableExtensionsToMimeTypes();
+		if (acceptableExtensionsToMimeTypes.values().stream().anyMatch(set -> set.contains(mime))) {
+			return true;
+		}
+
+		// Check the file extension
+		ResourceProperties resourceProperties = resource.getProperties();
+		String fileName = resourceProperties.getProperty(resourceProperties.getNamePropDisplayName());
+		if (fileName.indexOf(".") > 0) {
+			String extension = fileName.substring(fileName.lastIndexOf("."));
+			if (acceptableExtensionsToMimeTypes.containsKey(extension)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	public boolean isSiteAcceptable(Site arg0) {
@@ -582,7 +710,6 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 		throws Exception {
 		// Set variables
 		HttpURLConnection connection = null;
-		DataOutputStream wr = null;
 		URL url = null;
 
 		// Construct URL
@@ -600,27 +727,40 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 			connection.setRequestProperty(entry.getKey(), entry.getValue());
 		}
 
-		// Set Post body:
-		if (data != null) {
-			// Convert data to string:
+		if (data != null || dataBytes != null) {
 			connection.setDoOutput(true);
-			wr = new DataOutputStream(connection.getOutputStream());
-			ObjectMapper objectMapper = new ObjectMapper();
-			String dataStr = objectMapper.writeValueAsString(data);
-			wr.writeBytes(dataStr);
-			wr.flush();
-			wr.close();
-		} else if (dataBytes != null) {
-			connection.setDoOutput(true);
-			wr = new DataOutputStream(connection.getOutputStream());
-			wr.write(dataBytes);
-			wr.close();
+			try (DataOutputStream wr = new DataOutputStream(connection.getOutputStream())) {
+				// Set Post body:
+				if (data != null) {
+					// Convert data to string:
+					try (BufferedWriter br = new BufferedWriter(new OutputStreamWriter(wr, StandardCharsets.UTF_8))) {
+						ObjectMapper objectMapper = new ObjectMapper();
+						String dataStr = objectMapper.writeValueAsString(data);
+						br.write(dataStr);
+						br.flush();
+					}
+				} else if (dataBytes != null) {
+					wr.write(dataBytes);
+				}
+			}
 		}
 
 		// Send request:
 		int responseCode = connection.getResponseCode();
 		String responseMessage = connection.getResponseMessage();
-		String responseBody = IOUtils.toString(connection.getInputStream(), StandardCharsets.UTF_8);
+		String responseBody;
+		if (responseCode < 200 || responseCode >= 300)
+		{
+			InputStream inputStream = connection.getErrorStream() != null ? connection.getErrorStream() : connection.getInputStream();
+			// getInputStream() throws an exception in this case, but getErrorStream() has the information necessary for troubleshooting
+			responseBody = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
+			log.warn("Turnitin response code: " + responseCode + "; message: " + responseMessage + "; body:\n" + responseBody);
+		}
+		else
+		{
+			responseBody = IOUtils.toString(connection.getInputStream(), StandardCharsets.UTF_8);
+			log.debug("Turnitin response code: " + responseCode + "; message: " + responseMessage + "; body:\n" + responseBody);
+		}
 		
 		HashMap<String, Object> response = new HashMap<String, Object>();
 		response.put(RESPONSE_CODE, responseCode);
@@ -630,7 +770,7 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 		return response;
 	}
 
-	private void generateSimilarityReport(String reportId, String assignmentRef, boolean isDraft) throws Exception {
+	private void generateSimilarityReport(String reportId, String assignmentRef) throws Exception {
 		
 		Assignment assignment = assignmentService.getAssignment(entityManager.newReference(assignmentRef));
 		Map<String, String> assignmentSettings = assignment.getProperties();
@@ -640,6 +780,7 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 		Map<String, Object> reportData = new HashMap<String, Object>();
 		Map<String, Object> generationSearchSettings = new HashMap<String, Object>();
 		generationSearchSettings.put("search_repositories", repositories);
+		generationSearchSettings.put("auto_exclude_self_matching_scope", autoExcludeSelfMatchingScope);
 		reportData.put("generation_settings", generationSearchSettings);
 
 		Map<String, Object> viewSettings = new HashMap<String, Object>();
@@ -648,8 +789,7 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 		reportData.put("view_settings", viewSettings);
 		
 		Map<String, Object> indexingSettings = new HashMap<String, Object>();
-		//Drafts are not added to index to avoid self plagiarism
-		indexingSettings.put("add_to_index", !isDraft);
+		indexingSettings.put("add_to_index", "true".equals(assignmentSettings.get("store_inst_index")));
 		reportData.put("indexing_settings", indexingSettings);
 
 		HashMap<String, Object> response = makeHttpCall("PUT",
@@ -668,13 +808,12 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 		} else if ((responseCode == 409)) {
 			log.debug("A Similarity Report is already generating for this submission");
 		} else {
-			throw new Exception(
-					"Submission failed to initiate: " + responseCode + ", " + responseMessage + ", " + responseBody);
+			throw new ContentReviewProviderException("Submission failed to initiate: " + responseCode + ", " + responseMessage + ", " + responseBody,
+				createLastError(doc -> createFormattedMessageXML(doc, "report.error.unsuccessful", responseMessage, responseCode)));
 		}
 	}
 
-	private String getSubmissionStatus(String reportId) throws Exception {
-		String status = null;
+	private JSONObject getSubmissionJSON(String reportId) throws Exception {
 		HashMap<String, Object> response = makeHttpCall("GET",
 				getNormalizedServiceUrl() + "submissions/" + reportId,
 				BASE_HEADERS,
@@ -687,16 +826,12 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 
 		// Create JSONObject from response
 		JSONObject responseJSON = JSONObject.fromObject(responseBody);
-		if ((responseCode >= 200) && (responseCode < 300)) {
-			// Get submission status value
-			if (responseJSON.containsKey("status")) {
-				status = responseJSON.getString("status");
-			}
-		} else {
-			throw new Exception("getSubmissionStatus invalid request: " + responseCode + ", " + responseMessage + ", "
-					+ responseBody);
+		if ((responseCode < 200) || (responseCode >= 300)) {
+			throw new ContentReviewProviderException("getSubmissionJSON invalid request: " + responseCode + ", " + responseMessage + ", " + responseBody,
+				createLastError(doc -> createFormattedMessageXML(doc, "submission.error.unexpected.response", responseMessage, responseCode)));
 		}
-		return status;
+
+		return responseJSON;
 	}
 
 	private int getSimilarityReportStatus(String reportId) throws Exception {
@@ -741,7 +876,34 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 		}
 	}
 
-	private String getSubmissionId(String userID, String fileName, Site site, Assignment assignment) {
+	private String getSubmissionId(ContentReviewItem item, String fileName, Site site, Assignment assignment) {
+		String userID = item.getUserId();
+		List<User> submissionOwners = new ArrayList<>();
+		String submitterID = null;
+
+		try {
+			AssignmentSubmission currentSubmission = assignmentService.getSubmission(assignment.getId(), userID);
+
+			Set<String> ownerIds = currentSubmission.getSubmitters().stream()
+				.map(AssignmentSubmissionSubmitter::getSubmitter)
+				.collect(Collectors.toSet());
+
+			//find submitter by filtering submittee=true, if not found, then use the assignment property SUBMITTER_USER_ID
+			submitterID = currentSubmission.getSubmitters().stream().filter(AssignmentSubmissionSubmitter::getSubmittee).findAny()
+					.map(AssignmentSubmissionSubmitter::getSubmitter)
+					.orElseGet(() -> currentSubmission.getProperties().get(AssignmentConstants.SUBMITTER_USER_ID));
+
+			if (userID.equals(submitterID) || StringUtils.isBlank(submitterID)) {
+				//no need to keep track of the submitterID if it is the same as the ownerID
+				submitterID = null;
+			} else {
+				ownerIds.add(submitterID);
+			}
+
+			submissionOwners.addAll(userDirectoryService.getUsers(ownerIds));
+		} catch (Exception e) {
+			log.warn(e.getMessage(), e);
+		}
 
 		String submissionId = null;
 		try {
@@ -749,29 +911,69 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 			// Build header maps
 			Map<String, Object> data = new HashMap<String, Object>();
 			data.put("owner", userID);
-			data.put("title", fileName);
-			Instant eulaTimestamp = getUserEULATimestamp(userID);
-			String eulaVersion = getUserEULAVersion(userID);
-			if(eulaTimestamp != null && StringUtils.isNotEmpty(eulaVersion)) {
-				Map<String, Object> eula = new HashMap<String, Object>();
-				eula.put("accepted_timestamp", eulaTimestamp.toString());
-				eula.put("language", getUserEulaLocale(userID));
-				eula.put("version", eulaVersion);
-				data.put("eula", eula);
+			if(site != null) {
+				data.put("owner_default_permission_set", mapUserRole(userID, site.getId(), false));
 			}
-			if(assignment != null) {
-				Map<String, Object> metadata = new HashMap<String, Object>();
-				Map<String, Object> group = new HashMap<String, Object>();
+			if (StringUtils.isNotBlank(submitterID)) {
+				data.put("submitter", submitterID);
+				if(site != null) {
+					data.put("submitter_default_permission_set", mapUserRole(submitterID, site.getId(), false));
+				}
+			}
+			data.put("title", fileName);
+			String eulaUserId = StringUtils.isNotEmpty(submitterID) ? submitterID : userID;
+			Instant eulaTimestamp = getUserEULATimestamp(eulaUserId);
+			String eulaVersion = getUserEULAVersion(eulaUserId);
+			if(eulaTimestamp == null || StringUtils.isEmpty(eulaVersion)) {
+				//best effort to make sure the user has a EULA acceptance timestamp, but if not
+				//add a warning in the logs and continue so that the report will still generate
+				eulaTimestamp = Instant.now();
+				eulaVersion = getEndUserLicenseAgreementVersion();
+				log.warn("EULA not found for user: " + eulaUserId + ", contentId: " + item.getId());
+			}
+			Map<String, Object> eula = new HashMap<>();
+			eula.put("accepted_timestamp", eulaTimestamp.toString());
+			eula.put("language", getUserEulaLocale(eulaUserId));
+			eula.put("version", eulaVersion);
+			data.put("eula", eula);
+			Map<String, Object> metadata = new HashMap<>();
+			if(assignment != null) {				
+				Map<String, Object> group = new HashMap<>();
 				group.put("id", assignment.getId());
 				group.put("name", assignment.getTitle());
 				group.put("type", "ASSIGNMENT");
 				metadata.put("group", group);
 				if(site != null) {
-					Map<String, Object> groupContext = new HashMap<String, Object>();
+					Map<String, Object> groupContext = new HashMap<>();
 					groupContext.put("id", site.getId());
 					groupContext.put("name", site.getTitle());
 					metadata.put("group_context", groupContext);
 				}
+			}
+			//set submission owner metadata
+			if (submissionOwners.size() > 0) {
+				List<Map<String, Object>> submissionOwnersMetedata = new ArrayList<>();
+				for(User owner : submissionOwners) {
+					Map<String, Object> ownerMetadata = new HashMap<>();
+					ownerMetadata.put("id", owner.getId());
+					if(StringUtils.isNotEmpty(owner.getFirstName())) {
+						ownerMetadata.put("given_name", owner.getFirstName());	
+					}
+					if(StringUtils.isNotEmpty(owner.getLastName())) {
+						ownerMetadata.put("family_name", owner.getLastName());	
+					}
+					if(StringUtils.isNotEmpty(owner.getEmail())) {
+						ownerMetadata.put("email", owner.getEmail());	
+					}
+					if(ownerMetadata.size() > 1) {
+						submissionOwnersMetedata.add(ownerMetadata);
+					}
+				}
+				if(submissionOwnersMetedata.size() > 0) {
+					metadata.put("owners", submissionOwnersMetedata);
+				}
+			}
+			if(metadata.size() > 0) {
 				data.put("metadata", metadata);
 			}
 			HashMap<String, Object> response = makeHttpCall("POST",
@@ -789,19 +991,35 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 			JSONObject responseJSON = JSONObject.fromObject(responseBody);
 
 			if ((responseCode >= 200) && (responseCode < 300)) {
-				if (responseJSON.containsKey("status") && responseJSON.getString("status").equals(STATUS_CREATED)
-						&& responseJSON.containsKey("id")) {
+				String status = responseJSON.containsKey("status") ? responseJSON.getString("status") : null;
+				if (STATUS_CREATED.equals(status) && responseJSON.containsKey("id")) {
 					submissionId = responseJSON.getString("id");
 				} else {
 					log.error("getSubmissionId response: " + responseMessage);
+					setLastError(item, doc-> {
+						Object cause;
+						if (!STATUS_CREATED.equals(status)) {
+							cause = createFormattedMessageXML(doc, "submission.error.unexpected.response.wrong.status", status);
+						}
+						else {
+							cause = createFormattedMessageXML(doc, "submission.error.unexpected.response.no.id");
+						}
+						return createFormattedMessageXML(doc, "submission.error.unexpected.response", cause, responseCode);
+					});
 				}
 			} else {
 				log.error("getSubmissionId response code: " + responseCode + ", " + responseMessage + ", "
 						+ responseJSON);
+				setLastError(item, doc->createFormattedMessageXML(doc, "submission.error.unsuccessful.response", responseMessage, responseCode));
 			}
+		} catch (IOException e) {
+			log.error(e.getMessage(), e);
+			setLastError(item, doc->createFormattedMessageXML(doc, "submission.error.ioexception"));
 		} catch (Exception e) {
 			log.error(e.getMessage(), e);
+			setLastError(item, doc->createFormattedMessageXML(doc, "submission.error.general"));
 		}
+
 		return submissionId;
 	}
 
@@ -860,8 +1078,9 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 				if (PLACEHOLDER_ITEM_REVIEW_SCORE.equals(item.getReviewScore())) {	
 					// Get assignment associated with current item's task Id
 					Assignment assignment = assignmentService.getAssignment(entityManager.newReference(item.getTaskId()));
-					Date assignmentDueDate = Date.from(assignment.getDueDate());
-					if(assignment != null && assignmentDueDate != null ) {
+					if(assignment != null && assignment.getDueDate() != null ) {
+						Date assignmentDueDate = Date.from(assignment.getDueDate());
+
 						// Make sure due date is past						
 						if (assignmentDueDate.before(new Date())) {
 							//Lookup reference item
@@ -870,8 +1089,8 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 							ContentReviewItem referenceItem = quededReferenceItem.isPresent() ? quededReferenceItem.get() : null;							
 							if (referenceItem != null && checkForContentItemInSubmission(referenceItem, assignment)) {
 								// Regenerate similarity request for reference id
-								// Report is recalled after due date, no need to account for draft
-								generateSimilarityReport(referenceItem.getExternalId(), referenceItem.getTaskId(), false);
+								// Report is recalled after due date
+								generateSimilarityReport(referenceItem.getExternalId(), referenceItem.getTaskId());
 								//reschedule reference item by setting score to null, reset retry time and set status to awaiting report
 								referenceItem.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMITTED_AWAITING_REPORT_CODE);
 								referenceItem.setRetryCount(Long.valueOf(0));
@@ -879,14 +1098,14 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 								referenceItem.setNextRetryTime(new Date());
 								crqs.update(referenceItem);
 								// Report regenerated for reference item, placeholder item is no longer needed
-								crqs.delete(item);
+								crqs.removeFromQueue(getProviderId(), item.getContentId());
 								success++;
 								continue;
 							}
 							else {
 								// Reference item no longer exists
 								// Placeholder item is no longer needed
-								crqs.delete(item);
+								crqs.removeFromQueue(getProviderId(), item.getContentId());
 								errors++;
 								continue;
 							}
@@ -895,13 +1114,13 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 							// Reset retry count to zero
 							item.setRetryCount(Long.valueOf(0));
 							item.setNextRetryTime(getDueDateRetryTime(assignmentDueDate));
-							crqs.update(item);
+							crqs.removeFromQueue(getProviderId(), item.getContentId());
 							continue;
 						}
 					}else {
 						// Assignment or due date no longer exist
 						// placeholder item is no longer needed
-						crqs.delete(item);
+						crqs.removeFromQueue(getProviderId(), item.getContentId());
 						errors++;
 						continue;
 					}
@@ -916,9 +1135,15 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 				}
 				handleReportStatus(item, status);
 
+			} catch (IOException e) {
+				log.error(e.getLocalizedMessage(), e);
+				setLastError(item, doc->createFormattedMessageXML(doc, "report.error.ioexception"));
+				item.setStatus(ContentReviewConstants.CONTENT_REVIEW_REPORT_ERROR_RETRY_CODE);
+				crqs.update(item);
+				errors++;
 			} catch (Exception e) {
 				log.error(e.getLocalizedMessage(), e);
-				item.setLastError(e.getMessage());
+				setLastError(item, e);
 				item.setStatus(ContentReviewConstants.CONTENT_REVIEW_REPORT_ERROR_RETRY_CODE);
 				crqs.update(item);
 				errors++;
@@ -973,21 +1198,21 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 						resource = contentHostingService.getResource(item.getContentId());
 					} catch (IdUnusedException e4) {
 						log.error("IdUnusedException: no resource with id " + item.getContentId(), e4);
-						item.setLastError("IdUnusedException: no resource with id " + item.getContentId());
+						setLastError(item, doc->createFormattedMessageXML(doc, "submission.error.idunusedexception"));
 						item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_NO_RETRY_CODE);
 						crqs.update(item);
 						errors++;
 						continue;
 					} catch (PermissionException e) {
 						log.error("PermissionException: no resource with id " + item.getContentId(), e);
-						item.setLastError("PermissionException: no resource with id " + item.getContentId());
+						setLastError(item, doc->createFormattedMessageXML(doc, "submission.error.permissionexception"));
 						item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_NO_RETRY_CODE);
 						crqs.update(item);
 						errors++;
 						continue;
 					} catch (TypeException e) {
 						log.error("TypeException: no resource with id " + item.getContentId(), e);
-						item.setLastError("TypeException: no resource with id " + item.getContentId());
+						setLastError(item, doc->createFormattedMessageXML(doc, "submission.error.idunusedexception"));
 						item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_NO_RETRY_CODE);
 						crqs.update(item);
 						errors++;
@@ -1005,7 +1230,8 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 					if ("true".equals(resource.getProperties().getProperty(AssignmentConstants.PROP_INLINE_SUBMISSION))
 							&& FilenameUtils.getExtension(fileName).isEmpty()) {
 						fileName += HTML_EXTENSION;
-					}							
+					}
+					boolean updateLastError = true;
 					try {
 						log.info("Submission starting...");
 						// Retrieve submissionId from TCA and set to externalId
@@ -1017,12 +1243,15 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 							//no worries, just log it
 							log.error("Site not found for item: " + item.getId() + ", site: " + item.getSiteId(), e);
 						}
-						String externalId = getSubmissionId(item.getUserId(), fileName, site, assignment);
+						String externalId = getSubmissionId(item, fileName, site, assignment);
 						if (StringUtils.isEmpty(externalId)) {
-							throw new Exception("submission id is missing");
-						} else {
+							// getSubmissionId sets the item's lastError accurately in accordance with the Turnitin response
+							updateLastError = false;
+							throw new Exception("Failed to obtain a submission ID from Turnitin");
+						}
+						else {
 							// Add filename to content upload headers
-							CONTENT_UPLOAD_HEADERS.put(HEADER_DISP, "inline; filename=\"" + fileName + "\"");
+							CONTENT_UPLOAD_HEADERS.put(HEADER_DISP, "inline; filename=\"" + URLEncoder.encode(fileName, "UTF-8") + "\"");
 							// Upload submission contents of to TCA
 							uploadExternalContent(externalId, resource.getContent());
 							// Set item externalId to externalId
@@ -1043,7 +1272,9 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 
 					} catch (Exception e) {
 						log.error(e.getMessage(), e);
-						item.setLastError(e.getMessage());
+						if (updateLastError) {
+							setLastError(item, e);
+						}
 						item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_RETRY_CODE);
 						crqs.update(item);
 						errors++;
@@ -1052,7 +1283,11 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 					// EXTERNAL ID EXISTS, START SIMILARITY REPORT GENERATION PROCESS (STAGE 2)					
 					try {
 						// Get submission status, returns the state of the submission as string		
-						String submissionStatus = getSubmissionStatus(item.getExternalId());
+						JSONObject submissionJSON = getSubmissionJSON(item.getExternalId());
+						if (!submissionJSON.containsKey("status")) {
+							throw new ContentReviewProviderException("Response from Turnitin is missing expected data", createLastError(doc->createFormattedMessageXML(doc, "submission.error.missing.data")));
+						}
+						String submissionStatus = submissionJSON.getString("status");
 
 						if (COMPLETE_STATUS.equals(submissionStatus)) {
 							success++;
@@ -1063,11 +1298,11 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 							errors++;
 						}
 
-						handleSubmissionStatus(submissionStatus, item, assignment);
+						handleSubmissionStatus(submissionJSON, item, assignment);
 
 					} catch (Exception e) {
 						log.error(e.getMessage(), e);
-						item.setLastError(e.getMessage());
+						setLastError(item, e);
 						item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_RETRY_CODE);
 						crqs.update(item);
 						errors++;
@@ -1092,12 +1327,6 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 		return cal.getTime();
 	}
 
-	private boolean checkForDraft(ContentReviewItem item, Assignment assignment) throws Exception {
-		// Checks if current item is a draft or submitted
-		AssignmentSubmission currentSubmission = assignmentService.getSubmission(assignment.getId(), item.getUserId());
-		return Optional.ofNullable(!currentSubmission.getSubmitted()).orElse(false);
-	}
-	
 	private boolean checkForContentItemInSubmission(ContentReviewItem item, Assignment assignment) {
 		try {
 			AssignmentSubmission currentSubmission = assignmentService.getSubmission(assignment.getId(), item.getUserId());
@@ -1134,21 +1363,18 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 		crqs.update(placeholderItem);
 	}
 
-	private void handleSubmissionStatus(String submissionStatus, ContentReviewItem item, Assignment assignment) {
+	private void handleSubmissionStatus(JSONObject submissionJSON, ContentReviewItem item, Assignment assignment) {
 		try {
 
 			Date assignmentDueDate = Date.from(assignment.getDueDate());
 			String reportGenSpeed = assignment.getProperties().get("report_gen_speed");
 
-			// Handle possible error status
-			String errorStr = null;
+			String submissionStatus = submissionJSON.getString("status");
 
 			switch (submissionStatus) {
 			case "COMPLETE":
-				// Check if current item is a draft submission
-				boolean submissionIsDraft = checkForDraft(item, assignment);
 				// If submission status is complete, start similarity report process
-				generateSimilarityReport(item.getExternalId(), item.getTaskId(), submissionIsDraft);
+				generateSimilarityReport(item.getExternalId(), item.getTaskId());
 				// Update item status for loop 2
 				item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMITTED_AWAITING_REPORT_CODE);
 				// Reset retry count
@@ -1161,10 +1387,9 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 				// Schedule next retry time
 				item.setNextRetryTime(cal.getTime());
 				crqs.update(item);
-				// Check for items that generate reports both immediately and on due date or draft items
+				// Check for items that generate reports both immediately and on due date
 				// Create a placeholder item that will regenerate and index report after due date
-				if (assignmentDueDate != null && assignmentDueDate.after(new Date())
-						&& (GENERATE_REPORTS_IMMEDIATELY_AND_ON_DUE_DATE.equals(reportGenSpeed) || submissionIsDraft)) {
+				if (assignmentDueDate != null && assignmentDueDate.after(new Date()) && GENERATE_REPORTS_IMMEDIATELY_AND_ON_DUE_DATE.equals(reportGenSpeed)) {
 					createPlaceholderItem(item, assignmentDueDate);
 				}
 				break;
@@ -1174,39 +1399,29 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 			case "CREATED":
 				// do nothing... try again
 				break;
-			case "UNSUPPORTED_FILETYPE":
-				errorStr = "The uploaded filetype is not supported";
-				break;
-				//break on all
-			case "PROCESSING_ERROR":
-				errorStr = "An unspecified error occurred while processing the submissions";
-				break;
-			case "TOO_LITTLE_TEXT":
-				errorStr = "The submission does not have enough text to generate a Similarity Report (a submission must contain at least 20 words)";
-				break;
-			case "TOO_MUCH_TEXT":
-				errorStr = "The submission has too much text to generate a Similarity Report (after extracted text is converted to UTF-8, the submission must contain less than 2MB of text)";
-				break;
-			case "TOO_MANY_PAGES":
-				errorStr = "The submission has too many pages to generate a Similarity Report (a submission cannot contain more than 400 pages)";
-				break;
-			case "FILE_LOCKED":
-				errorStr = "The uploaded file requires a password in order to be opened";
-				break;
-			case "CORRUPT_FILE":
-				errorStr = "The uploaded file appears to be corrupt";
-				break;
-			case "ERROR":
-				errorStr = "Submission returned with ERROR status";
-				break;
 			default:
-				log.info("Unknown submission status, will retry: " + submissionStatus);
-				break;
-			}
-			if(StringUtils.isNotEmpty(errorStr)) {
-				item.setLastError(errorStr);
-				item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_NO_RETRY_CODE);
+				String errorCode = submissionJSON.containsKey("error_code") ? submissionJSON.getString("error_code") : submissionStatus;
+				// Grab an appropriate message from turnitin.properties by the prefix "submission.terminal.status."
+				// If a message with this key exists, it's considered a terminal error and the item should not be retried
+				String terminalKey = "submission.terminal.status." + errorCode;
+				ResourceLoader rb = getResourceLoader();
+				if (rb.containsKey(terminalKey)) {
+					setLastError(item, doc->createFormattedMessageXML(doc, terminalKey));
+					item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_NO_RETRY_CODE);
+				} else {
+					log.info("Unknown submission status, will retry: " + submissionStatus);
+					String recoverableKey = "submission.recoverable.status." + errorCode;
+					if (rb.containsKey(recoverableKey)) {
+						// Currently these don't exist, but this implementation is ready should recoverable errors become identified
+						setLastError(item, doc->createFormattedMessageXML(doc, recoverableKey));
+					} else {
+						// Unknown submission status / error code. Assume it's recoverable; if it's terminal, the retry count will be exceeded eventually
+						setLastError(item, doc->createFormattedMessageXML(doc, "submission.error.unhandled.status", errorCode));
+					}
+					item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_RETRY_CODE);
+				}
 				crqs.update(item);
+				break;
 			}
 		}  catch (Exception e) {
 			log.error(e.getMessage(), e);
@@ -1229,7 +1444,8 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 			// Similarity report is still generating, will try again
 			log.info("Processing report " + item.getExternalId() + "...");
 		} else if(status == -2){
-			throw new Exception("Unknown error during report status call");
+			throw new ContentReviewProviderException("Unknown error during report status call",
+				createLastError(doc -> createFormattedMessageXML(doc, "report.error.unknown")));
 		}
 	}
 	
@@ -1241,7 +1457,7 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 			item.setNextRetryTime(cal.getTime());
 			crqs.update(item);
 			// If retry count is above maximum increment error count, set status to nine and stop retrying
-		} else if (item.getRetryCount().intValue() > TURNITIN_MAX_RETRY) {
+		} else if (item.getRetryCount().intValue() > maxRetry) {
 			item.setStatus(ContentReviewConstants.CONTENT_REVIEW_SUBMISSION_ERROR_RETRY_EXCEEDED_CODE);
 			crqs.update(item);
 			return false;
@@ -1258,10 +1474,14 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 	}
 
 	public int getDelayTime(long retries) {
+		if (skipDelays)
+		{
+			return 0;
+		}
 		// exponential retry algorithm that caps the retries off at 36 hours (checking once every 4 hours max)
-		int minutes = (int) Math.pow(2, retries < TURNITIN_MAX_RETRY ? retries : 1); // built in check for max retries
+		int minutes = (int) Math.pow(2, retries < maxRetry ? retries : 1); // built in check for max retries
 																						// to fail quicker
-		return minutes > TURNITIN_OC_MAX_RETRY_MINUTES ? TURNITIN_OC_MAX_RETRY_MINUTES : minutes;
+		return minutes > maxRetryMinutes ? maxRetryMinutes : minutes;
 	}
 
 	public void queueContent(String userId, String siteId, String assignmentReference, List<ContentResource> content)
@@ -1318,13 +1538,13 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 			 * Use ResourceLoader to resolve the file types.
 			 * If the resource loader doesn't find the file extenions, log a warning and return the [missing key...] messages
 			 */
-			ResourceLoader resourceLoader = new ResourceLoader("turnitin");
 			for( String fileExtension : acceptableFileExtensions ) {
 				String key = KEY_FILE_TYPE_PREFIX + fileExtension;
-				if (!resourceLoader.getIsValid(key)) {
+				ResourceLoader rb = getResourceLoader();
+				if (!rb.getIsValid(key)) {
 					log.warn("While resolving acceptable file types for Turnitin, the sakai.property " + PROP_ACCEPTABLE_FILE_TYPES + " is not set, and the message bundle " + key + " could not be resolved. Displaying [missing key ...] to the user");
 				}
-				String fileType = resourceLoader.getString(key);
+				String fileType = rb.getString(key);
 				appendToMap( acceptableFileTypesToExtensions, fileType, fileExtension );
 			}
 		}
@@ -1384,7 +1604,7 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 		String responseMessage = !response.containsKey(RESPONSE_MESSAGE) ? "" : (String) response.get(RESPONSE_MESSAGE);
 
 		if (responseCode < 200 || responseCode >= 300) {
-			throw new Exception(responseCode + ": " + responseMessage);
+			throw new TransientSubmissionException(responseCode + ": " + responseMessage);
 		}
 	}
 
@@ -1567,30 +1787,36 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 		JSONObject webhookJSON = JSONObject.fromObject(body);
 		String eventType = request.getHeader("X-Turnitin-Eventtype");
 		String signature_header = request.getHeader("X-Turnitin-Signature");
-
+		log.debug("webhookEvent body: " + body);
 
 		try {
 			// Make sure cb is signed correctly
 			String secrete_key_encoded = getSigningSignature(apiKey.getBytes(), body);
 			if (StringUtils.isNotEmpty(secrete_key_encoded) && signature_header.equals(secrete_key_encoded)) {
 				if (SUBMISSION_COMPLETE_EVENT_TYPE.equals(eventType)) {
-					if (webhookJSON.has("id") && STATUS_COMPLETE.equals(webhookJSON.get("status"))) {
-						// Allow cb to access assignment settings, needed for draft check
+					if (webhookJSON.has("id") && webhookJSON.has("status")) {
+						// Allow cb to access assignment settings, needed for due date check
 						SecurityAdvisor advisor = pushAdvisor();
-						log.info("Submission complete webhook cb received");
-						log.info(webhookJSON.toString());
-						Optional<ContentReviewItem> optionalItem = crqs.getQueuedItemByExternalId(getProviderId(), webhookJSON.getString("id"));
-						ContentReviewItem item = optionalItem.isPresent() ? optionalItem.get() : null;
-						Assignment assignment = assignmentService.getAssignment(entityManager.newReference(item.getTaskId()));
-						handleSubmissionStatus(webhookJSON.getString("status"), item, assignment);
-						// Remove advisor override
-						popAdvisor(advisor);
-						success++;
+						try {
+							log.info("Submission complete webhook cb received");
+							log.info(webhookJSON.toString());
+							Optional<ContentReviewItem> optionalItem = crqs.getQueuedItemByExternalId(getProviderId(), webhookJSON.getString("id"));
+							ContentReviewItem item = optionalItem.isPresent() ? optionalItem.get() : null;
+							Assignment assignment = assignmentService.getAssignment(entityManager.newReference(item.getTaskId()));
+							handleSubmissionStatus(webhookJSON, item, assignment);
+							success++;
+						} catch (Exception e) {
+							log.error(e.getMessage(), e);
+							errors++;
+						} finally {
+							// Remove advisor override
+							popAdvisor(advisor);
+						}
 					} else {
 						log.warn("Callback item received without needed information");
 						errors++;
 					}
-				} else if (SIMILARITY_COMPLETE_EVENT_TYPE.equals(eventType)) {
+				} else if (SIMILARITY_COMPLETE_EVENT_TYPE.equals(eventType) || SIMILARITY_UPDATED_EVENT_TYPE.equals(eventType)) {
 					if (webhookJSON.has("submission_id") && STATUS_COMPLETE.equals(webhookJSON.get("status"))) {
 						log.info("Similarity complete webhook cb received");
 						log.info(webhookJSON.toString());
@@ -1613,10 +1839,38 @@ public class ContentReviewServiceTurnitinOC extends BaseContentReviewService {
 		log.info("Turnitin webhook received: " + success + " items processed, " + errors + " errors.");
 	}
 	
+	private String mapUserRole(String userId, String contextId, boolean isInstructor) {
+		String role = isInstructor ? ROLES.INSTRUCTOR.name() : ROLES.UNDEFINED.name();
+		try
+		{
+			//get the user's role for this course
+			String siteRole = securityService.isSuperUser(userId) ? ROLES.ADMINISTRATOR.name() : authzGroupService.getUserRole(userId, siteService.siteReference(contextId));
+			role = Arrays.asList(ROLES.values()).stream()
+				.filter(r -> r.getMappedRoles().stream().anyMatch(siteRole::equalsIgnoreCase))
+				.map(r -> r.name())
+				.findFirst()
+				.orElse(role);
+		}catch(Exception e) {
+			log.error(e.getMessage(), e);
+		}
+		return role;
+	}
+	
+	
 	@Getter
 	@AllArgsConstructor
 	private class Webhook {
 		private String id;
 		private String url;
+	}
+
+	@Override
+	protected String getResourceLoaderName() {
+		return "turnitin-oc";
+	}
+	
+	@Override
+	public boolean allowSubmissionsOnBehalf() {
+		return true;
 	}
 }

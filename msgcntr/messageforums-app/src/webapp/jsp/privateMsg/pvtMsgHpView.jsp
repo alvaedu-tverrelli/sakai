@@ -25,31 +25,18 @@
   pmt.initializePrivateMessageArea();
 %>
 
+		       		<script>includeLatestJQuery("msgcntr");</script>
+			<script src="/messageforums-tool/js/sak-10625.js"></script>
+			<script>
+				$(document).ready(function () {
+					var menuLink = $('#messagesMainMenuLink');
+					var menuLinkSpan = menuLink.closest('span');
+					menuLinkSpan.addClass('current');
+					menuLinkSpan.html(menuLink.text());
+				});
+			</script>
+			<%@ include file="/jsp/privateMsg/pvtMenu.jsp" %>
 
-
-		       		<script type="text/javascript">includeLatestJQuery("msgcntr");</script>
-			<script type="text/javascript" src="/messageforums-tool/js/sak-10625.js"></script>
-
-
-			<sakai:tool_bar rendered="#{PrivateMessagesTool.messages}">
-                <h:commandLink id="composeMessage" rendered="#{! PrivateMessagesTool.dispError}"
-                    action="#{PrivateMessagesTool.processPvtMsgCompose}" immediate="true">
-                        <h:outputText value="#{msgs.pvt_compose}" />
-                </h:commandLink>
-                <h:commandLink id="newFolder" rendered="#{! PrivateMessagesTool.dispError}"
-                    action="#{PrivateMessagesTool.processPvtMsgFolderSettingAdd}" immediate="true">
-                        <h:outputText value="#{msgs.pvt_newfolder}" />
-                </h:commandLink>
-                <h:commandLink id="settings" rendered="#{PrivateMessagesTool.showSettingsLink}"
-                    action="#{PrivateMessagesTool.processPvtMsgSettings}" immediate="true">
-                        <h:outputText value="#{msgs.pvt_settings}" />
-                </h:commandLink>
-                <h:commandLink id="permissions" rendered="#{PrivateMessagesTool.instructor}"
-                    action="#{PrivateMessagesTool.processActionPermissions}" immediate="true">
-                        <h:outputText value="#{msgs.pvt_permissions}" />
-                </h:commandLink>
- 			</sakai:tool_bar>
- 			
 			<h:panelGroup>
 				<f:verbatim>
 					<div class="page-header">
@@ -86,7 +73,7 @@
 			
 			<h:panelGroup rendered="#{PrivateMessagesTool.messages && PrivateMessagesTool.dispError}" >
 			  <f:verbatim><br /></f:verbatim>
- 			  <h:outputText value="#{msgs.pvt_hlprpgerror}" styleClass="bs-callout-danger" />
+ 			  <h:outputText value="#{msgs.pvt_hlprpgerror}" styleClass="sak-banner-error" />
 			</h:panelGroup>
 
 			<div class="table-responsive">

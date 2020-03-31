@@ -11,9 +11,11 @@
 			#set ($SiteColumnFlag = $SiteColumnFlag + 1)
 		#end
 	#end
-	<div class="page-header"><h3>$tlang.getString("reorder.title")</h3></div>
+	<div class="page-header">
+		<h1>$tlang.getString("reorder.title")</h1>
+	</div>
  	
-	#if ($alertMessage)<div class="alertMessage">$tlang.getFormattedMessage("gen.alert.message", $alertMessage)</div><div class="clear"></div>#end
+	#if ($alertMessage)<div class="sak-banner-error">$tlang.getFormattedMessage("gen.alert.message", $alertMessage)</div>#end
 	<div class="navPanel">
 			<span class="instruction">
 				$tlang.getString('reorder.instruction.general')
@@ -34,7 +36,7 @@
 			</li>
 			<li style="display:inline;color:#000">
 				<span id="failedValidMessage" style="display:none">$tlang.getString('reorder.fail.valid.message')</span>
-				<span id="messageHolder" class="messageSuccess" style="display:none"> </span>
+				<span id="messageHolder" class="sak-banner-success-inline" style="display:none"> </span>
 			</li>
 		</ul>	
 		<span id="lastMoveArray" style="display:none"></span >
@@ -109,10 +111,10 @@
 							<input type="hidden" size="3" id="holder$count"  value="$count"/>
 						</span>	
 						<span class="title col-md-4 col-sm-4 col-xs-12">
-							$validator.escapeHtml($validator.limit($ann_item.Header.subject, 45))
+							$formattedText.escapeHtml($validator.limit($ann_item.Header.subject, 45))
 						</span>
 						<span class="author col-md-2 col-sm-2 col-xs-12">
-							$validator.escapeHtml($ann_item.Header.From.DisplayName)
+							$formattedText.escapeHtml($ann_item.Header.From.DisplayName)
 						</span>
 						<span  class="date col-md-2 col-sm-2 col-xs-12"> 
 							$ann_item.Header.Date.toStringLocalFull()

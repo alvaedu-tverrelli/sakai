@@ -9,7 +9,7 @@
  <script rsf:id="scr=portal-matter" type="text/javascript" language="JavaScript" src="/library/js/headscripts.js"></script>
  <script language="JavaScript" src="/lessonbuilder-tool/js/SakaiRSFWidgets.js" type="text/javascript" rsf:id="fckScript"></script>
  <script type="text/javascript" language="JavaScript" src="../js/rsf.js"></script>
- <link type="text/css" href="$context/css/simplepage-theme/jquery-ui-1.11.1.smoothness.css" rel="stylesheet" />	
+ <link type="text/css" href="/library/webjars/jquery-ui-themes/1.12.1/smoothness/jquery-ui.min.css" rel="stylesheet" />	
  <link rsf:id="scr=portal-matter" href="/library/skin/tool_base.css" type="text/css" rel="stylesheet" media="all" />
  <link rsf:id="scr=portal-matter" href="/library/skin/default/tool.css" type="text/css" rel="stylesheet" media="all" />
  <link rel="stylesheet" rsf:id="scr=rewrite-url" href="../css/Simplepagetool.css" type="text/css" />
@@ -57,8 +57,7 @@
          }
      }
  </script>
- <script type="text/javascript" src="$context/js/jquery-1.9.1.min.js"></script>
- <script type="text/javascript" src="$context/js/jquery-ui-1.11.1.custom.min.js"></script>
+ <script>includeLatestJQuery('ShowPage.html');</script>
  <script rsf:id="datepicker" type="text/javascript" src="/library/js/lang-datepicker/lang-datepicker.js"></script>
  <script type="text/javascript" src="$context/js/jqBarGraph.1.1.customized.js"></script>
  <script type="text/javascript" src="$context/js/jquery.oembed.js"></script>
@@ -66,7 +65,12 @@
  <script type="text/javascript" src="$context/js/jquery.cluetip.min.js"></script>
  <link rel="stylesheet" href="$context/css/jquery.cluetip.css" type="text/css" />
  <link rel="stylesheet" href="/library/editor/ckextraplugins/folder-listing/css/file-tree.css" type="text/css"/>
- <link type="text/css" href="/library/webjars/fullcalendar/3.9.0/fullcalendar.min.css" rel="stylesheet" />
+ <link href="/library/webjars/fullcalendar/4.3.1/core/main.min.css" rel="stylesheet" />
+ <link href="/library/webjars/fullcalendar/4.3.1/daygrid/main.min.css" rel="stylesheet" />
+ <link href="/library/webjars/fullcalendar/4.3.1/timegrid/main.min.css" rel="stylesheet" />
+ <script src="/library/webjars/fullcalendar/4.3.1/core/main.min.js"></script>
+ <script src="/library/webjars/fullcalendar/4.3.1/daygrid/main.min.js"></script>
+ <script src="/library/webjars/fullcalendar/4.3.1/timegrid/main.min.js"></script>
  <script type="text/javascript" src="$context/js/peer-eval.js"></script>
  <script type="text/javascript" src="$context/js/hoverIntent.js"></script>
  <script type="text/javascript" src="/library/editor/ckextraplugins/folder-listing/js/file-tree.js"></script>
@@ -77,7 +81,6 @@
  <script type="text/javascript" src="$context/js/gradingAjax.js"></script>
  <script type="text/javascript" src="$context/js/checklistDisplay.js"></script>
  <script type="text/javascript" src="$context/js/forum-summary.js"></script>
- <script type="text/javascript" src="/library/webjars/fullcalendar/3.9.0/fullcalendar.min.js"></script>
  <script type="text/javascript" src="$context/js/lessons-calendar.js"></script>
  <link rel="stylesheet" rsf:id="customCSS" type="text/css" />
 
@@ -99,7 +102,7 @@
 
 	 <div rsf:id="portletBody" class="portletBody">
 
-		 <div rsf:id="needPermissions" class="messageError error-spacingabove error-nospacebelow">
+		 <div rsf:id="needPermissions" class="sak-banner-error error-spacingabove error-nospacebelow">
 			 <p rsf:id="msg=simplepage.needpermissions"></p>
 			 <a role="button" href="#" rsf:id="callpermissions"></a>
 		 </div>
@@ -142,8 +145,8 @@
                    <a href="#" role="button" id="collapseAllSections" style="display:none;" class="button menuitem"><span class="fa fa-toggle-up" aria-hidden="true" style="padding-right:5px;"></span><span rsf:id="msg=simplepage.collapse.all"></span></a>
 		 </span>
 		 <span>
-		   <a role="button" href="#" rsf:id="prev" class="nexprev prev menuitem button">prev</a>
-		   <a role="button" href="#" rsf:id="next" class="nexprev prev menuitem button">next</a>
+		   <a role="button" href="#" rsf:id="prev" class="nextprev prev menuitem button">prev</a>
+		   <a role="button" href="#" rsf:id="next" class="nextprev prev menuitem button">next</a>
 		 </span>
 		 <a role="button"  href="#" rsf:id="print-view" id="print-view" onclick="window.open(printView(window.location.href));return false" class="Mrphs-toolTitleNav__link top-icon fa fa-print"><span rsf:id="msg=simplepage.print_view" class="Mrphs-itemTitle"></span></a>
 		 <a role="button"  href="#" rsf:id="print-all" id="print-all" onclick="window.open(printViewWithParameter(window.location.href));return false" class="Mrphs-toolTitleNav__link top-icon fa fa-print"><span rsf:id="msg=simplepage.print_all" class="Mrphs-itemTitle"></span></a>
@@ -394,9 +397,8 @@
 		  </ul>
 		</div>
 
-		<div rsf:id="error-div" class="ui-widget messageError error-spacingabove error-nospcebelow" role="alert">
+		<div rsf:id="error-div" class="ui-widget sak-banner-error error-spacingabove error-nospcebelow" role="alert">
 			<div>
-				<span class="ui-icon ui-icon-info" style="float: left; margin-right: .3em;"></span>
 				<div rsf:id="error"></div>
 				<div rsf:id="errors:">
 				  <p rsf:id="error-message"></p>
@@ -460,7 +462,6 @@
                            allowfullscreen="true"
                            webkitallowfullscreen="true"
                            mozallowfullscreen="true"
-                           allow="camera; microphone"
                            rsf:id="blti-iframe"
                                id="blti-iframe"
                            >
@@ -506,7 +507,7 @@
                         <span style="display:none" rsf:id="twitter-height" class="twitterHeight"></span>
                     </div>
 		    <div class="right-col">
-		      <p rsf:id="notAvailableText" class="messageWarning narrow-instruction"></p>
+		      <p rsf:id="notAvailableText" class="sak-banner-warn narrow-instruction"></p>
 		    </div>
                     <div rsf:id="announcementsgroup-td" class="group-col"><div><a href="#" class="usebutton" rsf:id="groupannouncements-link"><span rsf:id="groupannouncements-icon"></span></a></div></div>
                     <div rsf:id="announcementsSpan" class="right-col">
@@ -566,7 +567,6 @@
                          allowfullscreen="true"
                          webkitallowfullscreen="true"
                          mozallowfullscreen="true"
-                         allow="camera; microphone"
                          rsf:id="iframe"
                              id="iframe"
                          ></iframe>
@@ -609,7 +609,6 @@
                             allowfullscreen="allowfullscreen"
                             webkitallowfullscreen="true"
                             mozallowfullscreen="true"
-                            allow="camera; microphone"
                             class="playerwidth"></iframe>
 			<div rsf:id="youtube-td" role="toolbar" class="edit-col"><div><a role="button" aria-haspopup="dialog" aria-controls="youtube-dialog" href="#" class="usebutton edit-youtube" onclick="return false" rsf:id="youtube-edit"><span aria-hidden="true" class="fa-edit fa-edit-icon"></span></a><a role="button" href="#" class="usebutton del-item-link" onclick="return false"><span aria-hidden="true" class="fa-trash-o fa-edit-icon"></span></a><a role="button" aria-haspopup="dialog" aria-controls="youtube-dialog" href="#" class="usebutton add-link" onclick="return false"><span aria-hidden="true" class="fa-plus fa-edit-icon plus-edit-icon"></span></a></div></div>
                       </div>
@@ -662,7 +661,7 @@
 
                     <div rsf:id="commentsgroup-td" aria-hidden="true" class="group-col"><div><a href="#" class="usebutton" onclick="return false" rsf:id="group-comments"></a><span rsf:id="icon-comments"></span></div></div>
                     <div rsf:id="commentsSpan" class="commentsCell right-col">
-                            <p rsf:id="missing-prereqs" class="messageWarning narrow-instruction"></p>
+                            <p rsf:id="missing-prereqs" class="sak-banner-warn narrow-instruction"></p>
                         <div class="commentsDiv" rsf:id="commentsDiv">
                             <div rsf:id="item-group-titles6" class="item-group-titles"></div>
                             
@@ -733,7 +732,7 @@
                     
                     <div rsf:id="studentgroup-td" aria-hidden="true" class="group-col"><div><a href="#" class="usebutton" onclick="return false" rsf:id="group-student"><span rsf:id="icon-student"></span></a></div></div>
                     <div rsf:id="studentSpan" class="right-col">
-                            <span rsf:id="student-missing-prereqs" class="messageWarning narrow-instruction"></span>
+                            <span rsf:id="student-missing-prereqs" class="sak-banner-warn narrow-instruction"></span>
                         <div class="studentDiv" rsf:id="studentDiv">
                             <div rsf:id="item-group-titles7" class="item-group-titles"></div>
                             <div class="studentContentTable" rsf:id="studentContentTable" role="list">
@@ -888,8 +887,8 @@
                                     <form action="#" rsf:id="shortanswerForm" class="shortanswerForm">
 				      <input type="hidden" rsf:id="csrf5" />
                                         <input type="hidden" rsf:id="shortanswerId" />
-                                        <div rsf:id="msg=simplepage.answer"></div>
-                                        <textarea rsf:id="shortanswerInput" class="resizable" ></textarea>
+                                        <div id="answerInput"><span rsf:id="msg=simplepage.answer"></span></div>
+                                        <textarea rsf:id="shortanswerInput" aria-labelledby="answerInput"></textarea>
                                         <input class="bold question-submit" type="submit" value="Answer!" rsf:id="answerShortanswer" />
                                     </form>
                                 </div>
@@ -961,13 +960,12 @@
 		   allowfullscreen="true"
 		   webkitallowfullscreen="true"
 		   mozallowfullscreen="true"
-		   allow="camera; microphone"
 		   id="iframe"
 		   ></iframe>
 		   <ul class="navIntraTool">
 		   <li class="bottomButtons contentButton">
-		   <a role="button" class="nexprev prev menuitem button" href="#" rsf:id="prev1">next</a> 
-		   <a role="button" class="bottomRight nexprev prev menuitem button" href="#" rsf:id="next1">next</a>
+		   <a role="button" class="nextprev prev menuitem button" href="#" rsf:id="prev1">next</a> 
+		   <a role="button" class="bottomRight nextprev prev menuitem button" href="#" rsf:id="next1">next</a>
 		   </li>
 		   </ul>
 
@@ -1086,9 +1084,7 @@
 
 			<div id="subpage-dialog" rsf:id="subpage-dialog" class="lessonsDialog">
 				<div class="ui-widget" id="subpage-error-container">
-					<div class="messageError">
-						<p><span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span> 
-						<strong rsf:id="msg=simplepage.error_colon"></strong> <span id="subpage-error"></span></p>
+					<div class="sak-banner-error" id="subpage-error">
 					</div>
 				</div>
 				
@@ -1119,9 +1115,7 @@
 			
 			<div id="edit-item-dialog" rsf:id="edit-item-dialog" class="lessonsDialog">
 				<div class="ui-widget" id="edit-item-error-container">
-					<div class="messageError">
-						<p><span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span> 
-						<strong rsf:id="msg=simplepage.error_colon"></strong> <span id="edit-item-error"></span></p>
+					<div class="sak-banner-error" id="edit-item-error">
 					</div>
 				</div>
       <form action="#" rsf:id="edit-form" class="controlsPanel">
@@ -1284,15 +1278,11 @@
 					<input type="hidden" rsf:id="csrf23" />
 					<input type="hidden" rsf:id="announcementsEditId" id="announcementsEditId" />
 					<div class="ui-widget" id="announcements-error-container">
-						<div class="ui-state-error ui-corner-all" style="padding: 0 .7em;">
-							<p><span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span>
-							<strong rsf:id="msg=simplepage.error_colon"></strong> <span id="announcements-error"></span></p>
+						<div class="sak-banner-error" id="announcements-error">
 						</div>
 					</div>
 					<div rsf:id="announcements-error-div" class="ui-widget">
-						<div class="ui-state-error ui-corner-all" style="margin-bottom: 20px; margin-top:20px; padding: 0 .7em;">
-							<p><span class="ui-icon ui-icon-info" style="float: left; margin-right: .3em;"></span>
-							<span rsf:id="announcements-error-span"></span> </p>
+						<div class="sak-banner-error" rsf:id="announcements-error-span">
 						</div>
 					</div>
 					<div class="announcements-content">
@@ -1311,9 +1301,7 @@
 			</div>
 			<div id="add-multimedia-dialog" rsf:id="add-multimedia-dialog" class="lessonsDialog">
 				<div class="ui-widget" id="mm-error-container">
-					<div class="messageError">
-						<p><span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span> 
-						<strong rsf:id="msg=simplepage.error_colon"></strong> <span id="mm-error"></span></p>
+					<div class="sak-banner-error" id="mm-error">
 					</div>
                 </div>
                 <form action="#" rsf:id="add-multimedia-form" method="post" enctype="multipart/form-data">
@@ -1548,9 +1536,7 @@
 
 			<div id="edit-title-dialog" rsf:id="edit-title-dialog" class="lessonsDialog">
 				<div class="ui-widget" id="edit-title-error-container">
-					<div class="message-error">
-						<p><span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span> 
-						<strong rsf:id="msg=simplepage.error_colon"></strong> <span id="edit-title-error"></span></p>
+					<div class="sak-banner-error" id="edit-title-error">
 					</div>
 				</div>
 				
@@ -1635,9 +1621,7 @@
             <div id="new-page-dialog" rsf:id="new-page-dialog" class="controlsPanel lessonsDialog">
                     <p class="instruction"  style="margin-bottom:1em" rsf:id="msg=simplepage.new-page-explanation"></p>
                 <div class="ui-widget" id="new-page-error-container">
-                    <div class="message-error">
-                        <p><span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span> 
-                        <strong rsf:id="msg=simplepage.error_colon"></strong> <span id="new-page-error"></span></p>
+                    <div class="sak-banner-error" id="new-page-error">
                     </div>
                 </div>
                 <form action="#" rsf:id="new-page-form">
@@ -1693,9 +1677,7 @@
 
 			<div id="youtube-dialog" rsf:id="youtube-dialog" class="lessonsDialog">
 				<div class="ui-widget" id="edit-youtube-error-container">
-					<div class="message-error">
-						<p><span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span> 
-						<strong rsf:id="msg=simplepage.error_colon"></strong> <span id="edit-youtube-error"></span></p>
+					<div class="message-error" id="edit-youtube-error">
 					</div>
 				</div>
 				
@@ -1736,9 +1718,7 @@
 			
             <div id="movie-dialog" rsf:id="movie-dialog" class="lessonsDialog">
 				<div class="ui-widget" id="movie-error-container">
-					<div class="messageError">
-						<p><span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span> 
-						<strong rsf:id="msg=simplepage.error_colon"></strong> <span id="movie-error"></span></p>
+					<div class="sak-banner-error" id="movie-error">
 					</div>
 				</div>
 
@@ -1997,10 +1977,7 @@
 		       <div id="peer-eval-rows-for-submission" style="display:none;"></div>
 
 		    <div class="ui-widget" id="student-group-errors-container">
-		      <div class="messageError">
-			<span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span> 
-			<strong rsf:id="msg=simplepage.error_colon"></strong> 
-			<p class="lessons-messages" id="student-group-errors"></p>
+		      <div class="sak-banner-error" id="student-group-errors">
 		      </div>
 		    </div>
 
@@ -2018,15 +1995,11 @@
                     <input type="hidden" rsf:id="csrf24" />
                     <input type="hidden" rsf:id="forumSummaryEditId" id="forumSummaryEditId" />
                     <div class="ui-widget" id="forum-summary-error-container">
-                        <div class="ui-state-error ui-corner-all" style="padding: 0 .7em;">
-                            <p><span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span>
-                                <strong rsf:id="msg=simplepage.error_colon"></strong> <span id="forum-summary-error"></span></p>
+                        <div class="sak-banner-error" id="forum-summary-error">
                         </div>
                     </div>
                     <div rsf:id="forum-summary-error-div" class="ui-widget">
-                        <div class="ui-state-error ui-corner-all" style="margin-bottom: 20px; margin-top:20px; padding: 0 .7em;">
-                            <p><span class="ui-icon ui-icon-info" style="float: left; margin-right: .3em;"></span>
-                                <span rsf:id="forum-summary-error-span"></span> </p>
+                        <div class="sak-banner-error" rsf:id="forum-summary-error-span">
                         </div>
                     </div>
                     <div class="forum-summary-content">
@@ -2050,9 +2023,7 @@
 					<input type="hidden" rsf:id="twitterEditId" id="twitterEditId" />
                     <input type="hidden" rsf:id="twitter-addBefore" id="twitter-addBefore" />
 					<div class="ui-widget" id="twitter-error-container">
-						<div class="ui-state-error ui-corner-all" style="padding: 0 .7em;">
-							<p><span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span>
-							<strong rsf:id="msg=simplepage.error_colon"></strong> <span id="twitter-error"></span></p>
+						<div class="sak-banner-error" id="twitter-error">
 						</div>
 					</div>
 					<div class="">
@@ -2078,9 +2049,7 @@
 			</div>
 			<div id="question-dialog" rsf:id="question-dialog" class="lessonsDialog">
 			  <div class="ui-widget" id="question-error-container">
-			    <div class="messageError">
-			      <p><span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span> 
-				<strong rsf:id="msg=simplepage.error_colon"></strong> <span id="question-error"></span></p>
+			    <div class="sak-banner-error" id="question-error">
 			    </div>
 			  </div>
 

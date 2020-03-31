@@ -148,6 +148,13 @@ public interface ContentReviewService {
 	 *  Check for reports for all submitted items that don't have reports yet 
 	 */
 	public void checkForReports();
+
+	/**
+	 *  Sync roster information with services that depend on membership information.
+	 *  For example, Turnitin Sakai API expects the creation of courses, assignments, 
+	 *  user accounts, and instructor assignments.
+	 */
+	public void syncRosters();
 	
 	
 	/**
@@ -398,7 +405,7 @@ public interface ContentReviewService {
 	 * @param isInstructor
 	 * @return
 	 */
-	public String getReviewReportRedirectUrl(String contentId, String assignmentRef, String userId, boolean isInstructor);
+	public String getReviewReportRedirectUrl(String contentId, String assignmentRef, String userId, String contextId, boolean isInstructor);
 	
 	/**
 	 * Webhook event listener that can be used to get messages sent from the provider to Sakai
@@ -407,4 +414,14 @@ public interface ContentReviewService {
 	 * @param providerId
 	 */
 	public void webhookEvent(HttpServletRequest request, int providerId, Optional<String> customParam);
+
+	/**
+	 * Gets the ContentReviewItem's last error localized for the current user session
+	 */
+	public String getLocalizedLastError(ContentReviewItem item);
+	
+	/**
+	 * Flag to determine whether the service accepts submissions on behalf of users
+	 */
+	public boolean allowSubmissionsOnBehalf();
 }

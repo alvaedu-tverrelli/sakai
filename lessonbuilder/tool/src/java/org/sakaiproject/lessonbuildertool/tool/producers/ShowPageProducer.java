@@ -39,6 +39,7 @@ import java.net.ProtocolException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -52,19 +53,77 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
-import java.text.SimpleDateFormat;
 import java.util.TimeZone;
 
+import javax.crypto.Cipher;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.crypto.Cipher;
 import javax.xml.bind.DatatypeConverter;
 
+import org.apache.commons.lang3.StringUtils;
+import org.sakaiproject.authz.api.AuthzGroup;
+import org.sakaiproject.authz.api.AuthzGroupService;
+import org.sakaiproject.authz.api.Member;
+import org.sakaiproject.authz.api.SecurityService;
+import org.sakaiproject.component.cover.ComponentManager;
+import org.sakaiproject.component.cover.ServerConfigurationService;
+import org.sakaiproject.content.api.ContentHostingService;
+import org.sakaiproject.content.api.ContentResource;
+import org.sakaiproject.entity.api.ResourceProperties;
+import org.sakaiproject.event.api.UsageSession;
+import org.sakaiproject.event.cover.UsageSessionService;
+import org.sakaiproject.exception.IdUnusedException;
+import org.sakaiproject.lessonbuildertool.ChecklistItemStatus;
+import org.sakaiproject.lessonbuildertool.ChecklistItemStatusImpl;
+import org.sakaiproject.lessonbuildertool.SimpleChecklistItem;
+import org.sakaiproject.lessonbuildertool.SimplePage;
+import org.sakaiproject.lessonbuildertool.SimplePageComment;
+import org.sakaiproject.lessonbuildertool.SimplePageItem;
+import org.sakaiproject.lessonbuildertool.SimplePageLogEntry;
+import org.sakaiproject.lessonbuildertool.SimplePagePeerEvalResult;
+import org.sakaiproject.lessonbuildertool.SimplePageQuestionAnswer;
+import org.sakaiproject.lessonbuildertool.SimplePageQuestionResponse;
+import org.sakaiproject.lessonbuildertool.SimplePageQuestionResponseTotals;
+import org.sakaiproject.lessonbuildertool.SimpleStudentPage;
+import org.sakaiproject.lessonbuildertool.model.SimplePageToolDao;
+import org.sakaiproject.lessonbuildertool.service.BltiInterface;
+import org.sakaiproject.lessonbuildertool.service.LessonBuilderAccessService;
+import org.sakaiproject.lessonbuildertool.service.LessonEntity;
+import org.sakaiproject.lessonbuildertool.tool.beans.SimplePageBean;
+import org.sakaiproject.lessonbuildertool.tool.beans.SimplePageBean.BltiTool;
+import org.sakaiproject.lessonbuildertool.tool.beans.SimplePageBean.GroupEntry;
+import org.sakaiproject.lessonbuildertool.tool.beans.SimplePageBean.Status;
+import org.sakaiproject.lessonbuildertool.tool.evolvers.SakaiFCKTextEvolver;
+import org.sakaiproject.lessonbuildertool.tool.view.CommentsGradingPaneViewParameters;
+import org.sakaiproject.lessonbuildertool.tool.view.CommentsViewParameters;
+import org.sakaiproject.lessonbuildertool.tool.view.ExportCCViewParameters;
+import org.sakaiproject.lessonbuildertool.tool.view.FilePickerViewParameters;
+import org.sakaiproject.lessonbuildertool.tool.view.GeneralViewParameters;
+import org.sakaiproject.lessonbuildertool.tool.view.QuestionGradingPaneViewParameters;
+import org.sakaiproject.lessonbuildertool.util.SimplePageItemUtilities;
+import org.sakaiproject.memory.api.Cache;
+import org.sakaiproject.memory.api.MemoryService;
+import org.sakaiproject.portal.util.CSSUtils;
+import org.sakaiproject.portal.util.PortalUtils;
+import org.sakaiproject.site.api.SiteService;
+import org.sakaiproject.time.api.UserTimeService;
+import org.sakaiproject.tool.api.Placement;
+import org.sakaiproject.tool.api.Session;
+import org.sakaiproject.tool.api.ToolManager;
+import org.sakaiproject.tool.api.ToolSession;
+import org.sakaiproject.tool.cover.SessionManager;
+import org.sakaiproject.user.api.User;
+import org.sakaiproject.user.api.UserNotDefinedException;
+import org.sakaiproject.user.cover.UserDirectoryService;
+import org.sakaiproject.util.FormattedText;
+import org.sakaiproject.util.ResourceLoader;
+import org.sakaiproject.util.Web;
+import org.sakaiproject.util.comparator.UserSortNameComparator;
+
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-
-import org.apache.commons.lang.StringUtils;
-
 import uk.org.ponder.localeutil.LocaleGetter;
 import uk.org.ponder.messageutil.MessageLocator;
 import uk.org.ponder.rsf.builtin.UVBProducer;
@@ -79,7 +138,6 @@ import uk.org.ponder.rsf.components.UIInitBlock;
 import uk.org.ponder.rsf.components.UIInput;
 import uk.org.ponder.rsf.components.UIInternalLink;
 import uk.org.ponder.rsf.components.UILink;
-import uk.org.ponder.rsf.components.UIMessage;
 import uk.org.ponder.rsf.components.UIOutput;
 import uk.org.ponder.rsf.components.UISelect;
 import uk.org.ponder.rsf.components.UISelectChoice;
@@ -99,65 +157,6 @@ import uk.org.ponder.rsf.viewstate.SimpleViewParameters;
 import uk.org.ponder.rsf.viewstate.ViewParameters;
 import uk.org.ponder.rsf.viewstate.ViewParamsReporter;
 
-import org.sakaiproject.component.cover.ComponentManager;
-import org.sakaiproject.component.cover.ServerConfigurationService;
-import org.sakaiproject.content.api.ContentHostingService;
-import org.sakaiproject.content.api.ContentResource;
-import org.sakaiproject.entity.api.ResourceProperties;
-import org.sakaiproject.event.api.UsageSession;
-import org.sakaiproject.event.cover.UsageSessionService;
-import org.sakaiproject.authz.api.AuthzGroup;
-import org.sakaiproject.authz.api.AuthzGroupService;
-import org.sakaiproject.authz.api.SecurityService;
-import org.sakaiproject.authz.api.Member;
-import org.sakaiproject.exception.IdUnusedException;
-import org.sakaiproject.lessonbuildertool.ChecklistItemStatus;
-import org.sakaiproject.lessonbuildertool.ChecklistItemStatusImpl;
-import org.sakaiproject.lessonbuildertool.SimplePage;
-import org.sakaiproject.lessonbuildertool.SimplePageComment;
-import org.sakaiproject.lessonbuildertool.SimplePageItem;
-import org.sakaiproject.lessonbuildertool.SimplePageLogEntry;
-import org.sakaiproject.lessonbuildertool.SimplePageQuestionAnswer;
-import org.sakaiproject.lessonbuildertool.SimplePageQuestionResponse;
-import org.sakaiproject.lessonbuildertool.SimplePageQuestionResponseTotals;
-import org.sakaiproject.lessonbuildertool.SimplePagePeerEvalResult;
-import org.sakaiproject.lessonbuildertool.SimpleStudentPage;
-import org.sakaiproject.lessonbuildertool.SimpleChecklistItem;
-import org.sakaiproject.lessonbuildertool.model.SimplePageToolDao;
-import org.sakaiproject.lessonbuildertool.service.BltiInterface;
-import org.sakaiproject.lessonbuildertool.service.LessonBuilderAccessService;
-import org.sakaiproject.lessonbuildertool.service.LessonEntity;
-import org.sakaiproject.lessonbuildertool.tool.beans.SimplePageBean;
-import org.sakaiproject.lessonbuildertool.tool.beans.SimplePageBean.GroupEntry;
-import org.sakaiproject.lessonbuildertool.tool.beans.SimplePageBean.PathEntry;
-import org.sakaiproject.lessonbuildertool.tool.beans.SimplePageBean.Status;
-import org.sakaiproject.lessonbuildertool.tool.beans.SimplePageBean.BltiTool;
-import org.sakaiproject.lessonbuildertool.tool.evolvers.SakaiFCKTextEvolver;
-import org.sakaiproject.lessonbuildertool.tool.view.CommentsGradingPaneViewParameters;
-import org.sakaiproject.lessonbuildertool.tool.view.CommentsViewParameters;
-import org.sakaiproject.lessonbuildertool.tool.view.FilePickerViewParameters;
-import org.sakaiproject.lessonbuildertool.tool.view.GeneralViewParameters;
-import org.sakaiproject.lessonbuildertool.tool.view.QuestionGradingPaneViewParameters;
-import org.sakaiproject.lessonbuildertool.tool.view.ExportCCViewParameters;
-import org.sakaiproject.lessonbuildertool.util.SimplePageItemUtilities;
-import org.sakaiproject.memory.api.Cache;
-import org.sakaiproject.memory.api.MemoryService;
-import org.sakaiproject.portal.util.CSSUtils;
-import org.sakaiproject.portal.util.PortalUtils;
-import org.sakaiproject.site.api.SiteService;
-import org.sakaiproject.time.api.TimeService;
-import org.sakaiproject.tool.api.Placement;
-import org.sakaiproject.tool.api.Session;
-import org.sakaiproject.tool.api.ToolManager;
-import org.sakaiproject.tool.api.ToolSession;
-import org.sakaiproject.tool.cover.SessionManager;
-import org.sakaiproject.user.api.User;
-import org.sakaiproject.user.api.UserNotDefinedException;
-import org.sakaiproject.user.cover.UserDirectoryService;
-import org.sakaiproject.util.FormattedText;
-import org.sakaiproject.util.ResourceLoader;
-import org.sakaiproject.util.Web;
-
 /**
  * This produces the primary view of the page. It also handles the editing of
  * the properties of most of the items (through JQuery dialogs).
@@ -174,7 +173,7 @@ public class ShowPageProducer implements ViewComponentProducer, DefaultView, Nav
 	private SecurityService securityService;
 	private SiteService siteService;
 	private FormatAwareDateInputEvolver dateevolver;
-	private TimeService timeService;
+	@Setter private UserTimeService userTimeService;
 	private HttpServletRequest httpServletRequest;
 	private HttpServletResponse httpServletResponse;
 	// have to do it here because we need it in urlCache. It has to happen before Spring initialization
@@ -448,7 +447,7 @@ public class ShowPageProducer implements ViewComponentProducer, DefaultView, Nav
 		
 		boolean cameFromGradingPane = params.getPath().equals("none");
 
-		TimeZone localtz = timeService.getLocalTimeZone();
+		TimeZone localtz = userTimeService.getLocalTimeZone();
 		isoDateFormat.setTimeZone(localtz);
 
 		if (!canReadPage) {
@@ -584,7 +583,7 @@ public class ShowPageProducer implements ViewComponentProducer, DefaultView, Nav
 		// potentially need time zone for setting release date
 		if (!canSeeAll && currentPage.getReleaseDate() != null && currentPage.getReleaseDate().after(new Date()) && !currentPage.isHidden()) {
 			DateFormat df = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, M_locale);
-			TimeZone tz = timeService.getLocalTimeZone();
+			TimeZone tz = userTimeService.getLocalTimeZone();
 			df.setTimeZone(tz);
 			String releaseDate = df.format(currentPage.getReleaseDate());
 			String releaseMessage = messageLocator.getMessage("simplepage.not_yet_available_releasedate").replace("{}", releaseDate);
@@ -603,8 +602,6 @@ public class ShowPageProducer implements ViewComponentProducer, DefaultView, Nav
 		    UIOutput.make(tofill, "error", messageLocator.getMessage("simplepage.not_available_hidden"));
 		    return;
 		}
-
-
 
 		// I believe we've now checked all the args for permissions issues. All
 		// other item and
@@ -746,7 +743,8 @@ public class ShowPageProducer implements ViewComponentProducer, DefaultView, Nav
 			else
 			    descrip = messageLocator.getMessage("simplepage.title-descrip");
 
-			UIOutput.make(tofill, "edit-title").decorate(new UIFreeAttributeDecorator("title", descrip));
+			UIComponent edittitlelink = UIInternalLink.makeURL(tofill, "edit-title", "#");
+			edittitlelink.decorate(new UIFreeAttributeDecorator("title", descrip));
 			UIOutput.make(tofill, "edit-title-text", label);
 			UIOutput.make(tofill, "title-descrip-text", descrip);
 
@@ -956,7 +954,9 @@ public class ShowPageProducer implements ViewComponentProducer, DefaultView, Nav
 			
 			// Make sure this is a top level student page
 			if(student != null && pageItem.getGradebookId() != null) {
-				UIOutput.make(tofill, "gradingSpan");
+				if (simplePageBean.getEditPrivs() == 0 && !simplePageBean.getCurrentUserId().equals(currentPage.getOwner())) {
+					UIOutput.make(tofill, "gradingSpan");
+				}
 				UIOutput.make(tofill, "commentsUUID", String.valueOf(student.getId()));
 				UIOutput.make(tofill, "commentPoints", String.valueOf((student.getPoints() != null? student.getPoints() : "")));
 				UIOutput pointsBox = UIOutput.make(tofill, "studentPointsBox");
@@ -1191,7 +1191,7 @@ public class ShowPageProducer implements ViewComponentProducer, DefaultView, Nav
 					// similarly warn them if it isn't released yet
 				} else if (currentPage.getReleaseDate() != null && currentPage.getReleaseDate().after(new Date())) {
 					DateFormat df = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, M_locale);
-					TimeZone tz = timeService.getLocalTimeZone();
+					TimeZone tz = userTimeService.getLocalTimeZone();
 					df.setTimeZone(tz);
 					String releaseDate = df.format(currentPage.getReleaseDate());
 					UIOutput.make(tofill, "hiddenAlert").decorate(new UIFreeAttributeDecorator("title", messageLocator.getMessage("simplepage.notreleased")));
@@ -1229,7 +1229,10 @@ public class ShowPageProducer implements ViewComponentProducer, DefaultView, Nav
 
 				UIOutput.make(tofill, "startupHelp")
 				    .decorate(new UIFreeAttributeDecorator("src", helpUrl))
-				    .decorate(new UIFreeAttributeDecorator("id", "iframe"));
+				    .decorate(new UIFreeAttributeDecorator("id", "iframe"))
+					.decorate(new UIFreeAttributeDecorator("allow", String.join(";",
+							Optional.ofNullable(ServerConfigurationService.getStrings("browser.feature.allow"))
+									.orElseGet(() -> new String[]{}))));
 				if (!iframeJavascriptDone) {
 				    UIOutput.make(tofill, "iframeJavascript");
 				    iframeJavascriptDone = true;
@@ -1998,7 +2001,10 @@ public class ShowPageProducer implements ViewComponentProducer, DefaultView, Nav
 						    // allowfullscreen="true" allowScriptAccess="always"
 						    // width="640" height="390"></object>
 
-						    item = UIOutput.make(tableRow, "youtubeIFrame");
+						    item = UIOutput.make(tableRow, "youtubeIFrame")
+									.decorate(new UIFreeAttributeDecorator("allow", String.join(";",
+											Optional.ofNullable(ServerConfigurationService.getStrings("browser.feature.allow"))
+													.orElseGet(() -> new String[]{}))));
 						    // youtube seems ok with length and width
 						    if(lengthOk(height)) {
 							    item.decorate(new UIFreeAttributeDecorator("height", height.getOld()));
@@ -2312,7 +2318,11 @@ public class ShowPageProducer implements ViewComponentProducer, DefaultView, Nav
 						} else  {
 						    UIOutput.make(tableRow, "iframe-link-div");
 						    UILink.make(tableRow, "iframe-link-link", messageLocator.getMessage("simplepage.open_new_window"), itemUrl);
-						    item = UIOutput.make(tableRow, "iframe").decorate(new UIFreeAttributeDecorator("src", itemUrl));
+						    item = UIOutput.make(tableRow, "iframe")
+									.decorate(new UIFreeAttributeDecorator("src", itemUrl))
+									.decorate(new UIFreeAttributeDecorator("allow", String.join(";",
+											Optional.ofNullable(ServerConfigurationService.getStrings("browser.feature.allow"))
+													.orElseGet(() -> new String[]{}))));
 						    // if user specifies auto, use Javascript to resize the
 						    // iframe when the
 						    // content changes. This only works for URLs with the
@@ -3864,7 +3874,10 @@ public class ShowPageProducer implements ViewComponentProducer, DefaultView, Nav
 			if (i.getHeight() != null && !i.getHeight().equals(""))
 			    height = i.getHeight().replace("px","");  // just in case
 			
-			UIComponent iframe = UIOutput.make(container, "blti-iframe");
+			UIComponent iframe = UIOutput.make(container, "blti-iframe")
+					.decorate(new UIFreeAttributeDecorator("allow", String.join(";",
+							Optional.ofNullable(ServerConfigurationService.getStrings("browser.feature.allow"))
+									.orElseGet(() -> new String[]{}))));
 			if (lessonEntity != null)
 			    iframe.decorate(new UIFreeAttributeDecorator("src", lessonEntity.getUrl()));
 			
@@ -3948,21 +3961,23 @@ public class ShowPageProducer implements ViewComponentProducer, DefaultView, Nav
 	}
 
 	private static String getUserDisplayName(String owner) {
-
-		if (owner== null) {
-			return "";
-		}
-
-		User user = null;
+		String userDisplayName = StringUtils.EMPTY;
 		try {
-			user = UserDirectoryService.getUser(owner);
+			User user = UserDirectoryService.getUser(owner);
+			userDisplayName = String.format("%s (%s)", user.getSortName(), user.getEid());
 		} catch (UserNotDefinedException e) {
 			log.info("Owner #: " + owner + " does not have an associated user.");
 		}
-		if (user==null || user.getDisplayName()==null){
-			return "";
+		return userDisplayName;
+	}
+
+	private static User getUser(String userId) {
+		try {
+			return UserDirectoryService.getUser(userId);
+		} catch (UserNotDefinedException e) {
+			log.error("User {} does not exist", userId);
 		}
-		return user.getDisplayName();
+		return null;
 	}
 
 	//Get the twitter widget hashtag and other settings from the user.
@@ -4026,10 +4041,6 @@ public class ShowPageProducer implements ViewComponentProducer, DefaultView, Nav
 
 	public void setDateEvolver(FormatAwareDateInputEvolver dateevolver) {
 		this.dateevolver = dateevolver;
-	}
-
-	public void setTimeService(TimeService ts) {
-		timeService = ts;
 	}
 
 	public void setLocaleGetter(LocaleGetter localegetter) {
@@ -4503,7 +4514,7 @@ public class ShowPageProducer implements ViewComponentProducer, DefaultView, Nav
 				initValues.add(entry.id);
 			}
 		}
-		if (groupsSet == null || groupsSet.size() == 0) {
+		if (groupsSet == null || groupsSet.size() == 0 || initValues.isEmpty()) {
 			initValues.add("");
 		}
 
@@ -4881,7 +4892,7 @@ public class ShowPageProducer implements ViewComponentProducer, DefaultView, Nav
 		}
 
 		UIOutput gradeBook = UIOutput.make(form, "gradeBookDiv");
-		if(simplePageBean.isStudentPage(page)) {
+		if(simplePageBean.isStudentPage(page) || simplePageBean.getCurrentTool(simplePageBean.GRADEBOOK_TOOL_ID) == null) {
 			gradeBook.decorate(new UIStyleDecorator("noDisplay"));
 		}
 		
@@ -4936,9 +4947,23 @@ public class ShowPageProducer implements ViewComponentProducer, DefaultView, Nav
 				List<String> possOwners = new LinkedList<>();
 				boolean isOwned = page.isOwned();
 				String owner = page.getOwner();
-				possOwners.addAll(simplePageBean.getCurrentSite().getUsers());
 				Set<String> siteUsersCanUpdate = simplePageBean.getCurrentSite().getUsersIsAllowed(SimplePage.PERMISSION_LESSONBUILDER_UPDATE);
-				possOwners.removeAll(siteUsersCanUpdate);
+
+				// Sort the site member list before filling the "possOwners" list
+				List<Member> siteMemberList = new ArrayList<Member>(simplePageBean.getCurrentSite().getMembers());
+				Collections.sort(siteMemberList, new Comparator<Member>() {
+					public int compare(Member lhs, Member rhs) {
+						UserSortNameComparator userComparator = new UserSortNameComparator();
+						return userComparator.compare(getUser(lhs.getUserId()), getUser(rhs.getUserId()));
+					}
+				});
+				siteMemberList.forEach(member -> {
+					String userId = member.getUserId();
+					if (!siteUsersCanUpdate.contains(userId)) {
+						possOwners.add(userId);
+					}
+				});
+
 				if (isOwned){
 					if (possOwners.contains(owner)){
 						int i = possOwners.indexOf(owner);
@@ -5067,6 +5092,8 @@ public class ShowPageProducer implements ViewComponentProducer, DefaultView, Nav
 		UIInput.make(form, "open_date_string", "#{simplePageBean.peerEvalOpenDate}");
 		UIOutput.make(form, "open_date_dummy");
 
+		UIOutput.make(form, "peer_eval_due_date_label", messageLocator.getMessage("simplepage.peer-eval.due_date"));
+       
 		UIOutput dueDateField = UIOutput.make(form, "peer_eval_due_date:");
 		UIInput.make(form, "due_date_string", "#{simplePageBean.peerEvalDueDate}");
 		UIOutput.make(form, "due_date_dummy");

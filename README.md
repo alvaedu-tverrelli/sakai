@@ -2,7 +2,7 @@
 
 This is the source code for the Sakai CLE.
 
-The master branch is the most current development release, Sakai 19.
+The master branch is the most current development release, Sakai 20.
 The other branches are currently or previously supported releases. See below for more information on the release plan and support schedule.
 
 ## Building
@@ -20,11 +20,11 @@ mvn install
 
 ## Running
 
-Sakai runs on Apache Tomcat 8. Download the latest version from http://tomcat.apache.org and extract the archive.
+Sakai runs on Apache Tomcat 9. Download the latest version from http://tomcat.apache.org and extract the archive.
 *Note: Sakai does not work with Tomcat installed via a package from apt-get, yum or other package managers.*
 
 You **must** configure Tomcat according to the instructions on this page:
-https://confluence.sakaiproject.org/display/BOOT/Install+Tomcat+8
+https://confluence.sakaiproject.org/display/BOOT/Install+Tomcat+9
 
 When you are done, deploy Sakai to Tomcat:
 ```
@@ -70,18 +70,21 @@ If you can't find your  "at institution.edu" on the Apereo signup page then send
 
 ## Community supported versions
 
-[Sakai 12.5](https://confluence.sakaiproject.org/display/DOC/Sakai+12+Release+Notes) is the community supported release of Sakai 12.
+Sakai 19.3 ([release](http://source.sakaiproject.org/release/19.3/) | [notes](https://confluence.sakaiproject.org/display/DOC/Sakai+19+Release+Notes))
+Is the community supported release of Sakai 19.
 
-[Sakai 11.4](https://confluence.sakaiproject.org/display/DOC/Sakai+11+Release+Notes) is still supported. The possibility of a Sakai 11.5 is under review. It's recommended for anyone using this release to build from source off of the 11.x branch.
+Sakai 12.7 ([release](http://source.sakaiproject.org/release/12.7/) | [notes](https://confluence.sakaiproject.org/display/DOC/Sakai+12+Release+Notes))
+Is the community supported release of Sakai 12.
 
-Sakai 10.0 and earlier are no longer supported by the community.
+Sakai 11.4 ([release](http://source.sakaiproject.org/release/11.4/))
+And earlier are no longer supported by the community.
 
 For full history of supported releases please see our [release information on confluence](https://confluence.sakaiproject.org/display/DOC/Sakai+Release+Date+list).
 
 ## Under Development
-[Sakai 19.0](https://confluence.sakaiproject.org/display/REL/Sakai+19+Straw+person) is the current developement release of Sakai 19. It is expected to release Q4 2018 - Q1 2019.
+[Sakai 19.4](https://confluence.sakaiproject.org/display/REL/Sakai+19+Straw+person) is the current developement release of Sakai 19. It is expected to release Q4 2019.
 
-Sakai 12.6 is the current development branch of Sakai 12. It is expected to be released in Q1 2019 timeframe.
+Sakai 12.8 is the current development branch of Sakai 12.
 
 ## Accessibility
 [The Sakai Accessibility Working Group](https://confluence.sakaiproject.org/display/2ACC/Accessibility+Working+Group) is responsible for ensuring that the Sakai framework and its tools are accessible to persons with disabilities. [The Sakai Ra11y plan](https://confluence.sakaiproject.org/display/2ACC/rA11y+Plan) is working towards a VPAT and/or a WCAG2 certification.

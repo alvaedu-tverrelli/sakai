@@ -61,14 +61,16 @@ import org.sakaiproject.tool.assessment.services.assessment.AssessmentService;
 @Slf4j
 public class ItemService
 {
-  private static final TagService tagService= (TagService) ComponentManager.get( TagService.class );
-  private RubricsService rubricsService = ComponentManager.get(RubricsService.class);
+  protected TagService tagService;
+  protected RubricsService rubricsService;
 
   /**
    * Creates a new ItemService object.
    */
   public ItemService()
   {
+    rubricsService = ComponentManager.get(RubricsService.class);
+    tagService = ComponentManager.get(TagService.class);
   }
 
 
@@ -297,6 +299,8 @@ public class ItemService
     cloned.setAnswerOptionsRichCount(item.getAnswerOptionsRichCount());
     cloned.setInstruction(newItemInstruction);
 
+    cloned.setIsExtraCredit(item.getIsExtraCredit());
+
     return cloned;
   }
 
@@ -322,7 +326,7 @@ public class ItemService
     while (l.hasNext()) {
       Answer answer = (Answer) l.next();
       Answer newAnswer = new Answer(
-          newItemText, answer.getText(), answer.getSequence(),
+          newItemText, AssessmentService.copyStringAttachment(answer.getText()), answer.getSequence(),
           answer.getLabel(),
       	  answer.getIsCorrect(), answer.getGrade(), answer.getScore(), answer.getPartialCredit(), answer.getDiscount(), 
       	  //answer.getCorrectOptionLabels(), 
@@ -423,29 +427,6 @@ public class ItemService
 	return h;
   }
 
-  public void deleteSet(Set s)
-  {
-    try
-    {
-      PersistenceService.getInstance().getItemFacadeQueries().
-      deleteSet(s);
-    }
-    catch(Exception e)
-    {
-      log.error(e.getMessage(), e);
-      throw new RuntimeException(e);
-    }
-  }
-  
-  public void removeItemAttachment(Long attachmentId) {
-    try {
-      PersistenceService.getInstance().getItemFacadeQueries().removeItemAttachment(attachmentId);
-    } catch(Exception e) {
-      log.error(e.getMessage(), e);
-      throw new RuntimeException(e);
-    }
-  }
-  
   /**
    * Save favorite column choices for matrix survey question.
    */

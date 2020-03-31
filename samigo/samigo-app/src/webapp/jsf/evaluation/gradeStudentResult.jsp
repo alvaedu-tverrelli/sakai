@@ -36,16 +36,21 @@ $Id$
       <head><%= request.getAttribute("html.head") %>
       <title><h:outputText value="#{commonMessages.total_scores}" /></title>
 
-    <script type="text/javascript" src="/samigo-app/jsf/widget/hideDivision/hideDivision.js"></script>
-    <script type="text/javascript" src="/library/webjars/jquery/1.12.4/jquery.min.js"></script>
-    <script type="text/javascript" src="/samigo-app/js/jquery.dynamiclist.student.preview.js"></script>
-    <script type="text/javascript" src="/samigo-app/js/selection.student.preview.js"></script>
-    <script type="text/javascript" src="/samigo-app/js/selection.author.preview.js"></script>
+    <script src="/samigo-app/jsf/widget/hideDivision/hideDivision.js"></script>
+    <script src="/library/webjars/jquery/1.12.4/jquery.min.js"></script>
+    <script src="/samigo-app/js/jquery.dynamiclist.student.preview.js"></script>
+    <script src="/samigo-app/js/selection.student.preview.js"></script>
+    <script src="/samigo-app/js/selection.author.preview.js"></script>
+    <script src="/rubrics-service/webcomponents/sakai-rubrics-utils.js<h:outputText value="#{studentScores.CDNQuery}" />"></script>
+    <script type="module" src="/rubrics-service/webcomponents/rubric-association-requirements.js<h:outputText value="#{studentScores.CDNQuery}" />"></script>
 
     <link rel="stylesheet" type="text/css" href="/samigo-app/css/imageQuestion.student.css">
     <link rel="stylesheet" type="text/css" href="/samigo-app/css/imageQuestion.author.css">
+    <script>includeWebjarLibrary('awesomplete')</script>
+    <script src="/library/js/sakai-reminder.js"></script>
+    <script src="/samigo-app/js/finInputValidator.js"></script>
     
-    <script type="text/JavaScript">   
+    <script>
       jQuery(window).load(function(){
         
         $('div[id^=sectionImageMap_]').each(function(){
@@ -72,6 +77,19 @@ $Id$
           }catch(err){}
           
         }); 
+
+        var sakaiReminder = new SakaiReminder();
+        $('textarea.awesomplete').each(function() {
+          new Awesomplete(this, {
+            list: sakaiReminder.getAll()
+          });
+        });
+        $('#editStudentResults').submit(function(e) {
+          $('textarea.awesomplete').each(function() {
+            sakaiReminder.new($(this).val());
+          });
+        });
+
       });
     </script>
 
@@ -79,50 +97,21 @@ $Id$
   <body onload="<%= request.getAttribute("html.body.onload") %>">
 <!-- $Id:  -->
 <!-- content... -->
-<script type="text/javascript">
+<script>
 function toPoint(id)
 {
   var x=document.getElementById(id).value
   document.getElementById(id).value=x.replace(',','.')
 }
+
+  $(document).ready(function(){
+    // The current class is assigned using Javascript because we don't use facelets and the include directive does not support parameters.
+    var currentLink = $('#editStudentResults\\:totalScoresMenuLink');
+    currentLink.addClass('current');
+    // Remove the link of the current option
+    currentLink.html(currentLink.find('a').text());
+  });
 </script>
-
-<script>
-  // rubrics-specific code
-  var rubricChanged = false;
-  rubricsEventHandlers = function() {   
-    $('body').on('rubrics-event', function(e, payload){
-      var itemId = $(e.target).parent().attr("item-id");
-      if (payload.event == "total-points-updated") {
-        handleRubricsTotalPointChange(itemId, payload.value);
-      }
-      if (payload.event == "rubric-ratings-changed") {
-        rubricChanged = true;
-      }
-    });
-
-    console.log('Rubrics event handlers loaded');
-  }
-  
-  // handles point changes for assignments, updating the grade field if it exists.
-  handleRubricsTotalPointChange = function(itemId, points) {   
-    var gradeField = $('.adjustedScore' + itemId);
-    if (gradeField.length && ((gradeField.val() === "" || gradeField.val() === points) || rubricChanged)) {
-      gradeField.val(points);
-    }
-  }
-</script>
-
-<script>
-  var imports = [
-    '/rubrics-service/imports/sakai-rubric-grading.html'
-  ];
-  var Polymerdom = 'shady';
-  var rbcstoken = <h:outputText value="'#{submissionStatus.rbcsToken}'"/>;
-  rubricsEventHandlers();
-</script>
-
-<script src="/rubrics-service/js/sakai-rubrics.js"></script>
 
 <div class="portletBody container-fluid">
 <h:form id="editStudentResults">
@@ -131,49 +120,22 @@ function toPoint(id)
   <h:inputHidden id="studentid" value="#{studentScores.studentId}" />
   <h:inputHidden id="studentName" value="#{studentScores.studentName}" />
   <h:inputHidden id="gradingData" value="#{studentScores.assessmentGradingId}" />
-  <h:inputHidden id="itemId" value="#{studentScores.itemId}" />
+  <h:inputHidden id="itemId" value="#{totalScores.firstItem}" />
 
   <!-- HEADINGS -->
   <%@ include file="/jsf/evaluation/evaluationHeadings.jsp" %>
 
-  <div class="page-header">
+  <h:panelGroup layout="block" styleClass="page-header">
     <h1>
       <h:outputText value="#{studentScores.studentName}" rendered="#{totalScores.anonymous eq 'false'}"/>
-      <h:outputText value="#{evaluationMessages.submission_id}#{deliveryMessages.column} #{studentScores.assessmentGradingId}" rendered="#{totalScores.anonymous eq 'true'}"/>
+      <small><h:outputText value="#{evaluationMessages.submission_id}#{deliveryMessages.column} #{studentScores.assessmentGradingId}" rendered="#{totalScores.anonymous eq 'true'}"/></small>
     </h1>
-  </div>
+  </h:panelGroup>
 
-  <h:outputText value="<ul class='navIntraTool actionToolbar' role='menu'>" escape="false"/>
-   <h:outputText value="<li role='menuitem'><span>" escape="false"/>
-    <h:commandLink title="#{evaluationMessages.t_submissionStatus}" action="submissionStatus" immediate="true">
-      <h:outputText value="#{evaluationMessages.sub_status}" />
-      <f:param name="allSubmissions" value="true"/>
-      <f:actionListener
-        type="org.sakaiproject.tool.assessment.ui.listener.evaluation.SubmissionStatusListener" />
-    </h:commandLink>
-    <h:outputText value="</span><li role='menuitem'><span>" escape="false"/>
-    <h:commandLink title="#{evaluationMessages.t_totalScores}" action="totalScores" immediate="true">
-      <f:actionListener type="org.sakaiproject.tool.assessment.ui.listener.evaluation.ResetTotalScoreListener" />
-      <f:actionListener type="org.sakaiproject.tool.assessment.ui.listener.evaluation.TotalScoreListener" />
-      <h:outputText value="#{commonMessages.total_scores}" />
-    </h:commandLink>
-    <h:outputText value="</span><li role='menuitem'><span>" escape="false" rendered="#{totalScores.firstItem ne ''}" />
-    <h:commandLink title="#{evaluationMessages.t_questionScores}" action="questionScores" immediate="true"
-      rendered="#{totalScores.firstItem ne ''}" >
-      <h:outputText value="#{evaluationMessages.q_view}" />
-      <f:actionListener
-        type="org.sakaiproject.tool.assessment.ui.listener.evaluation.QuestionScoreListener" />
-    </h:commandLink>
-    <h:outputText value="</span><li role='menuitem'><span>" escape="false" rendered="#{totalScores.firstItem ne ''}" /> 
-    <h:commandLink title="#{evaluationMessages.t_histogram}" action="histogramScores" immediate="true"
-      rendered="#{totalScores.firstItem ne ''}" >
-      <h:outputText value="#{evaluationMessages.stat_view}" />
-      <f:actionListener
-        type="org.sakaiproject.tool.assessment.ui.listener.evaluation.HistogramListener" />
-    </h:commandLink>
-   <h:outputText value="</span></li></ul>" escape="false"/>
+  <!-- EVALUATION SUBMENU -->
+  <%@ include file="/jsf/evaluation/evaluationSubmenu.jsp" %>
 
-  <h:messages styleClass="messageSamigo" rendered="#{! empty facesContext.maximumSeverity}" layout="table"/>
+  <h:messages styleClass="sak-banner-error" rendered="#{! empty facesContext.maximumSeverity}" layout="table"/>
 
 <h2>
   <h:outputText value="#{totalScores.assessmentName}" escape="false"/>
@@ -182,7 +144,7 @@ function toPoint(id)
 <div class="form-group row">
    <h:outputLabel styleClass="col-md-2" value="#{evaluationMessages.comment_for_student}#{deliveryMessages.column}"/>
    <div class="col-md-6">
-     <h:inputTextarea value="#{studentScores.comments}" rows="3" cols="30"/>
+     <h:inputTextarea value="#{studentScores.comments}" rows="3" cols="30" styleClass="awesomplete"/>
    </div>
 </div>
 
@@ -206,6 +168,7 @@ function toPoint(id)
                 <h:outputLink value="##{part.number}#{deliveryMessages.underscore}#{question.number}"> 
                   <h:outputText escape="false" value="#{question.number}#{deliveryMessages.dot} #{question.strippedText}"/>
                 </h:outputLink>
+                <h:outputText styleClass="extraCreditLabel" rendered="#{question.itemData.isExtraCredit==true}" value=" #{deliveryMessages.extra_credit_preview}" />
         </t:dataList>
       </samigo:hideDivision>
      </h:panelGroup>
@@ -224,7 +187,7 @@ function toPoint(id)
         </h4>
       </div>
 
-      <h:panelGroup layout="block" styleClass="bs-callout-error" rendered="#{part.noQuestions}">
+      <h:panelGroup layout="block" styleClass="sak-banner-error" rendered="#{part.noQuestions}">
         <h:outputText value="#{evaluationMessages.no_questions}" escape="false"/>
       </h:panelGroup>
 
@@ -235,7 +198,7 @@ function toPoint(id)
               <h:outputText value="#{deliveryMessages.q} #{question.number} #{deliveryMessages.of} " />
               <h:outputText value="#{part.questions}#{deliveryMessages.column}  " />
             </span>
-            <h:inputText styleClass="form-control adjustedScore#{question.itemData.itemId}" id="adjustedScore" value="#{question.pointsForEdit}" onchange="toPoint(this.id);" >
+            <h:inputText styleClass="form-control adjustedScore#{studentScores.assessmentGradingId}.#{question.itemData.itemId}" id="adjustedScore" value="#{question.pointsForEdit}" onchange="toPoint(this.id);" >
               <f:validateDoubleRange/>
             </h:inputText>
             <span class="input-group-addon">
@@ -243,6 +206,7 @@ function toPoint(id)
             <h:outputText value="#{deliveryMessages.pt}"/>
             </span>
             <h:message for="adjustedScore" style="color:red"/>
+            <h:outputText styleClass="extraCreditLabel" rendered="#{question.itemData.isExtraCredit == true}" value=" #{deliveryMessages.extra_credit_preview}" />
         </h:panelGroup>
 
         <br/>
@@ -351,14 +315,11 @@ function toPoint(id)
           <div class="tab-pane" id="<h:outputText value="rubric#{question.itemData.itemId}" />">
             <sakai-rubric-grading
               id='<h:outputText value="pub.#{totalScores.publishedId}.#{question.itemData.itemId}"/>'
+              token='<h:outputText value="#{submissionStatus.rbcsToken}"/>'
               tool-id="sakai.samigo"
               entity-id='<h:outputText value="pub.#{totalScores.publishedId}.#{question.itemData.itemId}"/>'
               evaluated-item-id='<h:outputText value="#{studentScores.assessmentGradingId}.#{question.itemData.itemId}" />'
               item-id='<h:outputText value="#{question.itemData.itemId}"/>'
-
-              <h:panelGroup rendered="#{question.rubricStateDetails != ''}">
-                state-details='<h:outputText value="#{question.rubricStateDetails}"/>'
-              </h:panelGroup>>
             </sakai-rubric-grading>
           </div>
           </div>
@@ -368,7 +329,7 @@ function toPoint(id)
           <h:panelGrid columns="2" border="0" >
             <h:outputLabel value="#{evaluationMessages.comment_for_student}#{deliveryMessages.column}"/>
             <h:outputText value="&#160;" escape="false" />
-            <h:inputTextarea value="#{question.gradingComment}" rows="4" cols="40"/>
+            <h:inputTextarea value="#{question.gradingComment}" rows="4" cols="40" styleClass="awesomplete"/>
             <%@ include file="/jsf/evaluation/gradeStudentResultAttachment.jsp" %>
           </h:panelGrid>
           </div>
@@ -378,10 +339,11 @@ function toPoint(id)
 
 <h:panelGroup rendered="#{totalScores.anonymous eq 'false' && studentScores.email != null && studentScores.email != '' && email.fromEmailAddress != null && email.fromEmailAddress != ''}">
   <h:outputText value="<a href=\"mailto:" escape="false" />
-  <h:outputText value="#{studentScores.email}" escape="false" />
+  <h:outputText value="#{studentScores.email}" />
   <h:outputText value="?subject=" escape="false" />
   <h:outputText value="#{totalScores.assessmentName} #{commonMessages.feedback}\">" escape="false" />
-  <h:outputText value="  #{evaluationMessages.email} #{studentScores.firstName}" escape="false"/>
+  <h:outputText value="  #{evaluationMessages.email} " escape="false"/>
+  <h:outputText value="#{studentScores.firstName}" />
   <h:outputText value="</a>" escape="false" />
 </h:panelGroup>
 

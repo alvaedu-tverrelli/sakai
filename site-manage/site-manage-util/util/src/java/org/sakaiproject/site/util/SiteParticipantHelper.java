@@ -27,15 +27,13 @@ import java.util.Set;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.ArrayUtils;
-import org.apache.commons.lang.StringUtils;
-
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.sakaiproject.authz.api.AuthzGroup;
+import org.sakaiproject.authz.api.AuthzGroupService;
 import org.sakaiproject.authz.api.GroupNotDefinedException;
 import org.sakaiproject.authz.api.Member;
 import org.sakaiproject.authz.api.Role;
-import org.sakaiproject.authz.api.AuthzGroupService;
 import org.sakaiproject.component.cover.ComponentManager;
 import org.sakaiproject.coursemanagement.api.CourseOffering;
 import org.sakaiproject.coursemanagement.api.CourseSet;
@@ -52,6 +50,8 @@ import org.sakaiproject.user.api.User;
 import org.sakaiproject.user.api.UserNotDefinedException;
 import org.sakaiproject.user.cover.UserDirectoryService;
 import org.sakaiproject.util.ResourceLoader;
+
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class SiteParticipantHelper {
@@ -188,8 +188,7 @@ public class SiteParticipantHelper {
 									participant.removeable = true;
 								}
 								// get contextual user display id
-								String regId = cus != null ? cus.getUserDisplayId(user, "Site Info"):"";
-								participant.regId = regId != null?regId:"";
+								participant.regId = cus != null ? cus.getUserDisplayId(user, "Site Info") : user.getDisplayId();
 								participant.role = member.getRole()!=null?member.getRole().getId():"";
 								participant.addSectionEidToList(sectionTitle);
 								participant.uniqname = userId;
@@ -344,7 +343,7 @@ public class SiteParticipantHelper {
 								participant.providerRole = member.getRole()!=null?member.getRole().getId():"";
 								participant.removeable = false;
 							}
-							participant.regId = "";
+							participant.regId = user.getDisplayId();
 							participant.role = member.getRole()!=null?member.getRole().getId():"";
 							participant.addSectionEidToList(sectionTitle);
 							participant.uniqname = userId;
@@ -425,6 +424,7 @@ public class SiteParticipantHelper {
 						participant = new Participant();
 					}
 					participant.name = user.getSortName();
+					participant.regId = user.getDisplayId();
 					participant.uniqname = userId;
 					participant.role = g.getRole()!=null?g.getRole().getId():"";
 					participant.removeable = true;
@@ -667,7 +667,7 @@ public class SiteParticipantHelper {
 									participant.providerRole = member.getRole()!=null?member.getRole().getId():"";
 									participant.removeable = false;
 								}
-								participant.regId = "";
+								participant.regId = user.getDisplayId();
 								participant.removeable = false;
 								participant.role = member.getRole()!=null?member.getRole().getId():"";
 								participant.section = sectionTitle;

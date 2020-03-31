@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.wicket.AttributeModifier;
 import org.apache.wicket.ajax.AjaxEventBehavior;
@@ -301,6 +301,10 @@ public class SettingsGradingSchemaPanel extends BasePanel implements IFormModelU
 				// repaint table
 				target.add(SettingsGradingSchemaPanel.this.schemaWrap);
 
+				// reinitialize any custom behaviour
+				target.appendJavaScript("sakai.gradebookng.settings.gradingschemas = new GradebookGradingSchemaSettings($('#settingsGradingSchema'));");
+				// focus the new grading schema input
+				target.appendJavaScript("sakai.gradebookng.settings.gradingschemas.focusLastRow();");
 				// Note that we don't need to worry about showing warnings about modifications here as the change notifications will handle
 				// that once a value has been added to the schema
 			}
@@ -344,7 +348,7 @@ public class SettingsGradingSchemaPanel extends BasePanel implements IFormModelU
 		});
 
 		// chart
-		this.chart = new CourseGradeChart("gradingSchemaChart", getCurrentSiteId());
+		this.chart = new CourseGradeChart("gradingSchemaChart", getCurrentSiteId(), null);
 		settingsGradingSchemaPanel.add(this.chart);
 	}
 

@@ -5,10 +5,10 @@
 
 <wicket:extend>
   <form wicket:id="form" id="gradebookSpreadsheet">
-    <div id="gbConnectionTimeoutFeedback" class="messageWarning" style="display:none;">
+    <div id="gbConnectionTimeoutFeedback" class="sak-banner-warn" style="display:none;">
         <wicket:message key="feedback.connectiontimeout" />
     </div>
-    <div id="gbReorderColumnsFailed" class="messageWarning" style="display:none;">
+    <div id="gbReorderColumnsFailed" class="sak-banner-warn" style="display:none;">
         <wicket:message key="feedback.reordercolumnsfailed" />
     </div>
 
@@ -24,24 +24,13 @@
     <div wicket:id="courseGradeStatisticsWindow" />
     <div wicket:id="bulkEditItemsWindow" />
     
-    <div wicket:id="rubricGradeWindow" />
-    <input wicket:id="rubricsTokenHiddenField" type="hidden" />
     <script>
-        var tokenAttr = $("[name$='rubricsTokenHiddenField']").val();
-        var imports = [
-            '/rubrics-service/imports/sakai-rubric-association.html',
-            '/rubrics-service/imports/sakai-rubric-grading.html',
-            '/rubrics-service/imports/sakai-rubric-student.html'
-        ];
-        var Polymerdom = 'shady';
-        var rbcstoken = tokenAttr;
-
         rubricGradingPoints = 0;
-        $('body').on('rubrics-event', function(e, payload){
-            rubricGradingPoints = payload.value;
+        $('body').on('total-points-updated', function (e) {
+          rubricGradingPoints = e.detail.value;
         });
     </script>
-    <script src="/rubrics-service/js/sakai-rubrics.js"></script>    
+    <div wicket:id="rubricGradeWindow" />
 
     <div wicket:id="gradeTableArea">
         <div wicket:id="noAssignments" class="gb-noGbItems">
@@ -54,28 +43,26 @@
             </div>
         </div>
 
-        <div class="row gradesToolbar1">
-            <div class="col-sm-12">
-                <div class="col-sm-6">
-                    <button wicket:id="addGradeItem" class="button_color gb-add-gradebook-item-button">
-                        <wicket:message key="button.addgradeitem" />
-                    </button>
-                    <div wicket:id="liveGradingFeedback" class="gb-live-feedback"></div>
-                </div>
-                <div class="col-sm-6 text-right">
-                    <wicket:enclosure>
-                        <label for="filterByGroup" class="sr-only"><wicket:message key="filter.groups" /></label>
-                        <select id="filterByGroup" wicket:id="groupFilter">
-                            <option value="1">Section 1</option>
-                            <option value="2">Section 2</option>
-                        </select>
-                    </wicket:enclosure>
-                    <a wicket:id="captionToggle" href="javascript:void(0);" id="captionToggle" aria-popup="true" aria-controls="gradeTableCaption">
-                        <span class="sr-only">
-                            <wicket:message key="label.toolbar.togglehelp"/>
-                        </span>
-                    </a>
-                </div>
+        <div id="grades-toolbar-1" class="gradesToolbar1">
+            <div>
+                <button wicket:id="addGradeItem" class="button_color gb-add-gradebook-item-button">
+                    <wicket:message key="button.addgradeitem" />
+                </button>
+                <div wicket:id="liveGradingFeedback" class="gb-live-feedback"></div>
+            </div>
+            <div class="captionToggleContainer">
+                <wicket:enclosure>
+                    <label for="filterByGroup" class="sr-only"><wicket:message key="filter.groups" /></label>
+                    <select id="filterByGroup" wicket:id="groupFilter">
+                        <option value="1">Section 1</option>
+                        <option value="2">Section 2</option>
+                    </select>
+                </wicket:enclosure>
+                <a wicket:id="captionToggle" href="javascript:void(0);" id="captionToggle" aria-popup="true" aria-controls="gradeTableCaption">
+                    <span class="sr-only">
+                        <wicket:message key="label.toolbar.togglehelp"/>
+                    </span>
+                </a>
             </div>
         </div>
 

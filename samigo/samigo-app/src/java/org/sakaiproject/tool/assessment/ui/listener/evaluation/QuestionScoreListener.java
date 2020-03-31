@@ -21,6 +21,7 @@
 
 package org.sakaiproject.tool.assessment.ui.listener.evaluation;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,6 +43,7 @@ import javax.faces.event.ValueChangeListener;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.math.NumberUtils;
+import org.sakaiproject.component.cover.ComponentManager;
 import org.sakaiproject.component.cover.ServerConfigurationService;
 import org.sakaiproject.rubrics.logic.RubricsConstants;
 import org.sakaiproject.rubrics.logic.RubricsService;
@@ -71,8 +73,8 @@ import org.sakaiproject.tool.assessment.ui.bean.evaluation.SubmissionStatusBean;
 import org.sakaiproject.tool.assessment.ui.bean.evaluation.TotalScoresBean;
 import org.sakaiproject.tool.assessment.ui.listener.util.ContextUtil;
 import org.sakaiproject.tool.assessment.util.BeanSort;
-import org.sakaiproject.util.FormattedText;
 import org.sakaiproject.util.ResourceLoader;
+import org.sakaiproject.util.api.FormattedText;
 import org.sakaiproject.tool.assessment.data.ifc.shared.TypeIfc;
 
 /**
@@ -266,7 +268,7 @@ import org.sakaiproject.tool.assessment.data.ifc.shared.TypeIfc;
 //			}
 			log.debug("questionScores(): publishedAnswerHash.size = "
 					+ publishedAnswerHash.size());
-			Map agentResultsByItemGradingIdMap = new HashMap();
+			Map<Long, AgentResults> agentResultsByItemGradingIdMap = new HashMap<>();
 
 			TotalScoresBean totalBean = (TotalScoresBean) ContextUtil
 					.lookupBean("totalScores");
@@ -329,8 +331,6 @@ import org.sakaiproject.tool.assessment.data.ifc.shared.TypeIfc;
 			}
 
 			log.debug("questionScores(): allscores.size = " + allscores.size());
-
-			// /
 
 			// now we need filter by sections selected
 			List scores = new ArrayList(); // filtered list
@@ -769,7 +769,7 @@ import org.sakaiproject.tool.assessment.data.ifc.shared.TypeIfc;
 					String checkmarkGif = String.format("<span title=\"%s\" class=\"icon-sakai--check feedBackCheck\"></span>", correct);
 					String crossmarkGif = String.format("<span title=\"%s\" class=\"icon-sakai--delete feedBackCross\"></span>", incorrect);
 					if (gdataAnswer != null) {
-						answerText = FormattedText.escapeHtml(answerText, true);
+						answerText = ComponentManager.get(FormattedText.class).escapeHtml(answerText, true);
 						if (bean.getTypeId().equals("8") || bean.getTypeId().equals("11")) {
 							if (gdata.getIsCorrect() == null) {
 								boolean result = false;
@@ -876,9 +876,10 @@ import org.sakaiproject.tool.assessment.data.ifc.shared.TypeIfc;
 						results.setAnswer(results.getAnswer() + "<br/>"
 								+ answerText);
 						if (gdata.getAutoScore() != null) {
-							results.setTotalAutoScore(Double.toString((Double.valueOf(
-								results.getExactTotalAutoScore())).doubleValue()
-								+ gdata.getAutoScore().doubleValue()));
+							BigDecimal dataAutoScore = new BigDecimal(gdata.getAutoScore());
+							BigDecimal exactTotalAutoScore = new BigDecimal(results.getExactTotalAutoScore());
+							exactTotalAutoScore = exactTotalAutoScore.add(dataAutoScore);
+							results.setTotalAutoScore(String.valueOf(exactTotalAutoScore.doubleValue()));
 						}
 						else {
 							results.setTotalAutoScore(Double.toString((Double.valueOf(
@@ -901,7 +902,7 @@ import org.sakaiproject.tool.assessment.data.ifc.shared.TypeIfc;
 						} else {
 							results.setTotalAutoScore(Double.toString(0));
 						}
-						results.setComments(FormattedText.convertFormattedTextToPlaintext(gdata.getComments()));
+						results.setComments(ComponentManager.get(FormattedText.class).convertFormattedTextToPlaintext(gdata.getComments()));
 						results.setAnswer(answerText);
 						if (bean.getTypeId().equals("15")){ // CALCULATED_QUESTION Answer Key
 							results.setAnswerKey(answerKey);
@@ -991,6 +992,9 @@ import org.sakaiproject.tool.assessment.data.ifc.shared.TypeIfc;
 			for (int s = 0; s < thisItemOptions.length; s++) {
 				int endOfCheckmark = thisItemOptions[s].indexOf(">");
 				int colonAt = thisItemOptions[s].indexOf(":");
+				if(endOfCheckmark==-1||colonAt==-1) {
+					continue;
+				}
 				String thisSequence = thisItemOptions[s].substring(endOfCheckmark, colonAt);
 				StringBuilder editItemBuffer = new StringBuilder();
 				editItemBuffer.append(thisSequence).append("|").append(thisItemOptions[s]);
@@ -1000,7 +1004,9 @@ import org.sakaiproject.tool.assessment.data.ifc.shared.TypeIfc;
 			StringBuilder optionBuffer = new StringBuilder();
 			for (String thisItemOption : thisItemOptions) {
 				int dlmIndex = thisItemOption.indexOf('|');
-				optionBuffer.append(thisItemOption.substring(dlmIndex + 1)).append("<br/>");
+				if (dlmIndex != -1) {
+					optionBuffer.append(thisItemOption.substring(dlmIndex + 1)).append("<br/>");
+				}
 			}
 			log.debug("sortedOptions{}", optionBuffer);
 			thisAgentResult.setAnswer(optionBuffer.toString());

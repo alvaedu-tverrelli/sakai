@@ -1,24 +1,20 @@
 <f:view>
     <sakai:view title="#{msgs['custom.chatroom']}">
         <h:outputText value="#{Portal.latestJQuery}" escape="false"/>
-        <script type="text/javascript" src="/sakai-chat-tool/js/chatscript.js"></script>
-        <script type="text/javascript">
+        <script src="/sakai-chat-tool/js/chatscript.js"></script>
+        <script>
             if ( window.frameElement) window.frameElement.className='wcwmenu';
+            $(document).ready( function () {
+                // Assign the current class to the tab in the template
+                var menuLink = $('#topForm\\:chatMainLink');
+                menuLink.addClass('current');
+                // Remove the link of the current option
+                menuLink.html(menuLink.find('a').text());
+            });
         </script>
         <h:form id="topForm">
             <h:inputHidden id="chatidhidden" value="#{ChatTool.currentChatChannelId}" />
-            <sakai:tool_bar rendered="#{ChatTool.canManageTool || ChatTool.siteChannelCount > 1 || ChatTool.maintainer}">
-                <h:commandLink action="#{ChatTool.processActionListRooms}" rendered="#{ChatTool.canManageTool}">
-                    <h:outputText value="#{msgs.manage_tool}" />
-                </h:commandLink>
-                <h:commandLink action="#{ChatTool.processActionListRooms}" rendered="#{ChatTool.siteChannelCount > 1}">
-                    <h:outputText value="#{msgs.change_room}" />
-                </h:commandLink>
-                <h:commandLink rendered="#{ChatTool.maintainer}"
-                action="#{ChatTool.processActionPermissions}">
-                    <h:outputText value="#{msgs.permis}" />
-                </h:commandLink>
-            </sakai:tool_bar>
+            <%@ include file="chatMenu.jsp" %>
             <div class="panel panel-chat panel-default">
                 <div class="panel-heading">
                     <sakai:instruction_message value="#{ChatTool.datesMessage}" rendered="#{ChatTool.datesMessage ne null}" />
@@ -97,8 +93,15 @@
                 <div class="panel-footer">
                     <f:subview id="controlPanel" rendered="#{ChatTool.canPost}">
                         <div>
-                            <div id="errorSubmit" class="alertMessage" style="display:none">
+                            <div id="errorSubmit" class="sak-banner-error" style="display:none">
                                 <h:outputText value="#{msgs['therewaspro']}" />
+                            </div>
+                            <div id="missingChannel" class="sak-banner-error" style="display:none">
+                                <h:outputText value="#{msgs['missingchannel1']}" />
+                                <h:outputLink value="#{ChatTool.toolUrl}">
+                                    <h:outputText value="#{msgs['here']}" />
+                                </h:outputLink>
+                                <h:outputText value="#{msgs['missingchannel2']}" />
                             </div>
                             <label for="topForm:controlPanel:message">
                                 <h:outputText value="#{msgs['control.lab']}" />
@@ -114,11 +117,10 @@
             </div>
         </h:form>
 
-        <t:div styleClass="messageInformation chat-post-warning" rendered="#{!ChatTool.canPost && ChatTool.datesRestricted}">
+        <t:div styleClass="sak-banner-info chat-post-warning" rendered="#{!ChatTool.canPost && ChatTool.datesRestricted}">
             <h:outputText value="#{msgs.custom_date_restricted}" />
             <h:outputText value="#{ChatTool.datesMessage}" />
         </t:div>
-        <p style="clear:both;display:block;"></p>
 
         <div class="modal fade" tabindex="-1" role="dialog" id="removemodal">
             <div class="modal-dialog" role="document">

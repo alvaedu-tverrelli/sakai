@@ -20,12 +20,17 @@ import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.Index;
 import javax.persistence.JoinColumn;
 import javax.persistence.Lob;
 import javax.persistence.ManyToOne;
 import javax.persistence.SequenceGenerator;
 import javax.persistence.Table;
 import javax.persistence.UniqueConstraint;
+
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -46,11 +51,13 @@ import lombok.ToString;
  */
 @Entity
 @Table(name = "ASN_SUBMISSION_SUBMITTER",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"SUBMISSION_ID", "SUBMITTER"}))
+        uniqueConstraints = @UniqueConstraint(columnNames = {"SUBMISSION_ID", "SUBMITTER"}),
+        indexes = @Index(columnList = "SUBMITTER"))
 @Data
 @NoArgsConstructor
 @ToString(exclude = {"submission"})
 @EqualsAndHashCode(of = {"submission", "submitter"})
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
 public class AssignmentSubmissionSubmitter {
 
     @Id
@@ -61,6 +68,7 @@ public class AssignmentSubmissionSubmitter {
 
     @ManyToOne
     @JoinColumn(name = "SUBMISSION_ID", nullable = false)
+    @JsonBackReference
     private AssignmentSubmission submission;
 
     @Column(name = "SUBMITTER", length = 99, nullable = false)

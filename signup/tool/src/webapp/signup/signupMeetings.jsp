@@ -11,14 +11,17 @@
 				@import url("/sakai-signup-tool/css/signupStyle.css");
 		</style>
 <h:outputText value="#{Portal.latestJQuery}" escape="false"/>
-		<script TYPE="text/javascript" src="/sakai-signup-tool/js/signupScript.js"></script>
+		<script src="/sakai-signup-tool/js/signupScript.js"></script>
 		
-		<script type="text/javascript">
+		<script>
 	         //initialization of the page
 	         jQuery(document).ready(function() {
 		         //due to recuring meetings, make sure even/odd Rows display correctly
 		         reprocessEvenOddRowClasses();
 
+					var menuLink = $('#signupMainMenuLink');
+					menuLink.addClass('current');
+					menuLink.html(menuLink.find('a').text());
 				});
 	         var origClassNames=new Array();
 	         var lastActiveId;
@@ -161,37 +164,14 @@
 		         	return false;
 		         };		         	
 		</script>
-			
-		<h:form id="addMeeting">
-			<h:panelGroup>
-				<f:verbatim><ul class="navIntraTool actionToolbar" role="menu"></f:verbatim> 
-				<h:panelGroup rendered="#{SignupMeetingsBean.allowedToCreate}">
-						<f:verbatim><li role="menuitem" class="firstToolBarItem"> <span></f:verbatim>
-							<h:commandLink value="#{msgs.add_new_event}" action="#{SignupMeetingsBean.addMeeting}" rendered="#{SignupMeetingsBean.allowedToCreate}"/>
-					<f:verbatim></span></li></f:verbatim>
-				 </h:panelGroup>
-				 
-				<h:panelGroup rendered="#{SignupPermissionsUpdateBean.showPermissionLink}"> 	
-					<f:verbatim><li role="menuitem" ><span></f:verbatim>	
-						<h:commandLink value="#{msgs.permission_feature_link}" action="#{SignupPermissionsUpdateBean.processPermission}" rendered="#{SignupPermissionsUpdateBean.showPermissionLink}"/>
-					<f:verbatim></span></li></f:verbatim>
-				</h:panelGroup>
-				
-				<h:panelGroup>
-					<f:verbatim><li role="menuitem" ><span></f:verbatim>
-						<h:commandLink value="#{msgs.event_pageTop_link_for_download}" action="#{DownloadEventBean.downloadSelections}" />
-					<f:verbatim></span></li></f:verbatim>
-				</h:panelGroup>
-				
-			  <f:verbatim></ul></f:verbatim>
-			</h:panelGroup>
-		</h:form>
 
 		<sakai:view_content>
-			<h:outputText value="#{msgs.event_error_alerts} #{messageUIBean.errorMessage}" styleClass="alertMessage" escape="false" rendered="#{messageUIBean.error}"/> 
 			<h:form id="items">
-			 	<sakai:view_title value="#{msgs.signup_tool}"/>
-
+				<%@ include file="/signup/menu/signupMenu.jsp" %>
+				<h:outputText value="#{msgs.event_error_alerts} #{messageUIBean.errorMessage}" styleClass="alertMessage" escape="false" rendered="#{messageUIBean.error}"/> 
+				<div class="page-header">
+					<sakai:view_title value="#{msgs.signup_tool}"/>
+				</div>
 				<h:panelGroup styleClass="" rendered="#{(SignupMeetingsBean.allowedToUpdate && SignupMeetingsBean.meetingsAvailable) or (!SignupMeetingsBean.allowedToUpdate && SignupMeetingsBean.meetingsAvailable)}">
 					<h:outputText value="#{msgs.events_organizer_instruction}"  rendered="#{SignupMeetingsBean.allowedToUpdate && SignupMeetingsBean.meetingsAvailable}" escape="false"/>
 					<h:outputText value="&nbsp;" escape="false"/>
@@ -321,14 +301,14 @@
 							</f:facet>
 							<h:panelGroup style="white-space: nowrap;">
 								<h:outputText value="#{wrapper.meeting.startTime}">
-									<f:convertDateTime pattern="h:mm a" timeZone="#{UserTimeZone.userTimeZone}"/>
+									<f:convertDateTime pattern="#{UserLocale.localizedTimeFormat}" timeZone="#{UserTimeZone.userTimeZone}"/>
 								</h:outputText>
 								<h:outputText value="#{wrapper.meeting.startTime}" rendered="#{wrapper.meeting.meetingCrossDays}">
 											<f:convertDateTime pattern=", EEE" timeZone="#{UserTimeZone.userTimeZone}"/>
 								</h:outputText>
 								<h:outputText value="#{msgs.timeperiod_divider}" escape="false"/>
 								<h:outputText value="#{wrapper.meeting.endTime}">
-									<f:convertDateTime pattern="h:mm a" timeZone="#{UserTimeZone.userTimeZone}"/>
+									<f:convertDateTime pattern="#{UserLocale.localizedTimeFormat}" timeZone="#{UserTimeZone.userTimeZone}"/>
 								</h:outputText>
 								<h:outputText value="#{wrapper.meeting.endTime}" rendered="#{wrapper.meeting.meetingCrossDays}">
 											<f:convertDateTime pattern=", EEE" timeZone="#{UserTimeZone.userTimeZone}"/>
@@ -341,14 +321,14 @@
 							</f:facet>
 							<h:panelGroup style="white-space: nowrap;">
 								<h:outputText value="#{wrapper.startTime}">
-									<f:convertDateTime pattern="h:mm a" timeZone="#{UserTimeZone.userTimeZone}"/>
+									<f:convertDateTime pattern="#{UserLocale.localizedTimeFormat}" timeZone="#{UserTimeZone.userTimeZone}"/>
 								</h:outputText>
 								<h:outputText value="#{wrapper.startTime}" rendered="#{wrapper.myAppointmentCrossDays}">
 											<f:convertDateTime pattern=", EEE" timeZone="#{UserTimeZone.userTimeZone}"/>
 								</h:outputText>
 								<h:outputText value="#{msgs.timeperiod_divider}" escape="false"/>
 								<h:outputText value="#{wrapper.endTime}">
-									<f:convertDateTime pattern="h:mm a" timeZone="#{UserTimeZone.userTimeZone}"/>
+									<f:convertDateTime pattern="#{UserLocale.localizedTimeFormat}" timeZone="#{UserTimeZone.userTimeZone}"/>
 								</h:outputText>
 								<h:outputText value="#{wrapper.endTime}" rendered="#{wrapper.myAppointmentCrossDays}">
 											<f:convertDateTime pattern=", EEE" timeZone="#{UserTimeZone.userTimeZone}"/>
@@ -383,7 +363,7 @@
 						<h:outputText value="&nbsp;" escape="false"/>
 						<h:panelGroup styleClass="act">
 							<h:commandButton id="removeMeetings" action="#{SignupMeetingsBean.removeMeetings}" value="#{msgs.event_removeButton}" onclick='return confirmDelete(this);' rendered="#{SignupMeetingsBean.allowedToDelete}"/>
-							<h:outputText styleClass="messageProgress" style="display:none" value="#{msgs.publish_processing_submit_message}" />
+							<h:outputText styleClass="sak-banner-info" style="display:none" value="#{msgs.publish_processing_submit_message}" />
 						</h:panelGroup>
 					</h:panelGrid>
 				</h:panelGroup>

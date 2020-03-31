@@ -15,6 +15,7 @@
 								<span class="gb-summary-course-grade-value" aria-labelledby="summaryCourseGradeLabel">
 									<span wicket:id="courseGrade">B+</span>
 								</span>
+								<a href="javascript:void(0);" class="gb-summary-grade-stats pull-right" wicket:message="title:studentsummary.gradebookitem.gradebookstats" wicket:id="courseGradeStatsLink"></a>
 							</div>
 						</div>
 					</div>
@@ -23,10 +24,11 @@
 
 			<div wicket:id="gradeSummaryTable"/>
 
-			<div wicket:id="noAssignments" class="messageInformation">
+			<div wicket:id="noAssignments" class="sak-banner-info">
 				<wicket:message key="no-assignments.label" />
 			</div>
 		</div>
+		<div wicket:id="statsWindow"></div>
 	</wicket:panel>
 </body>
 </html>

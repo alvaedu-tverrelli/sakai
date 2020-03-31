@@ -17,49 +17,42 @@ package org.sakaiproject.portal.entityprovider;
 
 import java.io.IOException;
 import java.io.StringWriter;
-import java.util.Locale;
-import java.util.Map;
-import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
-import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
-import org.apache.velocity.runtime.RuntimeConstants;
-
 import org.sakaiproject.component.api.ServerConfigurationService;
-import org.sakaiproject.entitybroker.entityprovider.capabilities.AutoRegisterEntityProvider;
-import org.sakaiproject.entitybroker.entityprovider.capabilities.Describeable;
-import org.sakaiproject.entitybroker.entityprovider.capabilities.Outputable;
-import org.sakaiproject.entitybroker.entityprovider.capabilities.ActionsExecutable;
-import org.sakaiproject.entitybroker.util.AbstractEntityProvider;
 import org.sakaiproject.entitybroker.EntityReference;
 import org.sakaiproject.entitybroker.EntityView;
 import org.sakaiproject.entitybroker.entityprovider.annotations.EntityCustomAction;
+import org.sakaiproject.entitybroker.entityprovider.capabilities.ActionsExecutable;
+import org.sakaiproject.entitybroker.entityprovider.capabilities.AutoRegisterEntityProvider;
+import org.sakaiproject.entitybroker.entityprovider.capabilities.Describeable;
+import org.sakaiproject.entitybroker.entityprovider.capabilities.Outputable;
 import org.sakaiproject.entitybroker.entityprovider.extension.ActionReturn;
 import org.sakaiproject.entitybroker.entityprovider.extension.Formats;
 import org.sakaiproject.entitybroker.exception.EntityException;
+import org.sakaiproject.entitybroker.util.AbstractEntityProvider;
 import org.sakaiproject.memory.api.Cache;
 import org.sakaiproject.memory.api.MemoryService;
-import org.sakaiproject.memory.api.SimpleConfiguration;
+import org.sakaiproject.portal.api.BullhornService;
+import org.sakaiproject.portal.beans.BullhornAlert;
+import org.sakaiproject.portal.beans.PortalNotifications;
 import org.sakaiproject.profile2.logic.ProfileConnectionsLogic;
-import org.sakaiproject.profile2.logic.ProfileLogic;
 import org.sakaiproject.profile2.logic.ProfileLinkLogic;
+import org.sakaiproject.profile2.logic.ProfileLogic;
 import org.sakaiproject.profile2.model.BasicConnection;
 import org.sakaiproject.profile2.model.SocialNetworkingInfo;
 import org.sakaiproject.profile2.model.UserProfile;
 import org.sakaiproject.profile2.util.ProfileConstants;
 import org.sakaiproject.search.api.SearchList;
-import org.sakaiproject.search.api.SearchResult;
 import org.sakaiproject.search.api.SearchService;
 import org.sakaiproject.site.api.SiteService;
 import org.sakaiproject.site.api.SiteService.SelectionType;
@@ -70,10 +63,10 @@ import org.sakaiproject.user.api.UserDirectoryService;
 import org.sakaiproject.user.api.UserNotDefinedException;
 import org.sakaiproject.util.Resource;
 import org.sakaiproject.util.ResourceLoader;
-import org.sakaiproject.portal.api.BullhornService;
-import org.sakaiproject.portal.beans.BullhornAlert;
-import org.sakaiproject.portal.beans.PortalNotifications;
 import org.sakaiproject.velocity.util.SLF4JLogChute;
+
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * An entity provider to serve Portal information
@@ -150,9 +143,11 @@ public class PortalEntityProvider extends AbstractEntityProvider implements Auto
 		return noti;
 	}
 
-    private ActionReturn getBullhornAlerts(List<BullhornAlert> alerts) {
+	@EntityCustomAction(action = "bullhornAlerts", viewKey = EntityView.VIEW_LIST)
+	public ActionReturn getBullhornAlerts(EntityView view) {
 
-        ResourceLoader rl = new ResourceLoader("bullhorns");
+		ResourceLoader rl = new ResourceLoader("bullhorns");
+		List<BullhornAlert> alerts = bullhornService.getAlerts(getCheckedCurrentUser());
 
 		if (alerts.size() > 0) {
 			Map<String, Object> data = new HashMap<>();
@@ -170,11 +165,6 @@ public class PortalEntityProvider extends AbstractEntityProvider implements Auto
 
 			return new ActionReturn(data);
 		}
-    }
-
-	@EntityCustomAction(action = "socialAlerts", viewKey = EntityView.VIEW_LIST)
-	public ActionReturn getSocialAlerts(EntityView view) {
-		return getBullhornAlerts(bullhornService.getSocialAlerts(getCheckedCurrentUser()));
 	}
 
 	@EntityCustomAction(action = "clearBullhornAlert", viewKey = EntityView.VIEW_LIST)
@@ -184,57 +174,33 @@ public class PortalEntityProvider extends AbstractEntityProvider implements Auto
 
 		try {
 			long alertId = Long.parseLong((String) params.get("id"));
-			return bullhornService.clearBullhornAlert(currentUserId, alertId);
+			return bullhornService.clearAlert(currentUserId, alertId);
 		} catch (Exception e) {
-			log.error("Failed to clear social alert", e);
+			log.error("Failed to clear bullhorn alert", e);
 		}
 
 		return false;
 	}
 
-	@EntityCustomAction(action = "clearAllSocialAlerts", viewKey = EntityView.VIEW_LIST)
-	public boolean clearAllSocialAlerts(Map<String, Object> params) {
+	@EntityCustomAction(action = "clearAllBullhornAlerts", viewKey = EntityView.VIEW_LIST)
+	public boolean clearAllBullhornAlerts(Map<String, Object> params) {
 
 		String currentUserId = getCheckedCurrentUser();
 
 		try {
-			return bullhornService.clearAllSocialAlerts(currentUserId);
+			return bullhornService.clearAllAlerts(currentUserId);
 		} catch (Exception e) {
-			log.error("Failed to clear all social alerts", e);
+			log.error("Failed to clear all bullhorn alerts", e);
 		}
 
 		return false;
 	}
 
-	@EntityCustomAction(action = "academicAlerts", viewKey = EntityView.VIEW_LIST)
-	public ActionReturn getAcademicAlerts(EntityView view) {
-		return getBullhornAlerts(bullhornService.getAcademicAlerts(getCheckedCurrentUser()));
-	}
-
-	@EntityCustomAction(action = "clearAllAcademicAlerts", viewKey = EntityView.VIEW_LIST)
-	public boolean clearAllAcademicAlerts(Map<String, Object> params) {
+	@EntityCustomAction(action = "bullhornAlertCount", viewKey = EntityView.VIEW_LIST)
+	public ActionReturn getBullhornAlertCount(EntityView view) {
 
 		String currentUserId = getCheckedCurrentUser();
-
-		try {
-			return bullhornService.clearAllAcademicAlerts(currentUserId);
-		} catch (Exception e) {
-			log.error("Failed to clear all academic alerts", e);
-		}
-
-		return false;
-	}
-
-	@EntityCustomAction(action = "bullhornCounts", viewKey = EntityView.VIEW_LIST)
-	public ActionReturn getBullhornCounts(EntityView view) {
-
-		String currentUserId = getCheckedCurrentUser();
-
-		Map<String, Long> counts = new HashMap<>();
-		counts.put("academic", bullhornService.getAcademicAlertCount(currentUserId));
-		counts.put("social", bullhornService.getSocialAlertCount(currentUserId));
-
-		return new ActionReturn(counts);
+		return new ActionReturn(bullhornService.getAlertCount(currentUserId));
 	}
 
 	private String getCheckedCurrentUser() throws SecurityException {
@@ -253,7 +219,7 @@ public class PortalEntityProvider extends AbstractEntityProvider implements Auto
 
 		String currentUserId = getCheckedCurrentUser();
 
-		ResourceLoader rl = new Resource().getLoader("org.sakaiproject.portal.api.PortalService", "profile-popup");
+		ResourceLoader rl = Resource.getResourceLoader("org.sakaiproject.portal.api.PortalService", "profile-popup");
 
 		UserProfile userProfile = (UserProfile) profileLogic.getUserProfile(ref.getId());
 
@@ -264,11 +230,17 @@ public class PortalEntityProvider extends AbstractEntityProvider implements Auto
 		context.put("profileUrl", profileLinkLogic.getInternalDirectUrlToUserProfile(connectionUserId));
 
 		SocialNetworkingInfo socialInfo = userProfile.getSocialInfo();
-		String facebookUrl = socialInfo.getFacebookUrl();
-		if (StringUtils.isEmpty(facebookUrl)) facebookUrl = "";
+		String facebookUrl = "";
+		String twitterUrl = "";
+		if(socialInfo != null) {
+			if(socialInfo.getFacebookUrl() != null) {
+				facebookUrl = socialInfo.getFacebookUrl();
+			}
+			if(socialInfo.getTwitterUrl() != null) {
+				twitterUrl = socialInfo.getTwitterUrl();
+			}
+		}
 		context.put("facebookUrl", facebookUrl);
-		String twitterUrl = socialInfo.getTwitterUrl();
-		if (StringUtils.isEmpty(twitterUrl)) twitterUrl = "";
 		context.put("twitterUrl", twitterUrl);
 
 		String email = userProfile.getEmail();

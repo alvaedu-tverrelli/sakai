@@ -57,12 +57,14 @@ public interface SakaiProxy {
     public final static String SEARCH_INDEX_CACHE = "org.sakaiproject.roster.searchIndexCache";
 
 	public final static String DEFAULT_SORT_COLUMN = "sortName";
+	public final static String DEFAULT_OVERVIEW_MODE = "cards";
 	public final static Boolean DEFAULT_FIRST_NAME_LAST_NAME = false;
 	public final static Boolean DEFAULT_HIDE_SINGLE_GROUP_FILTER = false;
 	public final static Boolean DEFAULT_VIEW_EMAIL = true;
 	public final static Boolean DEFAULT_VIEW_CONNECTIONS = true;
 	public final static Boolean DEFAULT_VIEW_USER_DISPLAY_ID = true;
 	public final static Boolean DEFAULT_VIEW_USER_PROPERTIES = true;
+	public final static Boolean DEFAULT_VIEW_USER_NAME_PRONUNCIATION = false;
 	public final static Integer DEFAULT_ROSTER_STATE = 0;
 	
 	/**
@@ -113,6 +115,15 @@ public interface SakaiProxy {
 	 */
 	public String getDefaultSortColumn();
 	
+	/**
+	 * Returns the value of the <code>roster.defaultOverviewMode</code> Sakai
+	 * property.
+	 *
+	 * @return the value of the <code>roster.defaultOverviewMode</code> Sakai
+	 * property.
+	 */
+	public String getDefaultOverviewMode();
+
 	/**
 	 * Returns the value of the <code>roster.display.firstNameLastName</code>
 	 * Sakai property.
@@ -266,4 +277,18 @@ public interface SakaiProxy {
     public Map<String, SitePresenceTotal> getPresenceTotalsForSite(String siteId);
 
     public boolean getShowVisits();
+
+    /**
+     * Returns the value of the <code>roster.display.user.name.pronunciation</code> Sakai property.
+     *
+     * @return the value of the <code>roster.display.user.name.pronunciation</code> Sakai property.
+     */
+    public Boolean getViewUserNamePronunciation();
+
+    /**
+     * Returns the profile tool link. Null if user doesn't have profile tool.
+     *
+     * @return the profile tool link. Null if user doesn't have profile tool.
+     */
+    public String getProfileToolLink();
 }

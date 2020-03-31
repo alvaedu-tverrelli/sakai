@@ -21,6 +21,7 @@ package org.sakaiproject.basiclti.impl;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.URISyntaxException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -28,8 +29,6 @@ import java.util.Set;
 import java.util.Stack;
 import java.util.Properties;
 import java.util.Enumeration;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -40,7 +39,8 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.http.client.utils.URIBuilder;
 import org.sakaiproject.authz.cover.SecurityService;
 import org.sakaiproject.entity.api.Entity;
 import org.sakaiproject.entity.api.EntityAccessOverloadException;
@@ -269,7 +269,7 @@ public class BasicLTISecurityServiceImpl implements EntityProducer {
 	{
 		// req.getRequestURL()=http://localhost:8080/access/basiclti/site/85fd092b-1755-4aa9-8abc-e6549527dce0/content:0
 		// req.getRequestURI()=/access/basiclti/site/85fd092b-1755-4aa9-8abc-e6549527dce0/content:0
-		String login_hint = req.getRequestURI().toString();
+		String login_hint = req.getRequestURI();
 		String query_string = req.getQueryString();
 
 		if ( StringUtils.isNotEmpty(query_string)) {
@@ -283,18 +283,71 @@ public class BasicLTISecurityServiceImpl implements EntityProducer {
 
 		byte[] bytesEncoded = Base64.encodeBase64(login_hint.getBytes());
 		String encoded_login_hint = new String(bytesEncoded);
-		String redirect = oidc_endpoint;
-		redirect += "?iss=" + java.net.URLEncoder.encode(SakaiBLTIUtil.getOurServerUrl());
-		redirect += "&login_hint=" + encoded_login_hint;
-		if ( StringUtils.isNotEmpty(launch_url)) {
-			redirect += "&target_link_uri=" + java.net.URLEncoder.encode(launch_url);
-		}
 		try {
-			res.sendRedirect(redirect);
+			URIBuilder redirect = new URIBuilder(oidc_endpoint.trim());
+			redirect.addParameter("iss", SakaiBLTIUtil.getOurServerUrl());
+			redirect.addParameter("login_hint", encoded_login_hint);
+			if (StringUtils.isNotBlank(launch_url)) {
+				redirect.addParameter("target_link_uri", launch_url);
+			}
+			res.sendRedirect(redirect.build().toString());
 		} catch (IOException unlikely) {
 			log.error("failed redirect {}", unlikely.getMessage());
+		} catch (URISyntaxException e) {
+			log.error("Syntax exception building the URL with the params: {}.", e.getMessage());
 		}
 
+	}
+
+	/**
+	 * Handle the LTI 1.1.2 round trip logic
+	*/
+	private void handleLTI112(HttpServletRequest req, HttpServletResponse res, Map<String, Object> tool)
+	{
+		String default_launch_type = ServerConfigurationService.getString(SakaiBLTIUtil.BASICLTI_LTI11_LAUNCH_TYPE,
+				SakaiBLTIUtil.BASICLTI_LTI11_LAUNCH_TYPE_DEFAULT);
+		Long lti11_launch_type = SakaiBLTIUtil.getLongKey(tool.get(LTIService.LTI11_LAUNCH_TYPE));
+
+		if ( SakaiBLTIUtil.isLTI13(tool, null) ) return;
+
+		if ( lti11_launch_type.equals(LTIService.LTI11_LAUNCH_TYPE_LEGACY) ) return;
+
+		if ( lti11_launch_type.equals(LTIService.LTI11_LAUNCH_TYPE_LTI112) ||
+					SakaiBLTIUtil.BASICLTI_LTI11_LAUNCH_TYPE_LTI112.equals(default_launch_type) ) {
+
+			String tool_state = req.getParameter("tool_state");
+			if ( StringUtils.isEmpty(tool_state) ) {
+				// req.getRequestURL()=http://localhost:8080/access/basiclti/site/85fd092b-1755-4aa9-8abc-e6549527dce0/content:0
+				// req.getRequestURI()=/access/basiclti/site/85fd092b-1755-4aa9-8abc-e6549527dce0/content:0
+				String platform_state = req.getRequestURI();
+				String query_string = req.getQueryString();
+				if ( StringUtils.isNotEmpty(query_string) ) {
+					platform_state = platform_state + "?" + query_string;
+				}
+				tool.put("platform_state", platform_state);
+				String relaunch_url = SakaiBLTIUtil.getOurServerUrl() + "/imsoidc/lti13/lti112";
+				tool.put("relaunch_url", relaunch_url);
+			} else {
+				tool.put("tool_state", tool_state);
+			}
+		}
+	}
+
+	/**
+	 * Do some sanity checking on the aunch data to make sure we have enough to accomplish the launch
+	 */
+	private boolean sanityCheck(HttpServletRequest req, HttpServletResponse res,
+		Map<String, Object> content, Map<String, Object> tool, ResourceLoader rb)
+	{
+
+		String oidc_endpoint = (String) tool.get(LTIService.LTI13_OIDC_ENDPOINT);
+		if (SakaiBLTIUtil.isLTI13(tool, content) && StringUtils.isBlank(oidc_endpoint) ) {
+			String errorMessage = "<p>" + SakaiBLTIUtil.getRB(rb, "error.no.oidc_endpoint", "Missing oidc_endpoint value for LTI 1.3 launch") + "</p>";
+			sendHTMLPage(res, errorMessage);
+			return false;
+		}
+
+		return true;
 	}
 
 	/**
@@ -317,32 +370,9 @@ public class BasicLTISecurityServiceImpl implements EntityProducer {
 
 				String refId = ref.getId();
 				String [] retval = null;
-				if ( refId.startsWith("deploy:") && refId.length() > 7 )
+				if ( refId.startsWith("tool:") && refId.length() > 5 )
 				{
-					if ("!admin".equals(ref.getContext()) )
-					{
-						throw new EntityPermissionException(SessionManager.getCurrentSessionUserId(), "basiclti", ref.getReference());
-					}
-					Map<String,Object> deploy = null;
-					String deployStr = refId.substring(7);
-					Long deployKey = SakaiBLTIUtil.getLongKey(deployStr);
-					if ( deployKey >= 0 ) deploy = ltiService.getDeployDao(deployKey);
-					String placementId = req.getParameter("placement");
-					log.debug("deployStr={} deployKey={} placementId={}", deployStr, deployKey, placementId);
-					log.debug(deploy.toString());
-					Long reg_state = SakaiBLTIUtil.getLongKey(deploy.get(LTIService.LTI_REG_STATE));
-					if ( reg_state == 0 )
-					{
-						retval = SakaiBLTIUtil.postRegisterHTML(deployKey, deploy, rb, placementId);
-					}
-					else
-					{
-						retval = SakaiBLTIUtil.postReregisterHTML(deployKey, deploy, rb, placementId);
-					}
-				}
-				else if ( refId.startsWith("tool:") && refId.length() > 5 )
-				{
-					Map<String,Object> tool = null;
+					Map<String,Object> tool;
 
 					String toolStr = refId.substring(5);
 					String contentReturn = req.getParameter("contentReturn");
@@ -357,69 +387,83 @@ public class BasicLTISecurityServiceImpl implements EntityProducer {
 						propData.setProperty(key,value);
 					}
 					Long toolKey = SakaiBLTIUtil.getLongKey(toolStr);
-					if ( toolKey >= 0 )
-					{
-						tool = ltiService.getToolDao(toolKey, ref.getContext());
-						if ( tool != null ) {
-							// Save for LTI 13 Issuer
-							String orig_site_id = StringUtils.trimToNull((String) tool.get(LTIService.LTI_SITE_ID));
-							if ( orig_site_id == null ) {
-								tool.put("orig_site_id_null", "true");
-							}
-							tool.put(LTIService.LTI_SITE_ID, ref.getContext());
-						}
-						String state = req.getParameter("state");
-						String nonce = req.getParameter("nonce");
-
-						String oidc_endpoint = (String) tool.get(LTIService.LTI13_OIDC_ENDPOINT);
-						log.debug("State={} nonce={} oidc_endpoint={}",state, nonce, oidc_endpoint);
-
-						if (StringUtils.isNotBlank(oidc_endpoint) &&
-								( StringUtils.isEmpty(state) || StringUtils.isEmpty(state) ) ) {
-							redirectOIDC(req, res, null, tool, oidc_endpoint, rb);
-						}
-						retval = SakaiBLTIUtil.postContentItemSelectionRequest(toolKey, tool, state, nonce, rb, contentReturn, propData);
+					if (toolKey < 1 ) {
+						throw new EntityNotDefinedException("Could not load tool");
 					}
+
+					tool = ltiService.getToolDao(toolKey, ref.getContext());
+					if (tool == null ) {
+						throw new EntityNotDefinedException("Could not load tool");
+					}
+
+					// Save for LTI 13 Issuer
+					String orig_site_id = StringUtils.trimToNull((String) tool.get(LTIService.LTI_SITE_ID));
+					if ( orig_site_id == null ) {
+						tool.put("orig_site_id_null", "true");
+					}
+					tool.put(LTIService.LTI_SITE_ID, ref.getContext());
+
+					String state = req.getParameter("state");
+					String nonce = req.getParameter("nonce");
+
+					String oidc_endpoint = (String) tool.get(LTIService.LTI13_OIDC_ENDPOINT);
+					log.debug("State={} nonce={} oidc_endpoint={}",state, nonce, oidc_endpoint);
+
+					// Sanity check for missing config data
+					if ( ! sanityCheck(req, res, null, tool, rb) ) return;
+
+					if (SakaiBLTIUtil.isLTI13(tool, null) && StringUtils.isNotBlank(oidc_endpoint) &&
+							( StringUtils.isEmpty(state) || StringUtils.isEmpty(state) ) ) {
+						redirectOIDC(req, res, null, tool, oidc_endpoint, rb);
+						return;
+					}
+
+					handleLTI112(req, res, tool);
+
+					retval = SakaiBLTIUtil.postContentItemSelectionRequest(toolKey, tool, state, nonce, rb, contentReturn, propData);
+
 				}
 				else if ( refId.startsWith("content:") && refId.length() > 8 )
 				{
-					Map<String,Object> content = null;
+					Map<String,Object> content;
 					Map<String,Object> tool = null;
 
 					String contentStr = refId.substring(8);
 					Long contentKey = SakaiBLTIUtil.getLongKey(contentStr);
-					if ( contentKey >= 0 )
-					{
-						content = ltiService.getContentDao(contentKey,ref.getContext());
-						if ( content != null )
-						{
-							String siteId = (String) content.get(LTIService.LTI_SITE_ID);
-							if ( siteId == null || ! siteId.equals(ref.getContext()) )
-							{
-								content = null;
-							}
-						}
-						if ( content != null )
-						{
-							Long toolKey = SakaiBLTIUtil.getLongKey(content.get(LTIService.LTI_TOOL_ID));
-							if ( toolKey >= 0 ) tool = ltiService.getToolDao(toolKey, ref.getContext());
-							if ( tool != null )
-							{
-								// SITE_ID can be null for the tool
-								String siteId = (String) tool.get(LTIService.LTI_SITE_ID);
-								if ( siteId != null && ! siteId.equals(ref.getContext()) )
-								{
-									tool = null;
-								}
-							}
-						}
-
-						ltiService.filterContent(content, tool);
+					if (contentKey < 1 ) {
+						throw new EntityNotDefinedException("Could not load content item");
 					}
+
+					content = ltiService.getContentDao(contentKey,ref.getContext());
+					if (content == null ) {
+						throw new EntityNotDefinedException("Could not load content item");
+					}
+
+					String siteId = (String) content.get(LTIService.LTI_SITE_ID);
+					if ( siteId == null || ! siteId.equals(ref.getContext()) )
+					{
+						throw new EntityNotDefinedException("Incorrect site");
+					}
+
+
+					Long toolKey = SakaiBLTIUtil.getLongKey(content.get(LTIService.LTI_TOOL_ID));
+					if ( toolKey >= 0 ) tool = ltiService.getToolDao(toolKey, ref.getContext());
+					if ( tool != null )
+					{
+						// SITE_ID can be null for the tool
+						siteId = (String) tool.get(LTIService.LTI_SITE_ID);
+						if ( siteId != null && ! siteId.equals(ref.getContext()) )
+						{
+							tool = null;
+						}
+					}
+
+					ltiService.filterContent(content, tool);
+
 					String splash = null;
 					if ( tool != null ) splash = (String) tool.get("splash");
 					String splashParm = req.getParameter("splash");
-					String siteId = null;
+					siteId = null;
 					if ( tool != null ) siteId = (String) tool.get(LTIService.LTI_SITE_ID);
 					if ( splashParm == null && splash != null && splash.trim().length() > 1 )
 					{
@@ -431,12 +475,22 @@ public class BasicLTISecurityServiceImpl implements EntityProducer {
 					String state = req.getParameter("state");
 					String nonce = req.getParameter("nonce");
 
-					String oidc_endpoint = (String) tool.get(LTIService.LTI13_OIDC_ENDPOINT);
-					log.debug("State={} nonce={} oidc_endpoint={}",state, nonce, oidc_endpoint);
-					if (StringUtils.isNotBlank(oidc_endpoint) &&
-							(StringUtils.isEmpty(state) || StringUtils.isEmpty(nonce) ) ) {
-						redirectOIDC(req, res, content, tool, oidc_endpoint, rb);
+					if ( tool != null ) {
+						String oidc_endpoint = (String) tool.get(LTIService.LTI13_OIDC_ENDPOINT);
+						log.debug("State={} nonce={} oidc_endpoint={}",state, nonce, oidc_endpoint);
+
+						// Sanity check for missing config data
+						if ( ! sanityCheck(req, res, content, tool, rb) ) return;
+
+						if (SakaiBLTIUtil.isLTI13(tool, content) && StringUtils.isNotBlank(oidc_endpoint) &&
+								(StringUtils.isEmpty(state) || StringUtils.isEmpty(nonce) ) ) {
+							redirectOIDC(req, res, content, tool, oidc_endpoint, rb);
+							return;
+						}
 					}
+
+					if ( tool != null ) handleLTI112(req, res, tool);
+
 					retval = SakaiBLTIUtil.postLaunchHTML(content, tool, state, nonce, ltiService, rb);
 				}
 				else if (refId.startsWith("export:") && refId.length() > 7)

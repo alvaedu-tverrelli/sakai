@@ -73,6 +73,7 @@ import org.sakaiproject.user.api.User;
 import org.sakaiproject.user.api.UserDirectoryService;
 import org.sakaiproject.user.api.UserNotDefinedException;
 import org.sakaiproject.util.ResourceLoader;
+import org.sakaiproject.util.api.FormattedText;
 
 @Slf4j
 @Setter
@@ -112,6 +113,7 @@ public class ExternalLogicImpl implements ExternalLogic {
 	private UserTimeService userTimeService;
 	private String fromEmailAddress;
 	private String replyToEmailAddress;
+	@Setter private FormattedText formattedText;
 	
 	/**
      * Methods
@@ -487,6 +489,10 @@ public class ExternalLogicImpl implements ExternalLogic {
         return new LRS_Statement(student, verb, lrsObject);
     }
 
+    private String getPollRef(String pollId) {
+        return "poll" + getCurrentLocationReference() + "/poll/" + pollId;
+    }
+
     /**
      * @see org.sakaiproject.poll.logic.ExternalLogic#registerStatement(java.lang.String, org.sakaiproject.poll.model.Vote)
      */
@@ -494,21 +500,45 @@ public class ExternalLogicImpl implements ExternalLogic {
     public void registerStatement(String pollText, Vote vote) {
         if (null != learningResourceStoreService) {
             LRS_Statement statement = getStatementForUserVotedInPoll(pollText, vote);
-            Event event = eventTrackingService.newEvent("poll.vote", "vote", null, true, NotificationService.NOTI_OPTIONAL, statement);
+            Event event = eventTrackingService.newEvent("poll.vote", getPollRef(vote.getPollId().toString()), null, true, NotificationService.NOTI_OPTIONAL, statement);
             eventTrackingService.post(event);
         }
     }
 
     /**
-     * @see org.sakaiproject.poll.logic.ExternalLogic#registerStatement(java.lang.String, boolean)
+     * @see org.sakaiproject.poll.logic.ExternalLogic#registerStatement(java.lang.String, boolean, java.lang.String)
      */
     @Override
-    public void registerStatement(String pollText, boolean newPoll) {
+    public void registerStatement(String pollText, boolean newPoll, String pollId) {
         if (null != learningResourceStoreService) {
             LRS_Statement statement = getStatementForUserEditPoll(pollText, newPoll);
-            Event event = eventTrackingService.newEvent("poll.edit", "edit poll", null, true, NotificationService.NOTI_OPTIONAL, statement);
+            String eventType = newPoll ? "poll.add" : "poll.update";
+            Event event = eventTrackingService.newEvent(eventType, getPollRef(pollId), null, true, NotificationService.NOTI_OPTIONAL, statement);
             eventTrackingService.post(event);
         }
+    }
+    
+    @Override
+    public int getNumberUsersCanVote() {
+    	ArrayList<String> siteGroupRefs = new ArrayList<>();
+    	siteGroupRefs.add(siteService.siteReference(developerHelperService.getCurrentLocationId()));
+    	return (authzGroupService.getUsersIsAllowed(PollListManager.PERMISSION_VOTE, siteGroupRefs).size());
+    }
+
+    @Override
+    public String convertFormattedTextToPlaintext(String text) {
+        return formattedText.convertFormattedTextToPlaintext(text);
+    }
+
+    @Override
+    public String processFormattedText(String text, StringBuilder errorMessages) {
+        return formattedText.processFormattedText(text, errorMessages);
+    }
+
+    @Override
+    public String processFormattedText(String strFromBrowser, StringBuilder errorMessages, boolean checkForEvilTags,
+           boolean replaceWhitespaceTags) {
+        return formattedText.processFormattedText(strFromBrowser, errorMessages, checkForEvilTags, replaceWhitespaceTags);
     }
 
 }

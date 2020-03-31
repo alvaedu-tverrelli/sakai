@@ -119,6 +119,8 @@
 	border-left: thin solid #09c;
 	border-right: thin solid #09c;
 	border-bottom: thin solid #09c;
+	position: absolute;
+	right: 15px;
 }
 
 .edit-button:hover {
@@ -176,6 +178,7 @@ h2 {
 	background-position: center left;
     background-repeat: no-repeat;
     padding-left: 18px;
+    display: inline !important;
 }
 
 /* icons */
@@ -253,6 +256,14 @@ h2 {
 }
 .myspace {
 	background-image: url(../images/myspace.png);
+}
+.recordIcon {
+	background-image: url(../images/mic.png);
+	width: 11px;
+	height: 15px;
+	display: inline-block;
+	background-size: 100%;
+	margin-left: 7px;
 }
 
 /* sideLink styles */
@@ -385,14 +396,13 @@ h2 {
 	width: 100%;
 }
 
+.mainSectionContentDescription {
+	padding-top: 5px;
+}
+
 .mainSectionContent {
 	padding-top: 5px;
-	padding-right: 80px; /* keep it in a block and out of the edit button's way */
 }
-
-.mainSectionContentForm {
-}
-
 
 
 /* profile and preferences information sections */
@@ -401,10 +411,6 @@ h2 {
 	padding-bottom: 2px;
 	font-size: 90%;
 	border: none;
-}
-
-.profileContent {
-	margin-right: 20px; /* space for the closebutton, if any */
 }
 
 .preferencesContent {
@@ -453,6 +459,10 @@ h2 {
     -webkit-hyphens: auto;
     /* Only split after 8 characters. Webkit only. */
     -webkit-hyphenate-limit-before:8;
+}
+
+.contentExample {
+	color: #aaa;
 }
 
 .preferencesContent .item  {

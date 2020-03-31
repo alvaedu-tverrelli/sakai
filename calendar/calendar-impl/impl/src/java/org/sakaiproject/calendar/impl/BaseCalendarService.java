@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Duration;
 import java.util.*;
 import java.util.Map.Entry;
 
@@ -45,7 +46,7 @@ import net.fortuna.ical4j.model.component.VEvent;
 import net.fortuna.ical4j.model.parameter.Value;
 import net.fortuna.ical4j.model.property.*;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -97,7 +98,7 @@ import org.sakaiproject.util.cover.LinkMigrationHelper;
  * </p>
  */
 @Slf4j
-public abstract class BaseCalendarService implements CalendarService, DoubleStorageUser, ContextObserver, EntityTransferrer, SAXEntityReader, EntityTransferrerRefMigrator, Observer
+public abstract class BaseCalendarService implements CalendarService, DoubleStorageUser, ContextObserver, EntityTransferrer, SAXEntityReader, Observer
 {
 	/** The initial portion of a relative access point URL. */
 	protected String m_relativeAccessPoint = null;
@@ -887,8 +888,13 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 		{
 			log.warn("removeCalendar: removing realm for : " + calendar.getReference() + " : " + e);
 		}
-		catch (GroupNotDefinedException ignore)
+		catch (GroupNotDefinedException gnde)
 		{
+			log.debug(gnde.getMessage());
+		}
+		catch (AuthzRealmLockException arle)
+		{
+			log.warn("GROUP LOCK REGRESSION: {}", arle.getMessage(), arle);
 		}
 
 	} // removeCalendar
@@ -1864,18 +1870,10 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 		return results.toString();
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
-        public void transferCopyEntities(String fromContext, String toContext, List resourceIds)
-        {
-                transferCopyEntitiesRefMigrator(fromContext, toContext, resourceIds); 
-        }
+	public Map<String, String> transferCopyEntities(String fromContext, String toContext, List<String> resourceIds, List<String> options) {
 
-        public Map<String, String> transferCopyEntitiesRefMigrator(String fromContext, String toContext, List resourceIds)
-	{
 		Map<String, String> transversalMap = new HashMap<String, String>();
-		
+
 		// get the channel associated with this site
 		String oCalendarRef = calendarReference(fromContext, SiteService.MAIN_CONTAINER);
 
@@ -2924,8 +2922,13 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 			{
 				log.warn("removeEvent: removing realm for : " + edit.getReference() + " : " + e);
 			}
-			catch (GroupNotDefinedException ignore)
+			catch (GroupNotDefinedException gnde)
 			{
+				log.debug(gnde.getMessage());
+			}
+			catch (AuthzRealmLockException arle)
+			{
+				log.warn("GROUP LOCK REGRESSION: {}", arle.getMessage(), arle);
 			}
 
 		} // removeEvent
@@ -5225,10 +5228,7 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 			DateTime icalStartDate = new DateTime(event.getRange().firstTime().getTime());
 			
 			long seconds = event.getRange().duration() / 1000;
-			String timeString = "PT" + String.valueOf(seconds) + "S";
-			net.fortuna.ical4j.model.Dur duration = new net.fortuna.ical4j.model.Dur( timeString );
-			
-			VEvent icalEvent = new VEvent(icalStartDate, duration, event.getDisplayName() );
+			VEvent icalEvent = new VEvent(icalStartDate, Duration.ofSeconds(seconds), event.getDisplayName() );
 			
 			net.fortuna.ical4j.model.parameter.TzId tzId = new net.fortuna.ical4j.model.parameter.TzId( m_timeService.getLocalTimeZone().getID() );
 			icalEvent.getProperty(Property.DTSTART).getParameters().add(tzId);
@@ -5534,13 +5534,8 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 		m_services = services;
 	}
 
-        public void transferCopyEntities(String fromContext, String toContext, List ids, boolean cleanup)
-        {
-                transferCopyEntitiesRefMigrator(fromContext, toContext, ids, cleanup);
-        }
-
-        public Map<String, String> transferCopyEntitiesRefMigrator(String fromContext, String toContext, List ids, boolean cleanup)
-	{	
+	public Map<String, String> transferCopyEntities(String fromContext, String toContext, List<String> ids, List<String> options, boolean cleanup)
+	{
 		Map<String, String> transversalMap = new HashMap<String, String>();
 		try
 		{
@@ -5576,7 +5571,7 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 				}
 				
 			}
-			transversalMap.putAll(transferCopyEntitiesRefMigrator(fromContext, toContext, ids));	
+			transversalMap.putAll(transferCopyEntities(fromContext, toContext, ids, null));
 		}
 		catch (Exception e)
 		{
@@ -5720,15 +5715,7 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 	
 	protected void handleAccessIcalCommon(HttpServletRequest req, HttpServletResponse res, Reference ref, String calRef)
 			throws EntityPermissionException, PermissionException, IOException {
-		
-		// Extract the alias name to use for the filename.
-		List alias =  m_aliasService.getAliases(calRef);
-		String aliasName = "schedule.ics";
-		if ( ! alias.isEmpty() )
-			aliasName =  ((Alias)alias.get(0)).getId();
-		
-		List<String> referenceList = getCalendarReferences(ref.getContext());
-		Time modDate = m_timeService.newTime(0);
+
 		// Ok so we need to check to see if we've handled this reference before.
 		// This is to prevent loops when including calendars
 		// that currently includes other calendars we only do the check in here.
@@ -5737,6 +5724,16 @@ public abstract class BaseCalendarService implements CalendarService, DoubleStor
 			log.warn("Reject internal request for: "+ calRef);
 			return;
 		}
+
+		// Extract the alias name to use for the filename.
+		List<Alias> alias =  m_aliasService.getAliases(calRef);
+		String aliasName = "schedule.ics";
+		if ( ! alias.isEmpty() )
+			aliasName =  alias.get(0).getId();
+		
+		List<String> referenceList = getCalendarReferences(ref.getContext());
+		Time modDate = m_timeService.newTime(0);
+
 		// update date/time reference
 		for (String curCalRef: referenceList)
 		{

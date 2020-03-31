@@ -42,6 +42,7 @@ import net.fortuna.ical4j.model.Period;
 import net.fortuna.ical4j.model.PeriodList;
 import net.fortuna.ical4j.model.Property;
 import net.fortuna.ical4j.util.CompatibilityHints;
+import net.fortuna.ical4j.util.MapTimeZoneCache;
 
 /**
  * This class parses an import file from iCalendar.
@@ -63,6 +64,7 @@ public class IcalendarReader extends Reader
 	public IcalendarReader()
 	{
 		super();
+		System.setProperty("net.fortuna.ical4j.timezone.cache.impl", MapTimeZoneCache.class.getName());
 	}
 
 	/* (non-Javadoc)
@@ -103,12 +105,16 @@ public class IcalendarReader extends Reader
 				Component vTimeZone = calendar.getComponent("VTIMEZONE");
 				if (vTimeZone!=null) {
 					Property tzProperty = vTimeZone.getProperty("TZID");
-					if (tzProperty!=null) calendarTzid = tzProperty.getValue();
+					if (tzProperty!=null) {
+						calendarTzid = tzProperty.getValue();
+						ZoneId.of(calendarTzid);//check zone is valid or throw exception
+					}
 				} else {
 					log.debug("Calendar time zone not found");
 				}
 			} catch (Exception e) {
 				log.warn("Error reading VTIMEZONE component/TZID property: "+e);
+				calendarTzid = null;
 			}
 			
 			for (Iterator i = calendar.getComponents("VEVENT").iterator(); i.hasNext();)
@@ -129,12 +135,10 @@ public class IcalendarReader extends Reader
 				for (Iterator j = list.iterator(); j.hasNext();) 
 				{
 					Period period = (Period) j.next();
-					Dur duration = period.getDuration();
-					int durationminutes = duration.getMinutes();
-					int durationhours = duration.getHours();
-					//todo investiage ical4j's handling of 'days'
+					Duration duration = Duration.from(period.getDuration());
+					long durationminutes = duration.toMinutes();
 
-					if (durationminutes < 10)
+					if (durationminutes < 10L)
 					{
 					durationformat = "0"+durationminutes;
 					}
@@ -143,10 +147,6 @@ public class IcalendarReader extends Reader
 					durationformat = ""+durationminutes;
 					}
 
-					if (durationhours != 0)
-					{
-						durationformat = durationhours+":"+durationformat;
-					}
 					String description = "";
 					if ( component.getProperty("DESCRIPTION") != null) {
 						description = component.getProperty("DESCRIPTION").getValue();
@@ -239,7 +239,7 @@ public class IcalendarReader extends Reader
 			// Raw + calendar/owner TZ's offset
 			ZonedDateTime srcZonedDateTime = startInstant.atZone(srcZoneId);
 			long millis = startInstant.plusMillis(srcZonedDateTime.getOffset().getTotalSeconds() * 1000).toEpochMilli();
-			TimeZone tz = TimeZone.getTimeZone(tzid);
+			TimeZone tz = TimeZone.getTimeZone(srcZoneId);
 			if( tz.inDaylightTime(startDate) ) {
 				millis = millis - tz.getDSTSavings();
 			}

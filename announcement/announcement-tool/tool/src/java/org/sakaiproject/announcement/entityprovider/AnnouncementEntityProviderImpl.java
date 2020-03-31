@@ -35,14 +35,15 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.lang.math.NumberUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.math.NumberUtils;
 
 import org.sakaiproject.announcement.api.AnnouncementChannel;
 import org.sakaiproject.announcement.api.AnnouncementMessage;
 import org.sakaiproject.announcement.api.AnnouncementMessageHeader;
 import org.sakaiproject.announcement.api.AnnouncementService;
 import org.sakaiproject.authz.api.SecurityService;
+import org.sakaiproject.component.cover.ComponentManager;
 import org.sakaiproject.entity.api.EntityManager;
 import org.sakaiproject.entity.api.EntityPermissionException;
 import org.sakaiproject.entity.api.Reference;
@@ -75,7 +76,7 @@ import org.sakaiproject.tool.api.ToolManager;
 import org.sakaiproject.user.api.UserDirectoryService;
 import org.sakaiproject.util.MergedList;
 import org.sakaiproject.util.ResourceLoader;
-import org.sakaiproject.util.Validator;
+import org.sakaiproject.util.api.FormattedText;
 
 /**
  * Allows some basic functions on announcements.
@@ -224,7 +225,6 @@ public class AnnouncementEntityProviderImpl extends AbstractEntityProvider imple
 			try {
 				announcements.addAll(announcementService.getMessages(channel, new ViewableFilter(null, t, numberOfAnnouncements), true, false));
 			} catch (PermissionException | IdUnusedException | NullPointerException ex) {
-				log.warn("User: {} does not have access to view the announcement channel: {}. Skipping...", currentUserId, channel);
 				//user may not have access to view the channel but get all public messages in this channel
 				AnnouncementChannel announcementChannel = (AnnouncementChannel)announcementService.getChannelPublic(channel);
 				if(announcementChannel != null){
@@ -324,10 +324,11 @@ public class AnnouncementEntityProviderImpl extends AbstractEntityProvider imple
 	*/
 	private List<DecoratedAttachment> decorateAttachments(List<Reference> attachments) {
 	      List<DecoratedAttachment> decoAttachments = new ArrayList<DecoratedAttachment>();
+	      FormattedText FormattedText = ComponentManager.get(FormattedText.class);
 	      for(Reference attachment : attachments){
 	         DecoratedAttachment da = new DecoratedAttachment();
-	         da.setId(Validator.escapeHtml(attachment.getId()));
-	         da.setName(Validator.escapeHtml(attachment.getProperties().getPropertyFormatted(attachment.getProperties().getNamePropDisplayName())));
+	         da.setId(FormattedText.escapeHtml(attachment.getId()));
+	         da.setName(FormattedText.escapeHtml(attachment.getProperties().getPropertyFormatted(attachment.getProperties().getNamePropDisplayName())));
 	         da.setType(attachment.getProperties().getProperty(attachment.getProperties().getNamePropContentType()));
 	         
 	         da.setUrl(attachment.getUrl());
@@ -772,7 +773,7 @@ public class AnnouncementEntityProviderImpl extends AbstractEntityProvider imple
 					}
 				}
 
-				if(!announcementService.isMessageViewable(msg)) {
+				if (msg.getHeader().getDraft() || !announcementService.isMessageViewable(msg)) {
 					return false;
 				}
 			}

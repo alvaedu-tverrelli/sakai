@@ -11,6 +11,7 @@ import org.tsugi.lti13.objects.ToolPlatform;
 import org.tsugi.lti13.objects.LaunchLIS;
 import org.tsugi.lti13.objects.BasicOutcome;
 import org.tsugi.lti13.objects.Endpoint;
+import org.tsugi.lti13.objects.LTI11Transition;
 
 import org.tsugi.jackson.JacksonUtil;
 
@@ -36,7 +37,7 @@ public class LTI13ObjectTest {
 
 		LaunchJWT lj = new LaunchJWT();
 		lj.launch_presentation.width = 42;
-		lj.issuer = "https://www.sakaiproject.org/";
+		lj.issuer = "https://www.sakailms.org/";
 		lj.audience = "42_34989754987548";  // Client Id
 		lj.deployment_id = "42_this_field_sucks";  // Client Id
 		lj.subject = "142";  // formerly user_id in LTI 1.1
@@ -55,7 +56,13 @@ public class LTI13ObjectTest {
 
 		lj.tool_platform = new ToolPlatform();
 		lj.tool_platform.name = "Sakai";
-		lj.tool_platform.url = "https://www.sakaiproject.org";
+		lj.tool_platform.url = "https://www.sakailms.org/";
+
+		lj.lti11_transition = new LTI11Transition();
+		lj.lti11_transition.user_id = "142";
+		lj.lti11_transition.oauth_consumer_key = "12345";
+		// Actual signature check is done in LTI13UtilTest.java
+		lj.lti11_transition.oauth_consumer_key_sign = "computeme";
 
 		LaunchLIS lis = new LaunchLIS();
 		lis.person_sourcedid = "person:12345:chuck";
@@ -110,7 +117,7 @@ public class LTI13ObjectTest {
 				.signWith(key)
 				.compact();
 
-		assertEquals(2002, jws.length());
+		assertEquals(2174, jws.length());
 		Matcher m = base64url_pattern.matcher(jws);
 		good = m.find();
 		if (!good) {
@@ -132,4 +139,5 @@ public class LTI13ObjectTest {
 		}
 		assertTrue(good);
 	}
+
 }

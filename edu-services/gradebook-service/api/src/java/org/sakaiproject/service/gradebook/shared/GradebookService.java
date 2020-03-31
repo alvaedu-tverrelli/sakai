@@ -221,6 +221,9 @@ public interface GradebookService {
 	public Assignment getAssignment(String gradebookUid, String assignmentName)
 			throws AssessmentNotFoundException;
 
+	public Assignment getExternalAssignment(final String gradebookUid, final String externalId)
+			throws GradebookNotFoundException;
+
 	/**
 	 * Get an assignment based on its name or id. This is intended as a migration path from the deprecated
 	 * {@link #getAssignment(String,String)} to the new {@link #getAssignment(String,Long)}
@@ -422,30 +425,6 @@ public interface GradebookService {
 	 *         privileges, an empty map is returned
 	 */
 	public Map<String, String> getViewableStudentsForItemForUser(String userUid, String gradebookUid, Long assignmentId);
-
-	/**
-	 * This is the preferred method to retrieve a Map of student ids and course grades for a site. Use this method instead of older methods
-	 * like getCalculatedCourseGrade (removed in Sakai 11)
-	 *
-	 * @param gradebookUid
-	 * @return A mapping from user display IDs to grades. If no grade is available for a user, default to zero.
-	 */
-	public Map<String, String> getImportCourseGrade(String gradebookUid);
-
-	/**
-	 * @param gradebookUid
-	 * @param useDefault If true, assume zero for missing grades. Otherwise, null.
-	 * @return A mapping from user display IDs to grades.
-	 */
-	public Map<String, String> getImportCourseGrade(String gradebookUid, boolean useDefault);
-
-	/**
-	 * @param gradebookUid
-	 * @param useDefault If true, assume zero for missing grades. Otherwise, null.
-	 * @param mapTheGrades If true, map the numerical grade to letter grade. If false, return a string of the numerical grade.
-	 * @return A mapping from user display IDs to grades.
-	 */
-	public Map<String, String> getImportCourseGrade(String gradebookUid, boolean useDefault, boolean mapTheGrades);
 
 	/**
 	 * Get the Gradebook. Note that this returns Object to avoid circular dependency with sakai-gradebook-tool Consumers will need to cast

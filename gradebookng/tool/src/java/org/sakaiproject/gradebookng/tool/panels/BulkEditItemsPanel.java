@@ -17,9 +17,12 @@ package org.sakaiproject.gradebookng.tool.panels;
 
 import java.util.List;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.wicket.ajax.AjaxRequestTarget;
 import org.apache.wicket.ajax.markup.html.form.AjaxCheckBox;
 import org.apache.wicket.extensions.ajax.markup.html.modal.ModalWindow;
+import org.apache.wicket.markup.head.IHeaderResponse;
+import org.apache.wicket.markup.head.JavaScriptHeaderItem;
 import org.apache.wicket.markup.html.basic.Label;
 import org.apache.wicket.markup.html.form.Form;
 import org.apache.wicket.markup.html.list.ListItem;
@@ -29,7 +32,9 @@ import org.apache.wicket.model.PropertyModel;
 import org.apache.wicket.model.util.ListModel;
 import org.sakaiproject.gradebookng.tool.component.GbAjaxButton;
 import org.sakaiproject.gradebookng.tool.pages.GradebookPage;
+import org.sakaiproject.portal.util.PortalUtils;
 import org.sakaiproject.service.gradebook.shared.Assignment;
+import org.sakaiproject.service.gradebook.shared.CategoryDefinition;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -62,7 +67,7 @@ public class BulkEditItemsPanel extends BasePanel {
 		form.add(new GradebookItemView("listView", model.getObject()));
 		form.add(new SubmitButton("submit"));
 		form.add(new CancelButton("cancel"));
-
+		form.add(new Label("toggleAllLabel", getString("label.addgradeitem.toggle.all")));
 		add(form);
 
 	}
@@ -84,6 +89,13 @@ public class BulkEditItemsPanel extends BasePanel {
 
 			final ReleaseCheckbox release = new ReleaseCheckbox("release", new PropertyModel<Boolean>(assignment, "released"));
 			final IncludeCheckbox include = new IncludeCheckbox("include", new PropertyModel<Boolean>(assignment, "counted"));
+
+			// Are there categories in this Gradebook? If so, and this item is not in a category, disabled grade
+			// calculation inclusion.
+			List<CategoryDefinition> categories = businessService.getGradebookCategories();
+			if (categories != null && categories.size() > 0 && StringUtils.isBlank(assignment.getCategoryName())) {
+				include.setEnabled(false);
+			}
 
 			item.add(release);
 			item.add(include);
@@ -124,7 +136,7 @@ public class BulkEditItemsPanel extends BasePanel {
 			boolean result = false;
 			for (final Assignment a : assignments) {
 
-				log.error("Bulk edit assignment: " + a);
+				log.debug("Bulk edit assignment: {}", a);
 				result = BulkEditItemsPanel.this.businessService.updateAssignment(a);
 			}
 
@@ -176,4 +188,12 @@ public class BulkEditItemsPanel extends BasePanel {
 
 	}
 
+	@Override
+	public void renderHead(final IHeaderResponse response) {
+		super.renderHead(response);
+
+		final String version = PortalUtils.getCDNQuery();
+		response.render(JavaScriptHeaderItem.forUrl(String.format("/gradebookng-tool/scripts/gradebook-bulk-edit.js%s", version)));
+
+	}
 }

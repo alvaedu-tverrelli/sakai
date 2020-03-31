@@ -4,7 +4,7 @@
 	<parent>
 		<artifactId>course-management</artifactId>
 		<groupId>org.sakaiproject.edu-services.course-management</groupId>
-		<version>20-SNAPSHOT</version><!-- ProjectVersion -->
+		<version>21-SNAPSHOT</version><!-- ProjectVersion -->
 		<relativePath>../../../pom.xml</relativePath>
 	</parent>
 	<name>coursemanagement-hibernate-impl</name>
@@ -12,7 +12,7 @@
 	<artifactId>coursemanagement-hibernate-impl</artifactId>
 	<organization>
 		<name>Sakai Project</name>
-		<url>http://sakaiproject.org/</url>
+		<url>https://www.sakailms.org/</url>
 	</organization>
 	<inceptionYear>2006</inceptionYear>
 	<packaging>jar</packaging>
@@ -39,8 +39,8 @@
 			<artifactId>coursemanagement-hibernate-model</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>jdom</groupId>
-			<artifactId>jdom</artifactId>
+			<groupId>org.jdom</groupId>
+			<artifactId>jdom2</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.hibernate</groupId>
@@ -109,8 +109,8 @@
 			<artifactId>commons-lang3</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>commons-collections</groupId>
-			<artifactId>commons-collections</artifactId>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-collections4</artifactId>
 		</dependency>
 	</dependencies>
 	<reports />

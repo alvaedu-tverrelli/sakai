@@ -10,16 +10,27 @@
 <f:view>
 	<sakai:view title="#{msgs.pvt_rcvd_msgs}">
 <!--jsp/privateMsg/pvtMsgEx.jsp-->
+
+		<script>includeLatestJQuery("msgcntr");</script>
+		<script src="/messageforums-tool/js/sak-10625.js"></script>
+		<script src="/messageforums-tool/js/forum.js"></script>
+		<script src="/messageforums-tool/js/messages.js"></script>
+        <script>
+            $(document).ready(function() {
+                var menuLink = $('#messagesMainMenuLink');
+                var menuLinkSpan = menuLink.closest('span');
+                menuLinkSpan.addClass('current');
+                menuLinkSpan.html(menuLink.text());
+            });
+        </script>
+        <%@ include file="/jsp/privateMsg/pvtMenu.jsp" %>
+
 		<h:form id="prefs_form_search">
-		       		<script type="text/javascript">includeLatestJQuery("msgcntr");</script>
-       		<script type="text/javascript" src="/messageforums-tool/js/sak-10625.js"></script>
-			<script type="text/javascript" src="/messageforums-tool/js/forum.js"></script>		
-			
+
 			<%@ include file="topNav.jsp" %>
 
 			<h:messages styleClass="alertMessage" id="errorMessages" rendered="#{! empty facesContext.maximumSeverity}"/>
 			<%@ include file="msgHeader.jsp"%>
-
 
 	  <h:dataTable styleClass="listHier lines nolines" cellpadding="0" cellspacing="0"  id="pvtmsgs" width="100%" value="#{PrivateMessagesTool.searchPvtMsgs}" var="rcvdItems" 
 	  	rendered="#{PrivateMessagesTool.selectView != 'threaded'}" columnClasses="attach,attach,specialLink,bogus,bogus,bogus">   
@@ -35,9 +46,9 @@
 		  </h:column>
 		  <h:column>
 				<f:facet name="header">
-					<h:graphicImage value="/images/attachment.gif" alt="#{msgs.msg_has_attach}"/>								
+					<h:graphicImage value="/images/attachment.gif" alt="#{msgs.msg_has_attach}"/>
 				</f:facet>
-				<h:graphicImage value="/images/attachment.gif" rendered="#{rcvdItems.msg.hasAttachments}" alt="#{msgs.msg_has_attach}" />			 
+				<h:graphicImage value="/images/attachment.gif" rendered="#{rcvdItems.msg.hasAttachments}" alt="#{msgs.msg_has_attach}" />
 			</h:column>
 		  <h:column>
 		    <f:facet name="header">
@@ -48,21 +59,21 @@
             <h:outputText styleClass="unreadMsg" value=" #{rcvdItems.msg.title}" rendered="#{!rcvdItems.hasRead}"/>
             <f:param value="#{rcvdItems.msg.id}" name="current_msg_detail"/>
           </h:commandLink>
-		  </h:column>			
+		  </h:column>
 		  <h:column rendered="#{PrivateMessagesTool.msgNavMode != 'Sent'}">
 		    <f:facet name="header">
 		       <h:outputText value="#{msgs.pvt_authby}"/>
-		    </f:facet>		     		    
+		    </f:facet>
 		     <h:outputText value="#{rcvdItems.msg.author}" rendered="#{rcvdItems.hasRead}"/>
 		     <h:outputText styleClass="unreadMsg" value="#{rcvdItems.msg.author}" rendered="#{!rcvdItems.hasRead}"/>
 		  </h:column>
 		  <h:column rendered="#{PrivateMessagesTool.msgNavMode == 'Sent'}">
 		    <f:facet name="header">
 		       <h:outputText value="#{msgs.pvt_to}"/>
-		    </f:facet>		     		    
+		    </f:facet>
 		     <h:outputText value="#{rcvdItems.sendToStringDecorated}" rendered="#{rcvdItems.hasRead}" />
 		     <h:outputText styleClass="unreadMsg" value="#{rcvdItems.sendToStringDecorated}" rendered="#{!rcvdItems.hasRead}"/>
-		  </h:column>	
+		  </h:column>
 		  	  
 		  <h:column>
 		    <f:facet name="header">
@@ -102,9 +113,9 @@
 		  </h:column>
 		  <h:column>
 				<f:facet name="header">
-					<h:graphicImage value="/images/attachment.gif" alt="#{msgs.msg_has_attach}" />								
+					<h:graphicImage value="/images/attachment.gif" alt="#{msgs.msg_has_attach}" />
 				</f:facet>
-				<h:graphicImage value="/images/attachment.gif" rendered="#{rcvdItems.msg.hasAttachments}" alt="#{msgs.msg_has_attach}" />			 
+				<h:graphicImage value="/images/attachment.gif" rendered="#{rcvdItems.msg.hasAttachments}" alt="#{msgs.msg_has_attach}" />
 			</h:column>
 			<h:column id="_msg_subject">
 		    <f:facet name="header">
@@ -115,21 +126,21 @@
             <h:outputText styleClass="unreadMsg" value=" #{rcvdItems.msg.title}" rendered="#{!rcvdItems.hasRead}"/>
             <f:param value="#{rcvdItems.msg.id}" name="current_msg_detail"/>
           </h:commandLink>
-		  </h:column>			
+		  </h:column>
 		  <h:column rendered="#{PrivateMessagesTool.msgNavMode != 'pvt_sent'}">
 		    <f:facet name="header">
 		       <h:outputText value="#{msgs.pvt_authby}"/>
-		    </f:facet>		     		    
+		    </f:facet>
 		     <h:outputText value="#{rcvdItems.msg.author}" rendered="#{rcvdItems.hasRead}"/>
 		     <h:outputText styleClass="unreadMsg" value="#{rcvdItems.msg.author}" rendered="#{!rcvdItems.hasRead}"/>
 		  </h:column>
 		  <h:column rendered="#{PrivateMessagesTool.msgNavMode == 'pvt_sent'}">
 		    <f:facet name="header">
 		       <h:outputText value="#{msgs.pvt_to}"/>
-		    </f:facet>		     		    
+		    </f:facet>
 		     <h:outputText value="#{rcvdItems.sendToStringDecorated}" rendered="#{rcvdItems.hasRead}"/>
 		     <h:outputText styleClass="unreadMsg" value="#{rcvdItems.sendToStringDecorated}" rendered="#{!rcvdItems.hasRead}"/>
-		  </h:column>		  
+		  </h:column>
 		  <h:column>
 		    <f:facet name="header">
 		       <h:outputText value="#{msgs.pvt_date}"/>
@@ -149,9 +160,9 @@
 		  </h:column>
 		</mf:hierPvtMsgDataTable>
 		</div>
-		
+
 <%-- Added if user clicks Check All --%>
-    <script language="Javascript" type="text/javascript">
+    <script>
      // setting number checked just in case Check All being processed
      // needed to 'enable' bulk operations
      numberChecked = <h:outputText value="#{PrivateMessagesTool.numberChecked}" />;

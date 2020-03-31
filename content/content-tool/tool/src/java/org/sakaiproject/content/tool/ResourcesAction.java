@@ -21,14 +21,15 @@
 
 package org.sakaiproject.content.tool;
 
-import java.io.BufferedInputStream;
+import static org.sakaiproject.content.util.IdUtil.isolateContainingId;
+import static org.sakaiproject.content.util.IdUtil.isolateName;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
-import java.text.Normalizer;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,48 +38,41 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.Stack;
 import java.util.TreeSet;
-import java.util.Map.Entry;
-import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
-import javax.servlet.ServletException;
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import lombok.extern.slf4j.Slf4j;
-
-import org.apache.commons.lang.StringUtils;
-
-import org.w3c.dom.Element;
-
-import org.quartz.Scheduler;
-import org.quartz.SchedulerException;
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.quartz.JobDetail;
 import org.quartz.JobKey;
+import org.quartz.Scheduler;
+import org.quartz.SchedulerException;
 import org.quartz.Trigger;
-
 import org.sakaiproject.alias.api.AliasEdit;
 import org.sakaiproject.alias.api.AliasService;
 import org.sakaiproject.antivirus.api.VirusFoundException;
 import org.sakaiproject.api.app.scheduler.JobBeanWrapper;
 import org.sakaiproject.api.app.scheduler.SchedulerManager;
-import org.sakaiproject.authz.api.PermissionsHelper;
 import org.sakaiproject.authz.api.AuthzGroupService;
+import org.sakaiproject.authz.api.PermissionsHelper;
 import org.sakaiproject.authz.api.SecurityService;
 import org.sakaiproject.cheftool.Context;
 import org.sakaiproject.cheftool.JetspeedRunData;
@@ -92,34 +86,36 @@ import org.sakaiproject.content.api.ContentCollection;
 import org.sakaiproject.content.api.ContentCollectionEdit;
 import org.sakaiproject.content.api.ContentEntity;
 import org.sakaiproject.content.api.ContentHostingHandlerResolver;
+import org.sakaiproject.content.api.ContentHostingService;
+import org.sakaiproject.content.api.ContentPrintService;
 import org.sakaiproject.content.api.ContentResource;
 import org.sakaiproject.content.api.ContentResourceEdit;
-import org.sakaiproject.content.api.ContentPrintService;
+import org.sakaiproject.content.api.ContentTypeImageService;
 import org.sakaiproject.content.api.ExpandableResourceType;
 import org.sakaiproject.content.api.GroupAwareEntity;
+import org.sakaiproject.content.api.GroupAwareEntity.AccessMode;
 import org.sakaiproject.content.api.InteractionAction;
 import org.sakaiproject.content.api.MultiFileUploadPipe;
 import org.sakaiproject.content.api.ResourceToolAction;
+import org.sakaiproject.content.api.ResourceToolAction.ActionType;
 import org.sakaiproject.content.api.ResourceToolActionPipe;
 import org.sakaiproject.content.api.ResourceType;
 import org.sakaiproject.content.api.ResourceTypeRegistry;
 import org.sakaiproject.content.api.ServiceLevelAction;
 import org.sakaiproject.content.api.SiteSpecificResourceType;
-import org.sakaiproject.content.api.GroupAwareEntity.AccessMode;
-import org.sakaiproject.content.api.ResourceToolAction.ActionType;
 import org.sakaiproject.content.api.providers.SiteContentAdvisor;
 import org.sakaiproject.content.api.providers.SiteContentAdvisorProvider;
-import org.sakaiproject.content.api.ContentHostingService;
-import org.sakaiproject.content.api.ContentTypeImageService;
 import org.sakaiproject.content.copyright.api.CopyrightInfo;
 import org.sakaiproject.content.copyright.api.CopyrightItem;
+import org.sakaiproject.content.exception.ZipMaxTotalSizeException;
+import org.sakaiproject.content.util.ZipContentUtil;
 import org.sakaiproject.entity.api.Entity;
+import org.sakaiproject.entity.api.EntityManager;
 import org.sakaiproject.entity.api.EntityPropertyNotDefinedException;
 import org.sakaiproject.entity.api.EntityPropertyTypeException;
 import org.sakaiproject.entity.api.Reference;
 import org.sakaiproject.entity.api.ResourceProperties;
 import org.sakaiproject.entity.api.ResourcePropertiesEdit;
-import org.sakaiproject.entity.api.EntityManager;
 import org.sakaiproject.event.api.NotificationService;
 import org.sakaiproject.event.api.SessionState;
 import org.sakaiproject.event.api.UsageSession;
@@ -135,31 +131,34 @@ import org.sakaiproject.exception.OverQuotaException;
 import org.sakaiproject.exception.PermissionException;
 import org.sakaiproject.exception.ServerOverloadException;
 import org.sakaiproject.exception.TypeException;
-import org.sakaiproject.exception.SakaiException;
-import org.sakaiproject.site.api.Site;
 import org.sakaiproject.site.api.Group;
+import org.sakaiproject.site.api.Site;
 import org.sakaiproject.site.api.SitePage;
-import org.sakaiproject.site.api.ToolConfiguration;
 import org.sakaiproject.site.api.SiteService;
+import org.sakaiproject.site.api.ToolConfiguration;
+import org.sakaiproject.thread_local.api.ThreadLocalManager;
 import org.sakaiproject.time.api.Time;
 import org.sakaiproject.time.api.TimeService;
 import org.sakaiproject.tool.api.Placement;
-import org.sakaiproject.tool.api.Tool;
-import org.sakaiproject.tool.api.ToolSession;
 import org.sakaiproject.tool.api.SessionManager;
+import org.sakaiproject.tool.api.Tool;
 import org.sakaiproject.tool.api.ToolManager;
+import org.sakaiproject.tool.api.ToolSession;
 import org.sakaiproject.user.api.User;
-import org.sakaiproject.user.api.UserNotDefinedException;
 import org.sakaiproject.user.api.UserDirectoryService;
-import org.sakaiproject.util.FormattedText;
+import org.sakaiproject.user.api.UserNotDefinedException;
+import org.sakaiproject.util.FileItem;
 import org.sakaiproject.util.ParameterParser;
+import org.sakaiproject.util.RequestFilter;
 import org.sakaiproject.util.Resource;
 import org.sakaiproject.util.ResourceLoader;
 import org.sakaiproject.util.Validator;
-import org.sakaiproject.util.FileItem;
+import org.sakaiproject.util.api.FormattedText;
+import org.sakaiproject.util.comparator.GroupTitleComparator;
+import org.sakaiproject.util.comparator.ResourceTypeLabelComparator;
+import org.w3c.dom.Element;
 
-import static org.sakaiproject.content.util.IdUtil.isolateContainingId;
-import static org.sakaiproject.content.util.IdUtil.isolateName;
+import lombok.extern.slf4j.Slf4j;
 
 /**
 * <p>ResourceAction is a ContentHosting application</p>
@@ -459,7 +458,7 @@ public class ResourcesAction
 	private static final String RESOURCEBUNDLE = "resource.bundle.shared";
 	private final String resourceClass = ServerConfigurationService.getString(RESOURCECLASS, DEFAULT_RESOURCECLASS);
 	private final String resourceBundle = ServerConfigurationService.getString(RESOURCEBUNDLE, DEFAULT_RESOURCEBUNDLE);
-	private final ResourceLoader srb = new Resource().getLoader(resourceClass, resourceBundle);
+	private final ResourceLoader srb = Resource.getResourceLoader(resourceClass, resourceBundle);
 	
 	static final ResourceConditionsHelper conditionsHelper = new ResourceConditionsHelper();
 
@@ -787,6 +786,9 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 	/** the site title */
 	private static final String STATE_SITE_TITLE = PREFIX + REQUEST + "site_title";
 
+	/** the site ID */
+	private static final String STATE_SITE_ID = PREFIX + REQUEST + "site_id";
+
 	/** The sort ascending or decending */
 	private static final String STATE_SORT_ASC = PREFIX + REQUEST + "sort_asc";
 
@@ -868,7 +870,6 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 	
 	/** the interval (in days) the the soft-deleted content will be automatically permanently removed **/
 	public static final String STATE_CLEANUP_DELETED_CONTENT_INTERVAL= "state_cleanup_deleted_content_interval";
-	
 	// may need to distinguish permission on entity vs permission on its containing collection
 	static
 	{
@@ -970,7 +971,6 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 									SessionState state)
 	{
 		log.debug("ResourcesAction.buildMoreContext()");
-		context.put("tlang",rb);
 		
 		// find the ContentTypeImage service
 		context.put ("contentTypeImageService", state.getAttribute (STATE_CONTENT_TYPE_IMAGE_SERVICE));
@@ -3722,7 +3722,6 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 	public String buildColumnsContext(VelocityPortlet portlet, Context context, RunData data, SessionState state) 
 	{
 		log.debug("{}.buildColumnsContext()", this);
-		context.put("tlang",trb);
 		
 		// need to check permissions
 		
@@ -3867,7 +3866,6 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 	public String buildCreateWizardContext(VelocityPortlet portlet, Context context, RunData data, SessionState state) 
 	{
 		log.debug("{}.buildCreateWizardContext()", this);
-		context.put("tlang",trb);
 		context.put("metaLang", metaLang);
 		context.put("site_id", toolManager.getCurrentPlacement().getContext());
 
@@ -3984,7 +3982,6 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 											SessionState state)
 	{
 		log.debug("{}.buildDeleteConfirmContext()", this);
-		context.put("tlang",rb);
 		// find the ContentTypeImage service
 		context.put ("contentTypeImageService", state.getAttribute (STATE_CONTENT_TYPE_IMAGE_SERVICE));
 		context.put ("collectionId", state.getAttribute (STATE_COLLECTION_ID) );
@@ -4038,7 +4035,6 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 	public String buildDeleteFinishContext(VelocityPortlet portlet, Context context, RunData data, SessionState state)
 	{
 		log.debug("{}.buildDeleteFinishContext()", this);
-		context.put("tlang",trb);
 		context.put ("collectionId", state.getAttribute (STATE_COLLECTION_ID) );
 
 		//%%%% FIXME
@@ -4087,10 +4083,6 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 										SessionState state)
 	{
 		log.debug("{}.buildListContext()", this);
-		context.put("clang",rb);
-		context.put("tlang",trb);
-		context.put("slang",srb);
-		
 		// Issue SAK-19442
 		// ... pass the resource loader object
 		ResourceLoader pRb = new ResourceLoader("permissions");
@@ -4135,21 +4127,8 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 			registry = (ResourceTypeRegistry) ComponentManager.get("org.sakaiproject.content.api.ResourceTypeRegistry");
 			state.setAttribute(STATE_RESOURCES_TYPE_REGISTRY, registry);
 		}
-		
-		String currentSiteId = toolManager.getCurrentPlacement().getContext();
-		boolean inMyWorkspace = siteService.isUserSite(currentSiteId);
-		//are we in the admin site of !admin or ~admin
-		boolean isSpecialSite = false;
-		if ("!admin".equals(currentSiteId) || "~admin".equals(currentSiteId)) {
-			isSpecialSite = true;
-			// SAK-30085
-			context.put("showJumpToResourceForm", true);
-		}
-		
-		
-		context.put("inMyWorkspace", Boolean.toString(inMyWorkspace));
 
-		boolean atHome = false;
+		String currentSiteId = toolManager.getCurrentPlacement().getContext();
 
 		// %%STATE_MODE_RESOURCES%%
 
@@ -4169,12 +4148,7 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 					site_groups.addAll(site.getGroups());
 					if(site_groups.size() > 0)
 					{
-						Collections.sort(site_groups, new Comparator<Group>()
-						{
-							public int compare(Group g0, Group g1) {
-								return g0.getTitle().compareToIgnoreCase(g1.getTitle());						
-							}
-						});
+						Collections.sort(site_groups, new GroupTitleComparator());
 						context.put("dropboxGroupFilter_groups", site_groups);
 						context.put("showDropboxGroupFilter", showDropboxGroupFilter.toString());
 						String dropboxGroupFilter_groupId = (String) state.getAttribute("dropboxGroupFilter_groupId");
@@ -4235,11 +4209,12 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 		context.put ("collectionId", collectionId);
 		String navRoot = (String) state.getAttribute(STATE_NAVIGATION_ROOT);
 		String homeCollectionId = (String) state.getAttribute(STATE_HOME_COLLECTION_ID);
+		boolean atHome = collectionId.equals(homeCollectionId);
+		context.put("atHome", atHome);
 
 		String siteTitle = (String) state.getAttribute (STATE_SITE_TITLE);
 		if (collectionId.equals(homeCollectionId))
 		{
-			atHome = true;
 			context.put ("collectionDisplayName", state.getAttribute (STATE_HOME_COLLECTION_DISPLAY_NAME));
 		}
 		else
@@ -4253,50 +4228,10 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 			catch (TypeException e) {}
 			catch (PermissionException e) {}
 		}
-		boolean allowUpdateSite = siteService.allowUpdateSite(toolManager.getCurrentPlacement().getContext());
-		if(atHome && siteService.allowUpdateSite(toolManager.getCurrentPlacement().getContext()))
-		{
-			if(dropboxMode)
-			{
-				context.put("showDropboxOptions", Boolean.TRUE.toString());
-				context.put("showDropboxMultipleFoldersUpload", Boolean.TRUE.toString());
-			}
-			else
-			{
-				
-				if(!inMyWorkspace && !isSpecialSite)
-				{
-					context.put("showPermissions", Boolean.TRUE.toString());
-					//buildListMenu(portlet, context, data, state);
-				}
-				
-				String home = (String) state.getAttribute(STATE_HOME_COLLECTION_ID);
-				Reference ref = entityManager.newReference(contentHostingService.getReference(home));
-				String siteId = ref.getContext();
-				Map<String,Boolean> statusMap = registry.getMapOfResourceTypesForContext(siteId);
-				if(statusMap != null && ! statusMap.isEmpty() && !isSpecialSite)
-				{
-					context.put("showOptions", Boolean.TRUE.toString());
-				}
-			}
-		}
-		
-		if (! isSpecialSite) {
-			context.put("showQuota", dropboxMode || allowUpdateSite);
-		} else {
-			context.put("showQuota", false);
-		}
-		
-		context.put("atHome", Boolean.toString(atHome));
 
 		if(contentHostingService.isAvailabilityEnabled())
 		{
 			context.put("availability_is_enabled", Boolean.TRUE);
-		}
-
-		boolean showWebdavLink = ServerConfigurationService.getBoolean("resources.show_webdav.link", Boolean.TRUE);
-		if (showWebdavLink) {
-			context.put("showWebdavLink", Boolean.TRUE);
 		}
 
 		Comparator userSelectedSort = (Comparator) state.getAttribute(STATE_LIST_VIEW_SORT);
@@ -4445,16 +4380,6 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 				String[] args = {site.getTitle()};
 				item.setName(trb.getFormattedMessage("title.resources", (Object[])args));
 			}
-			
-			
-//			if(atHome && dropboxMode)
-//			{
-//				item.setName(siteTitle + " " + rb.getString("gen.drop"));
-//			}
-//			else if(atHome)
-//			{
-//				item.setName(siteTitle + " " + rb.getString("gen.reso"));
-//			}
 
 			context.put("site", items);
 
@@ -4633,11 +4558,6 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 		context.put("labeler", new ResourceTypeLabeler());
 		
 		contentPrintResultIntoContext(data, context, state);
-		
-		// whether the user can revise any resources in this site
-		// used for showing the restore deleted files interface
-		context.put("canDeleteResource", canDeleteResource());
-		
 		// output the current session user id
 		context.put("userId", sessionManager.getCurrentSessionUserId());
 		
@@ -4782,8 +4702,39 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 											SessionState state)
 	{
 		log.debug("{}.buildMainPanelContext()", this);
-		// find the ContentTypeImage service
-		
+
+		/********** Start of top menu attributes ********************************/
+		String siteId = toolManager.getCurrentPlacement().getContext();
+		String homeCollectionId = (String) state.getAttribute(STATE_HOME_COLLECTION_ID);
+		String collectionId = (String) state.getAttribute (STATE_COLLECTION_ID);
+		boolean atHome = StringUtils.isNotBlank(collectionId) && collectionId.equals(homeCollectionId);
+		boolean allowUpdateSite = siteService.allowUpdateSite(toolManager.getCurrentPlacement().getContext());
+		ResourceTypeRegistry registry = (ResourceTypeRegistry) state.getAttribute(STATE_RESOURCES_TYPE_REGISTRY);
+		if(registry == null) {
+			registry = (ResourceTypeRegistry) ComponentManager.get("org.sakaiproject.content.api.ResourceTypeRegistry");
+			state.setAttribute(STATE_RESOURCES_TYPE_REGISTRY, registry);
+		}
+		Map<String,Boolean> statusMap = registry.getMapOfResourceTypesForContext(siteId);
+		boolean dropboxMode = RESOURCES_MODE_DROPBOX.equalsIgnoreCase((String) state.getAttribute(STATE_MODE_RESOURCES));
+		boolean inMyWorkspace = siteService.isUserSite(siteId);
+		boolean isSpecialSite = StringUtils.equalsAny(siteId, "!admin", "~admin");
+
+		context.put("canDeleteResource", canDeleteResource());
+		context.put("tlang", trb);
+		context.put("clang", rb);
+		context.put("slang", srb);
+		context.put("siteId", siteId);
+		context.put("atHome", atHome);
+		context.put("inMyWorkspace", inMyWorkspace);
+		context.put("dropboxMode", dropboxMode);
+		context.put("showDropboxOptions", atHome && allowUpdateSite && dropboxMode);
+		context.put("showQuota", !isSpecialSite && (dropboxMode || allowUpdateSite));
+		context.put("showPermissions", !inMyWorkspace && !isSpecialSite && !dropboxMode && allowUpdateSite);
+		context.put("showOptions", statusMap != null && !statusMap.isEmpty() && !isSpecialSite && allowUpdateSite && !dropboxMode);
+		context.put("showJumpToResourceForm", isSpecialSite);
+		context.put("showWebdavLink", ServerConfigurationService.getBoolean("resources.show_webdav.link", Boolean.TRUE));
+		/********** End of top menu attributes ********************************/
+
 		context.put ("contentTypeImageService", state.getAttribute (STATE_CONTENT_TYPE_IMAGE_SERVICE));
 		
 		context.put("copyright_alert_url", COPYRIGHT_ALERT_URL);
@@ -4929,10 +4880,7 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 	public String buildMakeSitePageContext(VelocityPortlet portlet, Context context,
 			RunData data, SessionState state) {	
 		log.debug("{}.buildMakeSitePage()", this);
-		
-		context.put("tlang", trb);
 		context.put("page", state.getAttribute(STATE_PAGE_TITLE));
-		
 		return TEMPLATE_MAKE_SITE_PAGE;
 	}
 	
@@ -5019,12 +4967,10 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 											SessionState state)
 	{
 		log.debug("{}.buildOptionsPanelContext()", this);
-		context.put("tlang",trb);
 		String home = (String) state.getAttribute(STATE_HOME_COLLECTION_ID);
 		Reference ref = entityManager.newReference(contentHostingService.getReference(home));
 		String siteId = ref.getContext();
 
-		context.put("siteId", siteId);
 		context.put("form-submit", BUTTON + "doUpdateOptions");
 		context.put("form-cancel", BUTTON + "doCancelOptions");
 		Object[] args = { siteService.getSiteDisplay(siteId) };
@@ -5041,14 +4987,7 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 		context.put("statusMap", statusMap);
 		
 		List types = new ArrayList(registry.getTypes());
-		Collections.sort(types, new Comparator(){
-
-			public int compare(Object arg0, Object arg1) {
-				ResourceType type0 = (ResourceType) arg0;
-				
-				ResourceType type1 = (ResourceType) arg1;
-				return type0.getLabel().compareToIgnoreCase(type1.getLabel());
-			}});
+		Collections.sort(types, new ResourceTypeLabelComparator());
 		
 		context.put("types", types);
 
@@ -5064,12 +5003,10 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 											RunData data,
 											SessionState state)
 	{
-		context.put("tlang",trb);
 		String home = (String) state.getAttribute(STATE_HOME_COLLECTION_ID);
 		Reference ref = entityManager.newReference(contentHostingService.getReference(home));
 		String siteId = ref.getContext();
 
-		context.put("siteId", siteId);
 		context.put("form-submit", BUTTON + "doUpdateDropboxOptions");
 		context.put("form-cancel", BUTTON + "doCancelDropboxOptions");
 		Object[] args = { siteService.getSiteDisplay(siteId) };
@@ -5173,8 +5110,6 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 	 */
 	public String buildRestoreContext(VelocityPortlet portlet, Context context, RunData data, SessionState state) 
 	{
-		context.put("tlang",rb);
-		
 		String rootFolderId = (String) state.getAttribute(STATE_HOME_COLLECTION_ID);
 
 		context.put("rootFolderId", rootFolderId);
@@ -5372,8 +5307,6 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 	public String buildReorderContext(VelocityPortlet portlet, Context context, RunData data, SessionState state) 
 	{
 		log.debug("{}.buildReorderContext()", this);
-		context.put("tlang",rb);
-		
 		String folderId = (String) state.getAttribute(STATE_REORDER_FOLDER);
 		context.put("folderId", folderId);
 		
@@ -5405,10 +5338,6 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 
 		String homeCollectionId = (String) state.getAttribute(STATE_HOME_COLLECTION_ID);
 
-		boolean atHome = false;
-
-		context.put("atHome", Boolean.toString(atHome));
-
 		List cPath = getCollectionPath(state);
 		context.put ("collectionPath", cPath);
 
@@ -5422,7 +5351,6 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 		String rootTitle = (String) state.getAttribute (STATE_SITE_TITLE);
 		if (folderId.equals(homeCollectionId))
 		{
-			atHome = true;
 			String siteTitle = (String) state.getAttribute (STATE_SITE_TITLE);
 			rootTitle = siteTitle + " " + rb.getString("gen.reso");
 		}
@@ -5461,7 +5389,6 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 	public String buildReviseMetadataContext(VelocityPortlet portlet, Context context, RunData data, SessionState state)
 	{
 		log.debug("{}.buildReviseMetadataContext()", this);
-		context.put("tlang", trb);
 		context.put("metaLang", metaLang);
 
 		context.put("DETAILS_FORM_NAME", "detailsForm");
@@ -5597,19 +5524,14 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 										SessionState state)
 	{
 		log.debug("{}.buildWebdavContext()", this);
-		context.put("tlang",rb);
 		// find the ContentTypeImage service
 		context.put ("contentTypeImageService", state.getAttribute (STATE_CONTENT_TYPE_IMAGE_SERVICE));
 
-		boolean inMyWorkspace = siteService.isUserSite(toolManager.getCurrentPlacement().getContext());
-		context.put("inMyWorkspace", Boolean.toString(inMyWorkspace));
 		String homeCollectionId = (String) state.getAttribute (STATE_HOME_COLLECTION_ID);
 
-		boolean dropboxMode = RESOURCES_MODE_DROPBOX.equalsIgnoreCase((String) state.getAttribute(STATE_MODE_RESOURCES));
-		context.put("dropboxMode", Boolean.toString(dropboxMode));
 		boolean maintainer = false;
-		if(dropboxMode)
-		{
+		String modeResources = (String) state.getAttribute(STATE_MODE_RESOURCES);
+		if(RESOURCES_MODE_DROPBOX.equalsIgnoreCase(modeResources)) {
 			String[] parts = homeCollectionId.split(Entity.SEPARATOR);
 			if(parts.length >= 4)
 			{
@@ -5685,6 +5607,8 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 		}
 		
 		String siteId = toolManager.getCurrentPlacement().getContext();
+		boolean inMyWorkspace = siteService.isUserSite(toolManager.getCurrentPlacement().getContext());
+		boolean dropboxMode = RESOURCES_MODE_DROPBOX.equalsIgnoreCase((String) state.getAttribute(STATE_MODE_RESOURCES));
 		boolean changed = false;
 
 		if (!inMyWorkspace && !dropboxMode && m_siteAlias)
@@ -5739,7 +5663,6 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 										SessionState state)
 	{
 		log.debug("{}.buildQuotaContext()", this);
-		context.put("tlang",rb);
 		// find the ContentTypeImage service
 		
 		boolean dropboxMode = RESOURCES_MODE_DROPBOX.equalsIgnoreCase((String) state.getAttribute(STATE_MODE_RESOURCES));
@@ -5930,14 +5853,11 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 				{
 					entity = contentService.getCollection(deleteId);
 				}
-				else if(contentService.allowRemoveResource(deleteId))
+				else
 				{
 					entity = contentService.getResource(deleteId);
 				}
-				else
-				{
-					
-				}
+				
 				ListItem item = new ListItem(entity);
 				if(item.isCollection() && contentService.allowRemoveCollection(deleteId))
 				{
@@ -8507,6 +8427,19 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 			state.setAttribute(STATE_SITE_TITLE, title);
 		}
 
+		if (state.getAttribute(STATE_SITE_ID) == null)
+		{
+			String id = "";
+			try
+			{
+				id = ((Site) siteService.getSite(toolManager.getCurrentPlacement().getContext())).getId();
+			}
+			catch (IdUnusedException e)
+			{	// ignore
+			}
+			state.setAttribute(STATE_SITE_ID, id);
+		}
+
 		getExpandedCollections(state).clear();
 		state.setAttribute(STATE_EXPANDED_FOLDER_SORT_MAP, new HashMap());
 		
@@ -9022,7 +8955,7 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 	{
 		log.debug("{}.processHtmlDocumentFromBrowser()", this);
 		StringBuilder alertMsg = new StringBuilder();
-		String text = FormattedText.processHtmlDocument(strFromBrowser, alertMsg);
+		String text = ComponentManager.get(FormattedText.class).processHtmlDocument(strFromBrowser, alertMsg);
 		if (alertMsg.length() > 0) addAlert(state, alertMsg.toString());
 		return text;
 	}
@@ -9417,8 +9350,6 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 	 * @return
 	 */
 	public String buildDropboxMultipleFoldersUploadPanelContext(VelocityPortlet portlet, Context context, RunData data, SessionState state) {
-	    context.put("tlang", trb);
-	    context.put("clang", rb);
 	    String home = (String) state.getAttribute(STATE_HOME_COLLECTION_ID);
 	    List<List<String>> usersDropboxList = new ArrayList();
 	    try {
@@ -9543,7 +9474,7 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 	        return;
 
 	    } else if (fileitem.getFileName().length() > 0) {
-	        String filename = Validator.getFileName(fileitem.getFileName());
+	        String filename = FilenameUtils.getName(fileitem.getFileName());
 	        if (displayName == null) {
 	            displayName = filename;
 	        } else if ("".equals(displayName)) {
@@ -9944,7 +9875,6 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 	 */
 	public String buildShowFinishContext(VelocityPortlet portlet, Context context, RunData data, SessionState state)
 	{
-	    context.put("tlang",trb);
 	    context.put ("collectionId", state.getAttribute (STATE_COLLECTION_ID) );
 
 
@@ -9975,7 +9905,6 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 	 */
 	public String buildHideFinishContext(VelocityPortlet portlet, Context context, RunData data, SessionState state)
 	{
-	    context.put("tlang",trb);
 	    context.put ("collectionId", state.getAttribute (STATE_COLLECTION_ID) );
 
 	    List hideItems = (List) state.getAttribute(STATE_HIDE_SET);
@@ -10332,6 +10261,10 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 	 */
 	public void doZipDownloadconfirm(RunData data)
 	{
+		if (!"POST".equals(data.getRequest().getMethod())) {
+			return;
+		}
+
 		SessionState state = ((JetspeedRunData)data).getPortletSessionState (((JetspeedRunData)data).getJs_peid ());
 
 		// cancel copy if there is one in progress
@@ -10372,71 +10305,67 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 	protected void zipDownloadItems(SessionState state, Set<String> zipDownloadIdSet)
 	{
 		List<ListItem> zipDownloadItems = new ArrayList<>();
+		// Set to hold the names of files that exceed that maximum size for zipping. 
+		Set<String> zipSingleFileSizeExceeded = new HashSet<>();
 
-		String zipMaxIndividualFileSizeString = ServerConfigurationService.getString("content.zip.download.maxindividualfilesize","0");
-		String zipMaxTotalSizeString = ServerConfigurationService.getString("content.zip.download.maxtotalsize","0");
-		long zipMaxIndividualFileSize=Long.parseLong(zipMaxIndividualFileSizeString);
-		long zipMaxTotalSize=Long.parseLong(zipMaxTotalSizeString);
+		long zipMaxIndividualFileSize = Long.parseLong(ServerConfigurationService.getString("content.zip.download.maxindividualfilesize","0"));
+		long zipMaxTotalSize = Long.parseLong(ServerConfigurationService.getString("content.zip.download.maxtotalsize","0"));
 		long accumulatedSize=0;
 		long currentEntitySize=0;
 
 		ContentHostingService contentService = contentHostingService;
 
-		for(String showId : zipDownloadIdSet)
-		{
+		for (String showId : zipDownloadIdSet) {
 			ContentEntity entity = null;
-			try
-			{
-				if(contentService.isCollection(showId))
-				{
-					entity = contentService.getCollection(showId);
-					currentEntitySize = getCollectionRecursiveSize((ContentCollection)entity,zipMaxIndividualFileSize);
-
-					if (currentEntitySize == -1)
-					{
-						addAlert(state, trb.getFormattedMessage("zipdownload.maxIndividualSizeInFolder",removeRootCollectionId(showId),zipMaxIndividualFileSize/1024/1024));
-						state.setAttribute(STATE_MODE, MODE_LIST);
-						break;
+			try {
+				if (contentService.isCollection(showId)) {
+					if (contentService.allowGetCollection(showId)) {
+						entity = contentService.getCollection(showId);
+						currentEntitySize = getCollectionRecursiveSize((ContentCollection) entity, zipMaxIndividualFileSize, zipMaxTotalSize, zipSingleFileSizeExceeded);
 					}
-				}
-				else if(contentService.allowGetResource(showId))
-				{
+				} else if (contentService.allowGetResource(showId)) {
 					entity = contentService.getResource(showId);
-					currentEntitySize = ((ContentResource)entity).getContentLength();
-					if (currentEntitySize > zipMaxIndividualFileSize)
-					{
-						addAlert(state, trb.getFormattedMessage("zipdownload.maxIndividualSize",removeRootCollectionId(showId),zipMaxIndividualFileSize/1024/1024));
-						state.setAttribute(STATE_MODE, MODE_LIST);
-						break;
+					currentEntitySize = ((ContentResource) entity).getContentLength();
+					if (currentEntitySize > zipMaxIndividualFileSize) {
+						// Work out the file path without the site ID.
+						String filePath = entity.getId().replace("/group/" + toolManager.getCurrentPlacement().getContext(), "");
+						zipSingleFileSizeExceeded.add(filePath);
 					}
 				}
 
 				accumulatedSize = accumulatedSize + currentEntitySize;
 
-				if (accumulatedSize > zipMaxTotalSize)
-				{
-					addAlert(state, trb.getFormattedMessage("zipdownload.maxTotalSize",zipMaxTotalSize/1024/1024));
-					state.setAttribute(STATE_MODE, MODE_LIST);
-					break;
+				if (accumulatedSize > zipMaxTotalSize) {
+					throw new ZipMaxTotalSizeException();
 				}
 
 				ListItem item = new ListItem(entity);
-				if(item.isCollection() && contentService.allowGetCollection(showId))
-				{
+				if (item.isCollection() && contentService.allowGetCollection(showId)) {
 					item.setSize(ResourcesAction.getFileSizeString(currentEntitySize, rb));
 					zipDownloadItems.add(item);
-				}
-				else if(!item.isCollection() && contentService.allowGetResource(showId))
-				{
+				} else if (!item.isCollection() && contentService.allowGetResource(showId)) {
 					zipDownloadItems.add(item);
 				}
-			}
-			catch (SakaiException e)
-			{
-				log.error("Failed to include {} in Zipfile", showId, e);
+			} catch (ZipMaxTotalSizeException tse) {
+				addAlert(state, trb.getFormattedMessage("zipdownload.maxTotalSize", getFileSizeString(zipMaxTotalSize, rb)));
+				state.setAttribute(STATE_MODE, MODE_LIST);
+				// abort loop so alert not repeated.
+				break;
+			} catch (IdUnusedException ide) {
+				log.warn("IdUnusedException", ide);
+			} catch (TypeException te) {
+				log.warn("TypeException", te);
+			} catch (PermissionException pe) {
+				log.warn("PermissionException", pe);
 			}
 		}
-
+		if (!zipSingleFileSizeExceeded.isEmpty()) {
+			// We want to alert about all files that exceed the individual zip size so need to process the whole zipDownloadIdSet before alerting.
+			for (String zipSingleFile : zipSingleFileSizeExceeded) {
+				addAlert(state, trb.getFormattedMessage("zipdownload.maxIndividualSizeInFolder", zipSingleFile, getFileSizeString(zipMaxIndividualFileSize, rb)));
+			}
+			state.setAttribute(STATE_MODE, MODE_LIST);
+		}
 		state.setAttribute (STATE_ZIPDOWNLOAD_SET, zipDownloadItems);
 	}
 
@@ -10449,7 +10378,6 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 	 */
 	public String buildZipDownloadFinishContext(VelocityPortlet portlet, Context context, RunData data, SessionState state)
 	{
-		context.put("tlang",trb);
 		context.put ("collectionId", state.getAttribute (STATE_COLLECTION_ID) );
 
 		List zipDownloadItems = (List) state.getAttribute(STATE_ZIPDOWNLOAD_SET);
@@ -10458,182 +10386,38 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 		return TEMPLATE_ZIPDOWNLOAD_FINISH;
 	}
 
-	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException
+	public void doFinalizeZipDownload(RunData data)
 	{
-		String action = request.getParameter("eventSubmit_doFinalizeZipDownload");
-
-		if ((action==null)||(action.isEmpty()))
-		{
-			super.doPost(request,response);
+		if (!"POST".equals(data.getRequest().getMethod())) {
 			return;
 		}
 
-		checkRunData(request);
-		JetspeedRunData rundata = (JetspeedRunData) request.getAttribute(ATTR_RUNDATA);
-		SessionState state = rundata.getPortletSessionState (rundata.getJs_peid ());
+		SessionState state = ((JetspeedRunData)data).getPortletSessionState (((JetspeedRunData)data).getJs_peid ());
 		List<ListItem> zipDownloadItems = (List<ListItem>) state.getAttribute(STATE_ZIPDOWNLOAD_SET);
 
-		String collectionId = (String) request.getParameter("collectionId");
-		ZipOutputStream zipOut = null;
-		try
-		{
-			ContentCollection collection = contentHostingService.getCollection(collectionId);
-			ResourceProperties props = collection.getProperties();
-			String rootFolderName = escapeInvalidCharsEntry(props.getPropertyFormatted(props.getNamePropDisplayName()));
+		ThreadLocalManager threadLocalManager = ComponentManager.get(ThreadLocalManager.class);
+		HttpServletResponse response = (HttpServletResponse)threadLocalManager.get(RequestFilter.CURRENT_HTTP_RESPONSE);
 
-			response.setContentType("application/zip;charset=UTF-8");
-			response.setHeader("Content-Disposition", "attachment; filename = "+rootFolderName.replace(" ","")+".zip");
-			zipOut = new ZipOutputStream(response.getOutputStream());
+		List<String> selectedFolderIds = new ArrayList<>();
+		List<String> selectedFiles = new ArrayList<>();
+		for (ListItem listItem : zipDownloadItems) {
+			if (listItem.isCollection()) {
+				selectedFolderIds.add(listItem.getId());
+			} else {
+				selectedFiles.add(listItem.getId());
+			}
+		}
 
-			Iterator<ListItem> it = zipDownloadItems.iterator();
-			while(it.hasNext())
-			{
-				ListItem myElement = it.next();
-				String resourceId = myElement.getId();
-				boolean get = contentHostingService.allowGetResource(resourceId);
-				if (get) compressResource(zipOut, collectionId, rootFolderName, resourceId);
-			}
-		}
-		catch (PermissionException pe)
-		{
-			try
-			{
-				response.sendError(HttpServletResponse.SC_FORBIDDEN);
-			}
-			catch (IOException e)
-			{
-				log.error("IOException when reporting permission exception",e);
-			}
-		}
-		catch (Throwable ignore)
-		{
-			try
-			{
-				response.sendError(HttpServletResponse.SC_NO_CONTENT);
-			}
-			catch (IOException e)
-			{
-				log.error("IOException when reporting unavailable content",e);
-			}
-		}
-		finally
-		{
-			if (zipOut != null)
-			{
-				try
-				{
-					zipOut.flush();
-					zipOut.close();
-				}
-				catch (Throwable ignore)
-				{
-					log.warn("Throwable exception",ignore);
-				}
-			}
-		}
+		// Use the site title for the zip name, remove spaces though.
+		String siteTitle = (String) state.getAttribute(STATE_SITE_TITLE);
+		siteTitle = siteTitle.replace(" ", "");
+		new ZipContentUtil().compressSelectedResources((String)state.getAttribute(STATE_SITE_ID), siteTitle, selectedFolderIds, selectedFiles, response);
 	}
 
-	protected void compressResource(ZipOutputStream zipOut, String collectionId, String rootFolderName, String resourceId) throws Exception
+	private long getCollectionRecursiveSize(ContentCollection currentCollection, long maxIndividualFileSize, long zipMaxTotalSize, Set<String> zipSingleFileSizeExceeded) throws ZipMaxTotalSizeException
 	{
-		if (contentHostingService.isCollection(resourceId))
-		{
-			try
-			{
-				ContentCollection collection = contentHostingService.getCollection(resourceId);
-				List<String> children = collection.getMembers();
-				if(children != null)
-				{
-					for(int i = children.size() - 1; i >= 0; i--)
-					{
-						String child = children.get(i);
-						compressResource(zipOut,collectionId,rootFolderName,child);
-					}
-				}
-			}
-			catch (PermissionException e)
-			{
-				//Ignore
-			}
-		}
-		else
-		{
-			try
-			{
-				ContentResource resource = contentHostingService.getResource(resourceId);
-				String displayName = isolateName(resource.getId());
-				displayName = escapeInvalidCharsEntry(displayName);
-
-				InputStream content = resource.streamContent();
-				byte data[] = new byte[1024 * 10];
-				BufferedInputStream bContent = null;
-
-				try
-				{
-					bContent = new BufferedInputStream(content, data.length);
-					
-					String entryName = (resource.getContainingCollection().getId() + displayName);
-					entryName=entryName.replace(collectionId,rootFolderName+"/");
-					entryName = escapeInvalidCharsEntry(entryName);
-
-					ZipEntry resourceEntry = new ZipEntry(entryName);
-					zipOut.putNextEntry(resourceEntry); //A duplicate entry throw ZipException here.
-					int bCount;
-					while ((bCount = bContent.read(data, 0, data.length)) != -1)
-					{
-						zipOut.write(data, 0, bCount);
-					}
-
-					try
-					{
-						zipOut.closeEntry();
-					}
-					catch (IOException ioException)
-					{
-						log.error("IOException when closing zip file entry",ioException);
-					}
-				}
-				catch (IllegalArgumentException iException)
-				{
-					log.error("IllegalArgumentException while creating zip file",iException);
-				}
-				catch (java.util.zip.ZipException e)
-				{
-					//Duplicate entry: ignore and continue.
-					try
-					{
-						zipOut.closeEntry();
-					}
-					catch (IOException ioException)
-					{
-						log.error("IOException when closing zip file entry",ioException);
-					}
-				}
-				finally
-				{
-					if (bContent != null)
-					{
-						try
-						{
-							bContent.close();
-						}
-						catch (IOException ioException)
-						{
-							log.error("IOException when closing zip file",ioException);
-						}
-					}
-				}
-			}
-			catch (PermissionException e)
-			{
-				//Ignore
-			}
-		}
-	}
-
-	private long getCollectionRecursiveSize(ContentCollection currentCollection, long maxIndividualFileSize)
-	{
-		//-1 if any file exceeds the individual max size
 		long total=0;
+
 		List items = currentCollection.getMemberResources();
 		Iterator it = items.iterator();
 		while(it.hasNext())
@@ -10642,29 +10426,25 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 			if (myElement.isResource()) 
 			{
 				long tempSize = ((ContentResource)myElement).getContentLength();
-				if (tempSize > maxIndividualFileSize) {return -1;}
+				if (tempSize > maxIndividualFileSize) {
+					// Work out the file path without the site ID.
+					String filePath = myElement.getId().replace("/group/" + toolManager.getCurrentPlacement().getContext(), "");
+
+					zipSingleFileSizeExceeded.add(filePath);
+				}
 				else {total=total+tempSize;}
 			}
 			else if (myElement.isCollection())
 			{
-				long tempSize = getCollectionRecursiveSize((ContentCollection)myElement,maxIndividualFileSize);
-				if (tempSize == -1) {return -1;}
+				long tempSize = getCollectionRecursiveSize((ContentCollection)myElement, maxIndividualFileSize, zipMaxTotalSize, zipSingleFileSizeExceeded);
+
+				if (tempSize > zipMaxTotalSize) {
+					throw new ZipMaxTotalSizeException();
+				}
 				else {total=total+tempSize;}
 			}
 		}
 		return total;
 	}
 
-	private String removeRootCollectionId(String resource)
-	{
-		for (int i=0;i<3;i++) {resource=resource.substring(resource.indexOf('/')+1,resource.length());}
-		return resource;
-	}
-
-	private String escapeInvalidCharsEntry(String accentedString)
-	{
-		String decomposed = Normalizer.normalize(accentedString, Normalizer.Form.NFD);
-		String cleanString = decomposed.replaceAll( "\\p{InCombiningDiacriticalMarks}+", "");
-		return cleanString;
-	}
 }	// ResourcesAction

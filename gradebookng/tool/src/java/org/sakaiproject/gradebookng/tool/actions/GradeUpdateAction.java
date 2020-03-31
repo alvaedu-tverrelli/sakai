@@ -25,7 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.wicket.ajax.AjaxRequestTarget;
 import org.apache.wicket.markup.html.panel.FeedbackPanel;
 import org.apache.wicket.spring.injection.annot.SpringBean;
@@ -132,7 +132,8 @@ public class GradeUpdateAction extends InjectableAction implements Serializable 
 		target.addChildren(page, FeedbackPanel.class);
 
 		final String rawOldGrade = params.get("oldScore").textValue();
-		final String rawNewGrade = params.get("newScore").textValue();
+		// Adding a zero to allow to score a decimal value less than 1 without adding a zero before
+		final String rawNewGrade = "0" + params.get("newScore").textValue();
 
 		if (StringUtils.isNotBlank(rawNewGrade)
 				&& (!NumberUtil.isValidLocaleDouble(rawNewGrade) || FormatHelper.validateDouble(rawNewGrade) < 0)) {

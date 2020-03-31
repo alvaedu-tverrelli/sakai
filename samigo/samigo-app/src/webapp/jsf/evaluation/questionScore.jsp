@@ -34,110 +34,41 @@ $Id$
     <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
       <head><%= request.getAttribute("html.head") %>
       <title><h:outputText value="#{evaluationMessages.title_question}" /></title>
+      <script src="/rubrics-service/webcomponents/sakai-rubrics-utils.js<h:outputText value="#{questionScores.CDNQuery}" />"></script>
+      <script type="module" src="/rubrics-service/webcomponents/rubric-association-requirements.js<h:outputText value="#{questionScores.CDNQuery}" />"></script>
       </head>
       <body onload="<%= request.getAttribute("html.body.onload") %>">
 
  <!-- JAVASCRIPT -->
 <%@ include file="/js/delivery.js" %>
 
-<script type="text/javascript">
-function toPoint(id)
-{
-  var x=document.getElementById(id).value
-  document.getElementById(id).value=x.replace(',','.')
-}
-
-function downloadAll(url){
-	window.location = url;
-}
-
-</script>
 <script>
-// RUBRICS CODE
-  var rubricChanged = false;
-  rubricsEventHandlers = function() {
-    $('body').on('rubrics-event', function(e, payload){	
-      var itemId = $(e.target).parent().attr("item-id");
-      if (payload.event == "total-points-updated") {
-        handleRubricsTotalPointChange(itemId, payload.value);
-      }
-      if (payload.event == "rubric-ratings-changed") {
-        rubricChanged = true;
-      }
-    });
-     console.log('Rubrics event handlers loaded');
-  }
-  
-  // handles point changes for assignments, updating the grade field if it exists.
-  handleRubricsTotalPointChange = function(itemId, points) {
-    var gradeField = $('.adjustedScore' + itemId);
-    if (gradeField.length && ((gradeField.val() === "" || gradeField.val() === points) || rubricChanged)) {
-      gradeField.val(points);
-    }
-  }
-
-  var imports = [
-    '/rubrics-service/imports/sakai-rubric-grading.html'
-  ];
-  var Polymerdom = 'shady';
-  var rbcstoken = <h:outputText value="'#{submissionStatus.rbcsToken}'"/>;
-  rubricsEventHandlers();
-  //opens rubric modal
-  function initRubricDialog(itemId) {
-	var modalId = "modal"+itemId;
-	var previousScore =  $('.adjustedScore' + itemId).val();
-	var modalclonedid = modalId+'cloned';
-	var cloned;
-	if($('#'+modalclonedid).length>0){
-		cloned = $('#'+modalclonedid);
-	} else {
-		cloned = $('#'+modalId).clone().attr('id',modalclonedid);
-	}
-	cloned.dialog({
-		modal: true,
-		buttons: [{
-			text:<h:outputText value="'#{evaluationMessages.saver}'"/>,
-			click: function () {
-				$(this).dialog("close");
-            }},{
-				text: <h:outputText value="'#{evaluationMessages.cancel}'"/>,
-				click: function () {
-				$(this).dialog("close");
-					cloned.remove();                
-					$('.adjustedScore' + itemId).val(previousScore);				
-				}                    
-			}],	 
-		height: "auto",
-		margin: 100,
-		width: 1100,
-		title: <h:outputText value="'#{evaluationMessages.saverubricgrading}'"/>
-	});
-  }
-  $(document).ready(function() {
-	//set back the values from the modals to the hidden inputs
-	$('#editTotalResults').submit(function (e){
-		$('[id$=cloned').each(function(){
-			var modId = $(this).attr('id').replace('cloned','');
-			$(this).find('input').each(function() {
-				var name = $(this).attr('name');
-				$('#'+modId+ ' [name="' + name + '"]').val($(this).val());			
-			});
-			var myregex = /\|[^\|]*\|/g;
-			$(this).find('textarea').each(function () {
-				for( var instance in CKEDITOR.instances){
-					var ckname = CKEDITOR.instances[instance].name.replace(myregex, '');
-					var textareaid = $(this).attr('id').replace(myregex, '');
-					if(ckname == textareaid){
-						CKEDITOR.instances[instance].setData($(this).val());
-					}
-				}
-			});
-		});
-	});
+  $(document).ready(function(){
+    // The current class is assigned using Javascript because we don't use facelets and the include directive does not support parameters.
+    var currentLink = $('#editTotalResults\\:questionScoresMenuLink');
+    currentLink.addClass('current');
+    // Remove the link of the current option
+    currentLink.html(currentLink.find('a').text());
   });
-</script>
-<script src="/rubrics-service/js/sakai-rubrics.js"></script>
 
+  function toPoint(id) {
+
+    var x = document.getElementById(id).value;
+    document.getElementById(id).value = x.replace(',', '.');
+  }
+
+  function downloadAll(url) {
+	window.location = url;
+  }
+
+  function initRubricDialogWrapper(gradingId) {
+
+    initRubricDialog(gradingId
+      , <h:outputText value="'#{evaluationMessages.save_cont}'"/>
+      , <h:outputText value="'#{evaluationMessages.cancel}'"/>
+      , <h:outputText value="'#{evaluationMessages.saverubricgrading}'"/>);
+  }
+</script>
 <!-- content... -->
 <div class="portletBody container-fluid">
 <h:form id="editTotalResults">
@@ -147,82 +78,18 @@ function downloadAll(url){
   <!-- HEADINGS -->
   <%@ include file="/jsf/evaluation/evaluationHeadings.jsp" %>
 
-  <div class="page-header">
+  <h:panelGroup layout="block" styleClass="page-header">
     <h1>
-  	  <h:outputText value="#{evaluationMessages.part} #{questionScores.partName}#{evaluationMessages.column} #{evaluationMessages.question} #{questionScores.itemName} " escape="false"/>
-      <small>
-  	    <h:outputText value="(#{totalScores.assessmentName}) " escape="false"/>
-      </small>
+      <h:outputText value="#{evaluationMessages.part} #{questionScores.partName}#{evaluationMessages.column} #{evaluationMessages.question} #{questionScores.itemName} " escape="false"/>
+      <small><h:outputText value="(#{totalScores.assessmentName}) " escape="false"/></small>
     </h1>
-  </div>
-  
-  <!-- Per UX, for formatting -->
-  <div class="textBelowHeader">
-    <h:outputText value=""/>
-  </div>
-  
-  <h:outputText value="<ul class='navIntraTool actionToolbar' role='menu'>" escape="false"/>
-    <h:outputText value="<li role='menuitem' class='firstToolBarItem'><span>" escape="false"/>
+  </h:panelGroup>
 
-    <h:commandLink title="#{evaluationMessages.t_submissionStatus}" action="submissionStatus" immediate="true">
-      <h:outputText value="#{evaluationMessages.sub_status}" />
-      <f:param name="allSubmissions" value="true"/>
-      <f:actionListener
-        type="org.sakaiproject.tool.assessment.ui.listener.evaluation.SubmissionStatusListener" />
-    </h:commandLink>
-
-    <h:outputText value="<li role='menuitem'><span>" escape="false"/>
-    <h:commandLink title="#{evaluationMessages.t_totalScores}" action="totalScores" immediate="true">
-    <f:actionListener type="org.sakaiproject.tool.assessment.ui.listener.evaluation.ResetTotalScoreListener" />
-    <f:actionListener type="org.sakaiproject.tool.assessment.ui.listener.evaluation.TotalScoreListener" />
-      <h:outputText value="#{commonMessages.total_scores}" />
-    </h:commandLink>
-
-    <h:outputText value="</span><li role='menuitem'><span class='current'>" escape="false"/>
-  
-    <h:outputText value="#{evaluationMessages.q_view}" />
-
-    <h:outputText value="</span><li role='menuitem'><span>" escape="false" rendered="#{totalScores.firstItem ne ''}" /> 
-     
-	<h:commandLink title="#{evaluationMessages.t_histogram}" action="histogramScores" immediate="true"
-      rendered="#{totalScores.firstItem ne ''}" >
-      <h:outputText value="#{evaluationMessages.stat_view}" />
-      <f:param name="hasNav" value="true"/>
-      <f:actionListener
-        type="org.sakaiproject.tool.assessment.ui.listener.evaluation.HistogramListener" />
-    </h:commandLink>
-
-    <h:outputText value="</span><li role='menuitem'><span>" escape="false" rendered="#{totalScores.firstItem ne ''}" />   
-  
-	<h:commandLink title="#{evaluationMessages.t_itemAnalysis}" action="detailedStatistics" immediate="true"
-      rendered="#{totalScores.firstItem ne ''}" >
-      <h:outputText value="#{evaluationMessages.item_analysis}" />
-      <f:param name="hasNav" value="true"/>
-      <f:actionListener
-        type="org.sakaiproject.tool.assessment.ui.listener.evaluation.HistogramListener" />
-    </h:commandLink>
-
-    <h:outputText value="</span><li role='menuitem'><span>" escape="false" />
-    
-    <h:commandLink title="#{commonMessages.export_action}" action="exportResponses" immediate="true">
-      <h:outputText value="#{commonMessages.export_action}" />
-  	  <f:actionListener type="org.sakaiproject.tool.assessment.ui.listener.evaluation.ExportResponsesListener" />
-    </h:commandLink>
-    
-    <h:outputText value="</span><li role='menuitem'><span>" escape="false" rendered="#{totalScores.hasFileUpload}"/>
-
-    <h:commandLink title="#{evaluationMessages.t_title_download_file_submissions}" action="downloadFileSubmissions" immediate="true" rendered="#{totalScores.hasFileUpload}">
-      <h:outputText value="#{evaluationMessages.title_download_file_submissions}" />
-        <f:actionListener type="org.sakaiproject.tool.assessment.ui.listener.evaluation.ResetQuestionScoreListener" />
-        <f:actionListener type="org.sakaiproject.tool.assessment.ui.listener.evaluation.DownloadFileSubmissionsListener" />
-    </h:commandLink>
-    
-  <h:outputText value="</span></li></ul>" escape="false"/>
-
-<br/>
+  <!-- EVALUATION SUBMENU -->
+  <%@ include file="/jsf/evaluation/evaluationSubmenu.jsp" %>
 
 <div class="tier1">
-  <h:messages styleClass="messageSamigo" rendered="#{! empty facesContext.maximumSeverity}" layout="table"/>
+  <h:messages styleClass="sak-banner-error" rendered="#{! empty facesContext.maximumSeverity}" layout="table"/>
   
   <h:dataTable value="#{questionScores.sections}" var="partinit">
     <h:column>
@@ -354,6 +221,9 @@ function downloadAll(url){
           <h:outputText value=" - #{evaluationMessages.q_cq} (#{questionScores.maxPoint})"/>
       </small>
     </h:panelGroup>
+     <h:panelGroup rendered="#{question.isExtraCredit == true}">
+        <h:outputText styleClass="extraCreditLabel" value=" #{deliveryMessages.extra_credit_preview}" />
+     </h:panelGroup>
       </h2>
     </div>
   </t:dataList>
@@ -611,7 +481,7 @@ function downloadAll(url){
 	   <span class="itemAction">
 	   <h:panelGroup rendered="#{description.email != null && description.email != '' && email.fromEmailAddress != null && email.fromEmailAddress != ''}">
 		 <h:outputText value="<a href=\"mailto:" escape="false" />
-	     <h:outputText value="#{description.email}" escape="false" />
+	     <h:outputText value="#{description.email}" />
 	     <h:outputText value="?subject=" escape="false" />
 		 <h:outputText value="#{totalScores.assessmentName} #{commonMessages.feedback}\">" escape="false" />
          <h:outputText value="  #{evaluationMessages.email}" escape="false"/>
@@ -650,7 +520,7 @@ function downloadAll(url){
 	   <span class="itemAction">
 	   <h:panelGroup rendered="#{description.email != null && description.email != '' && email.fromEmailAddress != null && email.fromEmailAddress != ''}">
 		 <h:outputText value="<a href=\"mailto:" escape="false" />
-	     <h:outputText value="#{description.email}" escape="false" />
+	     <h:outputText value="#{description.email}" />
 	     <h:outputText value="?subject=" escape="false" />
 		 <h:outputText value="#{totalScores.assessmentName} #{commonMessages.feedback}\">" escape="false" />
          <h:outputText value="  #{evaluationMessages.email}" escape="false"/>
@@ -693,7 +563,7 @@ function downloadAll(url){
 	   <span class="itemAction">
 	   <h:panelGroup rendered="#{description.email != null && description.email != '' && email.fromEmailAddress != null && email.fromEmailAddress != ''}">
 		 <h:outputText value="<a href=\"mailto:" escape="false" />
-	     <h:outputText value="#{description.email}" escape="false" />
+	     <h:outputText value="#{description.email}" />
 	     <h:outputText value="?subject=" escape="false" />
 		 <h:outputText value="#{totalScores.assessmentName} #{commonMessages.feedback}\">" escape="false" />
          <h:outputText value="  #{evaluationMessages.email}" escape="false"/>
@@ -893,7 +763,7 @@ function downloadAll(url){
         </h:commandLink>
      </f:facet>
         <h:outputText value="#{description.submittedDate}">
-         <f:convertDateTime pattern="#{generalMessages.output_date_picker}"/>
+          <f:convertDateTime dateStyle="medium" timeStyle="short" timeZone="#{author.userTimeZone}" />
         </h:outputText>
     </h:column>
 
@@ -910,7 +780,7 @@ function downloadAll(url){
           </h:commandLink>    
       </f:facet>
         <h:outputText value="#{description.submittedDate}">
-         <f:convertDateTime pattern="#{generalMessages.output_date_picker}"/>
+          <f:convertDateTime dateStyle="medium" timeStyle="short" timeZone="#{author.userTimeZone}" />
         </h:outputText>
     </h:column>    
     
@@ -927,7 +797,7 @@ function downloadAll(url){
           </h:commandLink>    
       </f:facet>
         <h:outputText value="#{description.submittedDate}">
-         <f:convertDateTime pattern="#{generalMessages.output_date_picker}"/>
+          <f:convertDateTime dateStyle="medium" timeStyle="short" timeZone="#{author.userTimeZone}" />
         </h:outputText>
     </h:column>    
 
@@ -945,11 +815,11 @@ function downloadAll(url){
         <f:param name="sortAscending" value="true" />
         </h:commandLink>
       </f:facet>
-      <h:inputText value="#{description.totalAutoScore}" size="5" id="qscore" styleClass="adjustedScore#{description.assessmentGradingId}" required="false" onchange="toPoint(this.id);">	  
+      <h:inputText value="#{description.roundedTotalAutoScore}" size="5" id="qscore" styleClass="adjustedScore#{description.assessmentGradingId}.#{questionScores.itemId}" required="false" onchange="toPoint(this.id);">
         <f:validateDoubleRange/>
       </h:inputText>
       <h:message for="qscore" style="color:red"/>
-       <h:outputLink title="#{evaluationMessages.saverubricgrading}" rendered="#{questionScores.hasAssociatedRubric}" value="#" onclick="initRubricDialog(#{description.assessmentGradingId}); return false;" onkeypress="initRubricDialog(#{description.assessmentGradingId}); return false;" >
+       <h:outputLink title="#{evaluationMessages.saverubricgrading}" rendered="#{questionScores.hasAssociatedRubric}" value="#" onclick="initRubricDialogWrapper(#{description.assessmentGradingId}); return false;" onkeypress="initRubricDialogWrapper(#{description.assessmentGradingId}); return false;" >
         <h:outputText styleClass="fa fa-table" id="rubrics-question-icon1" title="#{authorMessages.question_use_rubric}" style="margin-left:0.5em"/>
       </h:outputLink>
       <%@ include file="/jsf/evaluation/rubricModal.jsp" %> 
@@ -968,11 +838,11 @@ function downloadAll(url){
            type="org.sakaiproject.tool.assessment.ui.listener.evaluation.QuestionScoreListener" />
           </h:commandLink>    
       </f:facet>
-	  <h:inputText value="#{description.totalAutoScore}" size="5"  id="qscore2" styleClass="adjustedScore#{description.assessmentGradingId}"  required="false" onchange="toPoint(this.id);">
+	  <h:inputText value="#{description.roundedTotalAutoScore}" size="5" id="qscore2" styleClass="adjustedScore#{description.assessmentGradingId}" required="false" onchange="toPoint(this.id);">
 	  	<f:validateDoubleRange/>
 	  </h:inputText>
 	  <h:message for="qscore2" style="color:red"/>
-	  <h:outputLink title="#{evaluationMessages.saverubricgrading}" rendered="#{questionScores.hasAssociatedRubric}" value="#" onclick="initRubricDialog(#{description.assessmentGradingId}); return false;" onkeypress="initRubricDialog(#{description.assessmentGradingId}); return false;" >
+	  <h:outputLink title="#{evaluationMessages.saverubricgrading}" rendered="#{questionScores.hasAssociatedRubric}" value="#" onclick="initRubricDialogWrapper(#{description.assessmentGradingId}); return false;" onkeypress="initRubricDialogWrapper(#{description.assessmentGradingId}); return false;" >
 	  	<h:outputText styleClass="fa fa-table" id="rubrics-question-icon2" title="#{authorMessages.question_use_rubric}" style="margin-left:0.5em"/>
 	  </h:outputLink>
 	  <%@ include file="/jsf/evaluation/rubricModal.jsp" %>
@@ -990,14 +860,14 @@ function downloadAll(url){
            type="org.sakaiproject.tool.assessment.ui.listener.evaluation.QuestionScoreListener" />
           </h:commandLink>    
       </f:facet>
-	  <h:inputText value="#{description.totalAutoScore}" size="5"  id="qscore3" styleClass="adjustedScore#{description.assessmentGradingId}" required="false" onchange="toPoint(this.id);">
+	  <h:inputText value="#{description.roundedTotalAutoScore}" size="5" id="qscore3" styleClass="adjustedScore#{description.assessmentGradingId}" required="false" onchange="toPoint(this.id);">
 	  	<f:validateDoubleRange/>
 	  </h:inputText>
 	  <h:message for="qscore2" style="color:red"/>
-	  <h:outputLink title="#{evaluationMessages.saverubricgrading}" rendered="#{questionScores.hasAssociatedRubric}" value="#" onclick="initRubricDialog(#{description.assessmentGradingId}); return false;" onkeypress="initRubricDialog(#{description.assessmentGradingId}); return false;" >
+	  <h:outputLink title="#{evaluationMessages.saverubricgrading}" rendered="#{questionScores.hasAssociatedRubric}" value="#" onclick="initRubricDialogWrapper(#{description.assessmentGradingId}); return false;" onkeypress="initRubricDialogWrapper(#{description.assessmentGradingId}); return false;" >
 	  	<h:outputText styleClass="fa fa-table" id="rubrics-question-icon3" title="#{authorMessages.question_use_rubric}" style="margin-left:0.5em"/>
 	  </h:outputLink>
-	  <%@ include file="/jsf/evaluation/rubricModal.jsp" %>
+       <%@ include file="/jsf/evaluation/rubricModal.jsp" %>
     </h:column>
 
     <!-- ANSWER -->
@@ -1019,10 +889,15 @@ function downloadAll(url){
         </h:panelGroup>
       </f:facet>
       <!-- display of answer to file upload question is diffenent from other types - daisyf -->
-      <h:outputText value="#{description.answer}" escape="false" rendered="#{questionScores.typeId != '6' && questionScores.typeId != '7' && questionScores.typeId != '5' && questionScores.typeId != '16'}" >
+      <h:outputText value="#{description.answer}" escape="false" rendered="#{questionScores.typeId != '1' and questionScores.typeId != '2' and questionScores.typeId != '9' and questionScores.typeId != '12' and questionScores.typeId != '6' && questionScores.typeId != '7' && questionScores.typeId != '5' && questionScores.typeId != '16'}" >
       	<f:converter converterId="org.sakaiproject.tool.assessment.jsf.convert.AnswerSurveyConverter" />
       </h:outputText>
-      
+
+      <%-- Multiple choice, Multiple correct, Multiple single selection and matching questions --%>
+      <h:outputText value="#{description.answer}" escape="false" rendered="#{questionScores.typeId == '1' || questionScores.typeId == '2' || questionScores.typeId == '9' || questionScores.typeId == '12'}">
+          <f:converter converterId="org.sakaiproject.tool.assessment.jsf.convert.AnswerHTMLConverter" />
+      </h:outputText>
+
     <h:panelGroup rendered="#{questionScores.selectedSARationaleView == '1' && questionScores.typeId == '5'}">
     <h:outputText value="#{description.answer}" escape="false"/>
 		<h:outputLink title="#{evaluationMessages.t_fullShortAnswer}"   value="#" onclick="window.open('/portal/tool/#{requestScope['sakai.tool.placement.id']}/jsf/evaluation/fullShortAnswer.faces?idString=#{description.assessmentGradingId}','fullShortAnswer','width=600,height=600,scrollbars=yes, resizable=yes');" onkeypress="window.open('/portal/tool/#{requestScope['sakai.tool.placement.id']}/jsf/evaluation/fullShortAnswer.faces?idString=#{description.assessmentGradingId}','fullShortAnswer','width=600,height=600,scrollbars=yes, resizable=yes');">
@@ -1043,16 +918,7 @@ function downloadAll(url){
     <h:panelGroup rendered="#{(questionScores.typeId == '1' || questionScores.typeId == '2' || questionScores.typeId == '12' || questionScores.typeId == '4') && description.rationale ne '' && questionScores.selectedSARationaleView == '2'}">
 		<h:outputText escape="false" value="#{description.rationale}"/>
     </h:panelGroup>
-    
 
-    
-<%--
-    <h:outputLink title="#{evaluationMessages.t_rationale}"
-      rendered="#{(questionScores.typeId == '1' || questionScores.typeId == '2' || questionScores.typeId == '12 || questionScores.typeId == '4') && description.rationale ne ''}" 
-      value="#" onclick="javascript:window.alert('#{description.rationale}');" onkeypress="javascript:window.alert('#{description.rationale}');" >
-    <h:outputText  value="(#{evaluationMessages.click_rationale})"/>
-    </h:outputLink>
---%>
       <h:panelGroup rendered="#{questionScores.typeId == '6'}">
         <f:subview id="displayFileUpload2">
           <%@ include file="/jsf/evaluation/item/displayFileUploadAnswer.jsp" %>
@@ -1094,8 +960,13 @@ function downloadAll(url){
           </h:commandLink>  
           </h:panelGroup>  
       </f:facet>
-      <h:outputText value="#{description.answer}" escape="false" rendered="#{questionScores.typeId != '6' and questionScores.typeId != '7' && questionScores.typeId != '5' and questionScores.typeId != '16'}" >
+      <h:outputText value="#{description.answer}" escape="false" rendered="#{questionScores.typeId != '1' and questionScores.typeId != '2' and questionScores.typeId != '9' and questionScores.typeId != '12' and questionScores.typeId != '6' and questionScores.typeId != '7' && questionScores.typeId != '5' and questionScores.typeId != '16'}" >
       	<f:converter converterId="org.sakaiproject.tool.assessment.jsf.convert.AnswerSurveyConverter" />
+      </h:outputText>
+
+      <%-- Multiple choice, Multiple correct, Multiple single selection and matching questions --%>
+      <h:outputText value="#{description.answer}" escape="false" rendered="#{questionScores.typeId == '1' || questionScores.typeId == '2' || questionScores.typeId == '9' || questionScores.typeId == '12'}">
+          <f:converter converterId="org.sakaiproject.tool.assessment.jsf.convert.AnswerHTMLConverter" />
       </h:outputText>
 
     <h:panelGroup rendered="#{questionScores.selectedSARationaleView == '1' && questionScores.typeId == '5'}">
@@ -1121,7 +992,6 @@ function downloadAll(url){
 		<h:outputText escape="false" value="#{description.rationale}"/>
     </h:panelGroup>
 
-    
     <h:panelGroup rendered="#{questionScores.typeId == '6'}">
         <f:subview id="displayFileUpload3">
           <%@ include file="/jsf/evaluation/item/displayFileUploadAnswer.jsp" %>
@@ -1161,7 +1031,12 @@ function downloadAll(url){
           </h:commandLink>    
           </h:panelGroup>
       </f:facet>
-	<h:outputText value="#{description.answer}" escape="false" rendered="#{questionScores.typeId != '6' and questionScores.typeId != '7' && questionScores.typeId != '5' and questionScores.typeId != '16'}" />
+    <h:outputText value="#{description.answer}" escape="false" rendered="#{questionScores.typeId != '1' and questionScores.typeId != '2' and questionScores.typeId != '9' and questionScores.typeId != '12' and questionScores.typeId != '6' and questionScores.typeId != '7' && questionScores.typeId != '5' and questionScores.typeId != '16'}" />
+
+    <%-- Multiple choice, Multiple correct, Multiple single selection and matching questions --%>
+    <h:outputText value="#{description.answer}" escape="false" rendered="#{ questionScores.typeId == '1' || questionScores.typeId == '2' || questionScores.typeId == '9' || questionScores.typeId == '12'}">
+        <f:converter converterId="org.sakaiproject.tool.assessment.jsf.convert.AnswerHTMLConverter" />
+    </h:outputText>
 
     <h:panelGroup rendered="#{questionScores.selectedSARationaleView == '1' && questionScores.typeId == '5'}">
     <h:outputText value="#{description.answer}" escape="false"/>
@@ -1184,7 +1059,7 @@ function downloadAll(url){
     <h:panelGroup rendered="#{(questionScores.typeId == '1' || questionScores.typeId == '2' || questionScores.typeId == '12' || questionScores.typeId == '4') && description.rationale ne '' && questionScores.selectedSARationaleView == '2'}">
 		<h:outputText escape="false" value="#{description.rationale}"/>
     </h:panelGroup>
-    
+
           <h:panelGroup rendered="#{questionScores.typeId == '6'}">
         <f:subview id="displayFileUpload4">
           <%@ include file="/jsf/evaluation/item/displayFileUploadAnswer.jsp" %>
@@ -1342,7 +1217,7 @@ function downloadAll(url){
 
 <p class="act">
    <%-- <h:commandButton value="#{evaluationMessages.save_exit}" action="author"/> --%>
-   <h:commandButton styleClass="active" value="#{evaluationMessages.save_cont}" action="questionScores" type="submit" >
+   <h:commandButton styleClass="active" value="#{evaluationMessages.saver}" action="questionScores" type="submit" >
       <f:actionListener
          type="org.sakaiproject.tool.assessment.ui.listener.evaluation.QuestionScoreUpdateListener" />
       <f:actionListener

@@ -1,4 +1,6 @@
 <!--jsp/discussionForum/area/dfAreaInclude.jsp-->
+<script src="/rubrics-service/webcomponents/sakai-rubrics-utils.js<h:outputText value="#{ForumTool.CDNQuery}" />"></script>
+<script type="module" src="/rubrics-service/webcomponents/rubric-association-requirements.js<h:outputText value="#{ForumTool.CDNQuery}" />"></script>
 <h:panelGrid columns="1" cellpadding="3" rendered="#{empty ForumTool.forums}">
 	<h:panelGroup>
 		<h:outputText styleClass="instruction noForumsMessage"  value="#{msgs.cdfm_forum_noforums} "  />
@@ -6,7 +8,7 @@
 	</h:panelGroup>
 </h:panelGrid>
 <h:outputText styleClass="accessUserCheck" style="display:none" rendered="#{ForumTool.newForum}" value="x"/>
-<script type="text/javascript">
+<script>
 $(document).ready(function() {
 	var topicLen = $('.topicBloc').length;
 	var forumLen = $('.forumHeader').length;
@@ -42,7 +44,7 @@ $(document).ready(function() {
 	setupdfAIncMenus();
 });
 </script>
-<h:outputText escape="false" value="<script type='text/javascript'>$(document).ready(function() {setupLongDesc()});</script>"  rendered="#{!ForumTool.showShortDescription}"/>
+<h:outputText escape="false" value="<script>$(document).ready(function() {setupLongDesc()});</script>"  rendered="#{!ForumTool.showShortDescription}"/>
 
 			<h:outputText styleClass="showMoreText"  style="display:none" value="#{msgs.cdfm_show_more_full_description}"  />
 
@@ -91,7 +93,14 @@ $(document).ready(function() {
 				<%-- locked marker --%>
 				<h:graphicImage url="/images/silk/lock.png" alt="#{msgs.cdfm_forum_locked}" rendered="#{forum.locked == 'true'}" style="margin-right:.5em"/>
 				<%-- Rubrics marker --%>
-				<h:outputText styleClass="fa fa-table" id="rubrics-forum-icon" rendered="#{forum.hasRubric == 'true'}" style="margin-right:.5em" title="#{msgs.cdfm_forum_rubric}"/>
+				<h:panelGroup rendered="#{forum.hasRubric == 'true'}">
+					<sakai-rubric-student-preview-button
+						display="icon"
+						token="<h:outputText value="#{ForumTool.rbcsToken}" />"
+						tool-id="sakai.gradebookng"
+						entity-id="<h:outputText value="#{forum.gradeAssign}" />">
+					</sakai-rubric-student-preview-button>
+				</h:panelGroup>
 				<h:commandLink action="#{ForumTool.processActionDisplayForum}" title=" #{forum.forum.title}" rendered="#{ForumTool.showForumLinksInNav}"  styleClass="title">
 			        <f:param value="#{forum.forum.id}" name="forumId"/>
 			        <h:outputText value="#{forum.forum.title}"/>
@@ -226,7 +235,14 @@ $(document).ready(function() {
 							<h:graphicImage url="/images/silk/date_delete.png" title="#{msgs.topic_restricted_message}" alt="#{msgs.topic_restricted_message}" rendered="#{topic.availability == 'false'}" style="margin-right:.5em"/>
 							<h:graphicImage url="/images/silk/lock.png" alt="#{msgs.cdfm_forum_locked}" rendered="#{forum.locked == 'true' || topic.locked == 'true'}" style="margin-right:.5em"/>
 							<%-- Rubrics marker --%>
-							<h:outputText styleClass="fa fa-table" id="rubrics-topic-icon" rendered="#{topic.hasRubric == 'true'}" style="margin-right:.5em" title="#{msgs.cdfm_topic_rubric}"/>
+							<h:panelGroup rendered="#{topic.hasRubric == 'true'}">
+								<sakai-rubric-student-preview-button
+									display="icon"
+									token="<h:outputText value="#{ForumTool.rbcsToken}" />"
+									tool-id="sakai.gradebookng"
+									entity-id="<h:outputText value="#{topic.gradeAssign}" />">
+								</sakai-rubric-student-preview-button>
+							</h:panelGroup>
 							<h:commandLink action="#{ForumTool.processActionDisplayTopic}" id="topic_title" title=" #{topic.topic.title}" styleClass="title">
 								<f:param value="#{topic.topic.id}" name="topicId"/>
 								<f:param value="#{forum.forum.id}" name="forumId"/>

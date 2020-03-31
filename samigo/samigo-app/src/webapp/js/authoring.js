@@ -150,16 +150,7 @@ function disablePartialCreditField(){
 }
 
 function clickAddChoiceLink(){
-
-var newindex = 0;
-for (i=0; i<document.links.length; i++) {
-  if ( document.links[i].id.indexOf("hiddenAddChoicelink") >=0){
-    newindex = i;
-    break;
-  }
-}
-
-document.links[newindex].onclick();
+  $('#itemForm\\:hiddenAddChoicelink')[0].click();
 }
 
 function clickAddEmiAnswerOptionsLink(){
@@ -260,7 +251,7 @@ $( document ).ready( function() {
             // minField may not be on the page if disabled
             if (minField) {
                 var minValue = parseFloat(minField.val());
-                if (minValue < 0 || minValue >= pointValue) {
+                if (minValue < 0 || minValue > pointValue) {
                     validationWarningSetDefault(minField, "");
                 }
             }
@@ -271,8 +262,8 @@ $( document ).ready( function() {
     $( "#itemForm\\:minPoints\\:answerminptr" ).change( function() {
         var pointValue = parseFloat( $( "#itemForm\\:answerptr" ).val() );
         var minValue = parseFloat( $( this ).val() );
-        // minValue should not be equal to or greater than pointValue
-        if (minValue < 0 || minValue >= pointValue) {
+        // minValue should not be greater than pointValue
+        if (minValue < 0 || minValue > pointValue) {
             validationWarningSetDefault($( this ), "0")
         } else {
             // minValue is valid disable negative points
@@ -396,12 +387,12 @@ function applyMenuListener(pulldown, feedbackContainerID, noFeedbackMsgID) {
 //improve feedback UI, get rid of page reload bugid:5574 -Qu 10/31/2013
 
 // If we select "No Feedback will be displayed to the student"
-// it will disable and uncheck feedback as well as blank out text, otherwise,
+// it will disable and uncheck feedback as well as blank out text, otherwise,	
 // if a different radio button is selected, we reenable feedback checkboxes & text.
 function disableAllFeedbackCheck(feedbackType)
 {
-	var noFeedback = 3;
-	
+    var noFeedback = 3;
+
     if (feedbackType == noFeedback){
      	$("#assessmentSettingsAction\\:feedbackComponentOption input").prop("disabled", true);
 		$(".respChoice input").prop({disabled:true, checked:false});
@@ -418,17 +409,23 @@ function disableAllFeedbackCheck(feedbackType)
     disableFeedbackDateCheck(feedbackType);
 }
 
+// Display the date selectors when the feedback is shown by date.
 function disableFeedbackDateCheck(feedbackType) {
 	var dateFeedback = 2;
 
     if (feedbackType == dateFeedback) {
-    	$("input#assessmentSettingsAction\\:feedbackDate.hasDatepicker").prop("disabled", false);
-    	$("td.feedbackColumn1 > img.ui-datepicker-trigger").prop("hidden", false);
+        $("#feedbackByDatePanel").show();
+        $("input#assessmentSettingsAction\\:feedbackDate.hasDatepicker").prop("disabled", false);
+        $("input#assessmentSettingsAction\\:feedbackEndDate.hasDatepicker").prop("disabled", false);
+        $("td.feedbackColumn1 > img.ui-datepicker-trigger").prop("hidden", false);
         $("td.feedbackColumn2").prop("hidden", false);
     } else {
-    	$("input#assessmentSettingsAction\\:feedbackDate.hasDatepicker").prop("disabled", true);
+        $("#feedbackByDatePanel").hide();
+        $("input#assessmentSettingsAction\\:feedbackDate.hasDatepicker").prop("disabled", true);
         $("input#assessmentSettingsAction\\:feedbackDate.hasDatepicker").val( "" );
-    	$("td.feedbackColumn1 > img.ui-datepicker-trigger").prop("hidden", true);
+        $("input#assessmentSettingsAction\\:feedbackEndDate.hasDatepicker").prop("disabled", true);
+        $("input#assessmentSettingsAction\\:feedbackEndDate.hasDatepicker").val( "" );
+        $("td.feedbackColumn1 > img.ui-datepicker-trigger").prop("hidden", true);
         $("td.feedbackColumn2").prop("hidden", true);
     }
 }
@@ -481,11 +478,15 @@ $(window).load( function() {
 
 function checkNoFeedbackOnLoad(){
 	var noFeedback = 3;
+	var feedbackByDate = 2;
 	var feedbackType = $("input[name=assessmentSettingsAction\\:feedbackDelivery]:checked").val();
 
 	if(feedbackType == noFeedback) {
 		$("#assessmentSettingsAction\\:feedbackComponentOption input").prop("disabled", true);
 		$(".respChoice input").prop('disabled', true);
+	}
+	if(feedbackType == feedbackByDate) {
+		$("#feedbackByDatePanel").show();
 	}
 	disableFeedbackDateCheck(feedbackType);
 }
@@ -765,7 +766,7 @@ function resetSelectMenus(){
 function clickInsertLink(field){
   var insertlinkid = field.id.replace("changeQType", "hiddenlink");
   var hiddenSelector = "#" + insertlinkid.replace( /(:|\.|\[|\]|,)/g, "\\$1" );
-  $(hiddenSelector).click();
+  $(hiddenSelector)[0].click()
 }
 
 // Show MathJax warning messages if applicable
@@ -773,4 +774,17 @@ if (typeof MathJax != 'undefined') {
   $(document).ready(function() {
     $(".mathjax-warning").show();
   });
+}
+
+function toggleCategories(checkbox) {
+    // Toggle categories selector. If categories are disabled it won't exist
+    // so check first.
+    var categoryDiv = $('#assessmentSettingsAction\\:toGradebookCategory');
+    if (categoryDiv.length) {
+        if ($(checkbox).prop("checked")) {
+            categoryDiv.fadeIn();
+        } else {
+            categoryDiv.fadeOut();
+        }
+    }
 }

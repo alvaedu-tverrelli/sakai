@@ -12,13 +12,20 @@
     <h:form id="dfCompose">
 			<f:verbatim><input type="hidden" id="currentTopicId" name="currentTopicId" value="</f:verbatim><h:outputText value="#{ForumTool.selectedTopic.topic.id}"/><f:verbatim>"/></f:verbatim>
 			<f:verbatim><input type="hidden" id="currentForumId" name="currentForumId" value="</f:verbatim><h:outputText value="#{ForumTool.selectedForum.forum.id}"/><f:verbatim>"/></f:verbatim>
-           		<script type="text/javascript">includeLatestJQuery("msgcntr");</script>
-       		<script type="text/javascript" src="/messageforums-tool/js/sak-10625.js"></script>
-       		<script type="text/javascript" src="/messageforums-tool/js/forum.js"></script>
-       		<script type="text/javascript" src="/messageforums-tool/js/messages.js"></script>
+           		<script>includeLatestJQuery("msgcntr");</script>
+       		<script src="/messageforums-tool/js/sak-10625.js"></script>
+       		<script src="/messageforums-tool/js/forum.js"></script>
+       		<script src="/messageforums-tool/js/messages.js"></script>
 
-
-
+      <script>
+          $(document).ready(function(){
+              var menuLink = $('#forumsMainMenuLink');
+              var menuLinkSpan = menuLink.closest('span');
+              menuLinkSpan.addClass('current');
+              menuLinkSpan.html(menuLink.text());
+          });
+      </script>
+      <%@ include file="/jsp/discussionForum/menu/forumsMenu.jsp" %>
       <h3><h:outputText value="#{msgs.cdfm_tool_bar_message}" /></h3>
 			<table class="topicBloc topicBlocLone specialLink">
 				<tr>
@@ -64,7 +71,7 @@
 				     <h:outputText value="#{msgs.cdfm_info_required_sign}" styleClass="reqStar"/>
 					<h:outputText value="#{msgs.cdfm_title}"/>
 				</h:outputLabel>
-					   <h:inputText value="#{ForumTool.composeTitle}" style="width:30em;" maxlength="250" required="true" id="df_compose_title">
+					   <h:inputText value="#{ForumTool.composeTitle}" style="width:30em;" maxlength="250" required="true" id="df_compose_title" requiredMessage="#{msgs.cdfm_invalidMessageTitleString}">
 					     <f:validator validatorId="MessageTitle" />
 						 <f:validateLength minimum="1" maximum="255"/>
 					   </h:inputText>
@@ -149,9 +156,8 @@
 			<h:outputText value="#{msgs.cdfm_reply_message_note}" styleClass="highlight" rendered="#{ForumTool.selectedTopic.moderated == 'true' }" /><h:outputText value="#{msgs.cdfm_reply_message_mod_inst}" styleClass="instruction" rendered="#{ForumTool.selectedTopic.moderated == 'true' }" />
 			<p style="padding:0" class="act">
 				<h:commandButton id="post" action="#{ForumTool.processDfMsgPost}" value="#{msgs.cdfm_button_bar_post_message}" accesskey="s" styleClass="active blockMeOnClick"/>
-				<%--  <h:commandButton action="#{ForumTool.processDfMsgSaveDraft}" value="#{msgs.cdfm_button_bar_save_draft}" /> --%>
 				<h:commandButton action="#{ForumTool.processDfMsgCancel}" value="#{msgs.cdfm_button_bar_cancel}" immediate="true" accesskey="x" />
-                <h:outputText styleClass="messageProgress" style="display:none" value="#{msgs.cdfm_processing_submit_message}" />
+                <h:outputText styleClass="sak-banner-info" style="display:none" value="#{msgs.cdfm_processing_submit_message}" />
 			</p>
 			<%--
       <sakai:button_bar>

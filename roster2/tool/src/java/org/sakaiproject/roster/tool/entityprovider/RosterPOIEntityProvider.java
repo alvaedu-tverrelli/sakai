@@ -48,7 +48,8 @@ import java.util.stream.Collectors;
 
 import javax.servlet.http.HttpServletResponse;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -74,7 +75,6 @@ import org.sakaiproject.util.ResourceLoader;
 
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.CollectionUtils;
 
 /**
  * <code>RosterPOIEntityProvider</code> allows Roster to export to Excel via Apache's POI.
@@ -329,7 +329,7 @@ public class RosterPOIEntityProvider extends AbstractEntityProvider implements
 			}
 		}
 
-		final ResourceLoader rl = new ResourceLoader("org.sakaiproject.roster.i18n.ui");
+		final ResourceLoader rl = new ResourceLoader("roster");
 		final Workbook workBook = new XSSFWorkbook();
 		final Sheet rosterSheet = workBook.createSheet(rl.getString("facet_roster"));
 		addRowsToSheet(rosterSheet, rosterRows);
@@ -588,7 +588,7 @@ public class RosterPOIEntityProvider extends AbstractEntityProvider implements
 
 		final String userId = this.developerHelperService.getCurrentUserId();
 
-		final ResourceLoader rl = new ResourceLoader("org.sakaiproject.roster.i18n.ui");
+		final ResourceLoader rl = new ResourceLoader("roster");
 
 		final List<String> header = new ArrayList<>();
 		header.add(rl.getString("facet_name"));

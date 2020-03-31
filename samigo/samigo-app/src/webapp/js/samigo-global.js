@@ -57,7 +57,7 @@ function whichradio(el) {
 		// determine current column
 		for(var i = 0; i < parts.length; ++i) {
 			if(parts[i] === 'matrixSurveyRadioTable') {
-				var dynId = parts[i+2];
+				var dynId = parts[i+3];
 				curCol = dynId.substring(dynId.lastIndexOf('_')+1, dynId.length);
 				colId = curCol + ':myRadioId';
 				break;
@@ -68,7 +68,7 @@ function whichradio(el) {
 			var id = $(this).prop('id');
 			if(id.indexOf(colId) !== -1 && $(this).is(':checked')) {
 				el.checked = false;
-				alert("You are only allowed one selection per column, please try again.");
+				alert(matrixChoicesAlert);
 				allowChange = false;
 			}
 		});
@@ -85,21 +85,68 @@ function resizeFrame(updown) {
     if (frame) {
         var clientH;
         if (updown === "shrink") {
-            clientH = document.body.scrollHeight;
+            clientH = frame.scrollHeight;
         } else {
-            clientH = document.body.scrollHeight + 30;
+            clientH = frame.scrollHeight + 30;
         }
         $(frame).height(clientH);
     }
 }
 
-// SAK-38320: add scope to the table. Maybe can add these direct to the JSF table after JSF 2.3 upgrade?
-$( document ).ready(function() {
+function returnToHostUrl(url) {
+
+  if (url) {
+    parent.location.href = url;
+    return false;
+  }
+}
+
+function initRubricDialog(gradingId, saveText, cancelText, titleText) {
+
+  var modalId = "modal" + gradingId;
+  var previousScore =  $('.adjustedScore' + gradingId).val();
+  $("#" + modalId).dialog({
+    modal: true,
+    buttons: [
+      {
+        text: saveText,
+        click: function () { $(this).dialog("close"); }
+      },
+      {
+        text: cancelText,
+        click: function () {
+
+          $(this).dialog("close");
+          $('.adjustedScore' + gradingId).val(previousScore);
+        }
+      }
+    ],
+    height: "auto",
+    margin: 100,
+    width: 1100,
+    title: titleText
+  });
+}
+
+$(function () {
+
+  $('body').on('total-points-updated', function (e) {
+
+    e.stopPropagation();
+
+    // handles point changes for assignments, updating the grade field if it exists.
+    var gradeField = $('.adjustedScore' + e.detail.evaluatedItemId.replace("\.", "\\."));
+    if (gradeField) {
+      gradeField.val(e.detail.value);
+    }
+  });
+
+  // SAK-38320: add scope to the table. Maybe can add these direct to the JSF table after JSF 2.3 upgrade?
 	$('table.matrixTable th.matrixSurvey').attr('scope', 'col');
 	$('table.matrixTable td.matrixColumn').attr('scope', 'row');
 
-        $(window.self).unbind("scroll");
-        $(window.self).scroll(function() {
-            resizeFrame("grow");
-        });
+  $(window.self).unbind("scroll");
+  $(window.self).scroll(function () {
+    resizeFrame("grow");
+  });
 });

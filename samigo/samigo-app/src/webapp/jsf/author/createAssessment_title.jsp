@@ -39,12 +39,19 @@
     <h:form id="authorIndexForm">
         <!-- HEADINGS -->
         <%@ include file="/jsf/author/editAssessmentHeadings.jsp" %>
-        <script type="text/JavaScript">includeWebjarLibrary('datatables');</script>
-        <script type="text/javascript" src="/samigo-app/js/info.js"></script>
+        <script>includeWebjarLibrary('datatables');</script>
+        <script src="/samigo-app/js/info.js"></script>
+
+<%--        header--%>
+        <div class="page-header">
+            <h1>
+                <h:outputText value="#{questionPoolMessages.add} #{authorFrontDoorMessages.assessments}" />
+            </h1>
+        </div>
 
         <div class="samigo-container">
             <p>
-                <h:messages styleClass="messageSamigo" rendered="#{! empty facesContext.maximumSeverity}" layout="table"/>
+                <h:messages styleClass="sak-banner-error" rendered="#{! empty facesContext.maximumSeverity}" layout="table"/>
             </p>
 
             <div id="samigo-create-new-box" class="col-md-6">
@@ -82,8 +89,8 @@
                     </h:selectOneMenu>
                 </div>
 
-                <div class="form-group">
-                    <h:commandButton id="createnew" type="submit" value="#{authorFrontDoorMessages.button_create}" action="#{author.getOutcome}">
+                <div class="form-group act">
+                    <h:commandButton id="createnew" styleClass="active" type="submit" value="#{authorFrontDoorMessages.button_create}" action="#{author.getOutcome}">
                         <f:actionListener type="org.sakaiproject.tool.assessment.ui.listener.author.AuthorAssessmentListener" />
                     </h:commandButton>
                 </div>
@@ -94,7 +101,7 @@
             </div>
 
             <div id="samigo-create-import-box" class="col-md-5">
-                <div>
+                <div class="">
                     <h4>
                         <h:outputText value="#{authorFrontDoorMessages.assessment_import}" rendered="#{authorization.createAssessment}"/>
                     </h4>

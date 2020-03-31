@@ -47,6 +47,7 @@ import org.sakaiproject.user.api.UserEdit;
 import org.sakaiproject.user.api.UserFactory;
 import org.sakaiproject.user.api.UsersShareEmailUDP;
 
+import com.unboundid.ldap.sdk.BindRequest;
 import com.unboundid.ldap.sdk.BindResult;
 import com.unboundid.ldap.sdk.DereferencePolicy;
 import com.unboundid.ldap.sdk.LDAPConnectionOptions;
@@ -266,41 +267,55 @@ public class UnboundidDirectoryProvider implements UserDirectoryProvider, LdapCo
 			log.warn("Unboundid batchSize is larger than maxResultSize, batchSize has been reduced from: "+ batchSize + " to: "+ maxResultSize);
 		}
 
-		// Create a new LDAP connection pool with 10 connections
-		ServerSet serverSet = null;
-
-		// Set some sane defaults to better handle timeouts. Unboundid will wait 30 seconds by default on a hung connection.
-		LDAPConnectionOptions connectOptions = new LDAPConnectionOptions();
-		connectOptions.setAbandonOnTimeout(true);
-		connectOptions.setConnectTimeoutMillis(operationTimeout);
-		connectOptions.setResponseTimeoutMillis(operationTimeout); // Sakai should not be making any giant queries to LDAP
-
-		if (isSecureConnection()) {
-			try {
-				// If testing locally only, could use `new TrustAllTrustManager()` as contructor parameter to SSLUtil
-				SSLUtil sslUtil = new SSLUtil();
-				SSLSocketFactory sslSocketFactory = sslUtil.createSSLSocketFactory();
-
-				serverSet = new SingleServerSet(ldapHost[0], ldapPort[0], sslSocketFactory, connectOptions);
-			} catch (GeneralSecurityException ex) {
-				log.error("Error while initializing LDAP SSLSocketFactory");
-				throw new RuntimeException(ex);
-			}
-		} else {
-			serverSet = new SingleServerSet(ldapHost[0], ldapPort[0], connectOptions);
-		}
-
-		SimpleBindRequest bindRequest = new SimpleBindRequest(ldapUser, ldapPassword);
-		try {
-			log.info("Creating LDAP connection pool of size " + poolMaxConns);
-			connectionPool = new LDAPConnectionPool(serverSet, bindRequest, poolMaxConns);
-			connectionPool.setRetryFailedOperationsDueToInvalidConnections(retryFailedOperationsDueToInvalidConnections);
-		} catch (com.unboundid.ldap.sdk.LDAPException e) {
-			log.error("Could not init LDAP pool", e);
-		}
-		   
+		createConnectionPool();
 		initLdapAttributeMapper();
 	}
+
+        /**
+         * Create the LDAP connection pool
+         */
+        protected synchronized boolean createConnectionPool() {
+
+                if (connectionPool != null) {
+                        return true;
+                }
+
+                // Create a new LDAP connection pool with 10 connections
+                ServerSet serverSet = null;
+
+                // Set some sane defaults to better handle timeouts. Unboundid will wait 30 seconds by default on a hung connection.
+                LDAPConnectionOptions connectOptions = new LDAPConnectionOptions();
+                connectOptions.setAbandonOnTimeout(true);
+                connectOptions.setConnectTimeoutMillis(operationTimeout);
+                connectOptions.setResponseTimeoutMillis(operationTimeout); // Sakai should not be making any giant queries to LDAP
+
+                if (isSecureConnection()) {
+                        try {
+                                // If testing locally only, could use `new TrustAllTrustManager()` as contructor parameter to SSLUtil
+                                SSLUtil sslUtil = new SSLUtil();
+                                SSLSocketFactory sslSocketFactory = sslUtil.createSSLSocketFactory();
+
+                                serverSet = new SingleServerSet(ldapHost[0], ldapPort[0], sslSocketFactory, connectOptions);
+                        } catch (GeneralSecurityException ex) {
+                                log.error("Error while initializing LDAP SSLSocketFactory");
+                                throw new RuntimeException(ex);
+                        }
+                } else {
+                        serverSet = new SingleServerSet(ldapHost[0], ldapPort[0], connectOptions);
+                }
+
+                BindRequest bindRequest = new SimpleBindRequest(ldapUser, ldapPassword);
+                try {
+                    log.info("Creating LDAP connection pool of size {}", poolMaxConns);
+                    connectionPool = new LDAPConnectionPool(serverSet, bindRequest, poolMaxConns);
+                    connectionPool.setRetryFailedOperationsDueToInvalidConnections(retryFailedOperationsDueToInvalidConnections);
+               } catch (com.unboundid.ldap.sdk.LDAPException e) {
+                   log.error("Could not init LDAP pool", e);
+                   return false;
+              }
+
+             return true;
+        }
 
 	/**
 	 * Lazily "injects" a {@link LdapAttributeMapper} if one
@@ -392,6 +407,11 @@ public class UnboundidDirectoryProvider implements UserDirectoryProvider, LdapCo
 
 		if ( !allowAuthenticationAdmin && securityService.isSuperUser(edit.getId())) {
 			log.debug("authenticateUser(): returning false, not authenticating for superuser (admin) {}", edit.getEid());
+			return false;
+		}
+
+		if (connectionPool == null && !createConnectionPool()) {
+			log.error("No LDAP connection pool available: unable to authenticate");
 			return false;
 		}
 
@@ -855,6 +875,10 @@ public class UnboundidDirectoryProvider implements UserDirectoryProvider, LdapCo
 	throws LDAPException {
 
 		log.debug("searchDirectory(): [filter = {}]", filter);
+
+		if (connectionPool == null && !createConnectionPool()) {
+			throw new LDAPException("No LDAP connection pool available: unable to search");
+		}
 
 		try {
 

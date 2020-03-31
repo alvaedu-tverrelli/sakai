@@ -21,29 +21,45 @@
 
 package org.sakaiproject.portlets;
 
-import javax.portlet.*;
-import javax.servlet.ServletRequest;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.StringUtils;
+import javax.portlet.ActionRequest;
+import javax.portlet.ActionResponse;
+import javax.portlet.GenericPortlet;
+import javax.portlet.PortletConfig;
+import javax.portlet.PortletContext;
+import javax.portlet.PortletException;
+import javax.portlet.PortletMode;
+import javax.portlet.PortletSession;
+import javax.portlet.PortletURL;
+import javax.portlet.RenderRequest;
+import javax.portlet.RenderResponse;
+import javax.servlet.ServletRequest;
+
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.validator.routines.UrlValidator;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.context.Context;
-
 import org.sakaiproject.authz.api.AuthzGroup;
+import org.sakaiproject.authz.api.AuthzGroupService;
 import org.sakaiproject.authz.api.GroupNotDefinedException;
 import org.sakaiproject.authz.api.Role;
-import org.sakaiproject.authz.api.AuthzGroupService;
 import org.sakaiproject.component.cover.ComponentManager;
 import org.sakaiproject.component.cover.ServerConfigurationService;
 import org.sakaiproject.entity.api.Reference;
@@ -66,8 +82,10 @@ import org.sakaiproject.tool.cover.ToolManager;
 import org.sakaiproject.user.api.User;
 import org.sakaiproject.user.api.UserNotDefinedException;
 import org.sakaiproject.user.cover.UserDirectoryService;
-import org.sakaiproject.util.FormattedText;
 import org.sakaiproject.util.ResourceLoader;
+import org.sakaiproject.util.api.FormattedText;
+
+import lombok.extern.slf4j.Slf4j;
 
 // Velocity
 
@@ -89,7 +107,7 @@ public class PortletIFrame extends GenericPortlet {
 	// private static ResourceBundle rb =  ResourceBundle.getBundle("iframe");
 	protected static ResourceLoader rb = new ResourceLoader("iframe");
 
-	protected final FormattedText validator = new FormattedText();
+	protected final FormattedText formattedText = ComponentManager.get(FormattedText.class);
 
 	private final VelocityHelper vHelper = new VelocityHelper();
 
@@ -276,7 +294,7 @@ public class PortletIFrame extends GenericPortlet {
 		PortletSession pSession = request.getPortletSession(true);
 		String str = (String) pSession.getAttribute(ALERT_MESSAGE);
 		pSession.removeAttribute(ALERT_MESSAGE);
-		if ( str != null && str.length() > 0 ) context.put("alertMessage", validator.escapeHtml(str, false));
+		if ( str != null && str.length() > 0 ) context.put("alertMessage", formattedText.escapeHtml(str, false));
 	}
 
 	// Render the portlet - this is not supposed to change the state of the portlet
@@ -322,7 +340,7 @@ public class PortletIFrame extends GenericPortlet {
 							siteInfo = StringUtils.trimToNull(s.getTitle());
 						}
 						StringBuilder alertMsg = new StringBuilder();
-						if ( siteInfo != null ) siteInfo = validator.processFormattedText(siteInfo, alertMsg);
+						if ( siteInfo != null ) siteInfo = formattedText.processFormattedText(siteInfo, alertMsg);
 						context.put("siteInfo", siteInfo);
 						context.put("height",height);
 						vHelper.doTemplate(vengine, "/vm/info.vm", context, out);
@@ -366,9 +384,10 @@ public class PortletIFrame extends GenericPortlet {
                 if ( csrfToken != null ) context.put("sakai_csrf_token", csrfToken);
 				context.put("tlang", rb);
 				context.put("includeLatestJQuery", PortalUtils.includeLatestJQuery("PortletIFrame"));
-				context.put("validator", validator);
+				context.put("validator", formattedText);
 				context.put("source",url);
 				context.put("height",height);
+				context.put("browser-feature-allow", String.join(";", ServerConfigurationService.getStrings("browser.feature.allow")));
 				sendAlert(request,context);
 				context.put("popup", Boolean.valueOf(popup));
 				context.put("popupdone", Boolean.valueOf(popupDone != null));
@@ -518,7 +537,7 @@ public class PortletIFrame extends GenericPortlet {
             if ( csrfToken != null ) context.put("sakai_csrf_token", csrfToken);
 			context.put("tlang", rb);
 			context.put("includeLatestJQuery", PortalUtils.includeLatestJQuery("PortletIFrame"));
-			context.put("validator", validator);
+			context.put("validator", formattedText);
 			sendAlert(request,context);
 
 			PortletURL url = response.createActionURL();
@@ -529,7 +548,7 @@ public class PortletIFrame extends GenericPortlet {
 			Placement placement = ToolManager.getCurrentPlacement();
             Properties config = getAllProperties(placement);
             String special = getSpecial(config);
-			context.put("title", validator.escapeHtml(placement.getTitle(), false));
+			context.put("title", formattedText.escapeHtml(placement.getTitle(), false));
 			String fa_icon = placement.getPlacementConfig().getProperty("imsti.fa_icon");
 			if ( fa_icon != null ) context.put("fa_icon", fa_icon );
 			String source = placement.getPlacementConfig().getProperty(SOURCE);
@@ -559,7 +578,7 @@ public class PortletIFrame extends GenericPortlet {
 						context.put("maximize", Boolean.valueOf(maximize));
 
 						context.put("pageTitleEditable", Boolean.TRUE);
-						context.put("page_title",  validator.escapeHtml(page.getTitle(), false));
+						context.put("page_title",  formattedText.escapeHtml(page.getTitle(), false));
 					}
 				}
 				catch (Throwable e)
@@ -606,13 +625,13 @@ public class PortletIFrame extends GenericPortlet {
 							if(infoUrl.startsWith("/") && infoUrl.indexOf("://") == -1){
 								infoUrl = serverUrl + infoUrl;
 							}
-							context.put("info_url", FormattedText.escapeHtmlFormattedTextarea(infoUrl));
+							context.put("info_url", formattedText.escapeHtmlFormattedTextarea(infoUrl));
 						}
 
 					    String description = StringUtils.trimToNull(s.getDescription());
 					    if (description != null)
 					    {
-	                        description = FormattedText.escapeHtmlFormattedTextarea(description);
+	                        description = formattedText.escapeHtmlFormattedTextarea(description);
 						    context.put("description", description);
 					    }
 				    }
@@ -894,7 +913,7 @@ public class PortletIFrame extends GenericPortlet {
                 }
                 String description = StringUtils.trimToNull(request.getParameter("description"));
                 //Need to save this processed
-                description = FormattedText.processFormattedText(description,new StringBuilder());
+                description = formattedText.processFormattedText(description,new StringBuilder());
     
                 // update the site info
                 try
@@ -1395,6 +1414,6 @@ public class PortletIFrame extends GenericPortlet {
     }
 
     public String sanitizeHrefURL(String urlToEscape) {
-         return FormattedText.sanitizeHrefURL(urlToEscape);
+         return formattedText.sanitizeHrefURL(urlToEscape);
     }
 }

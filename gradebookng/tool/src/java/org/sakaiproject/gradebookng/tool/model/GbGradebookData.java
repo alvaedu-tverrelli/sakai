@@ -25,9 +25,9 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import org.apache.commons.collections.map.HashedMap;
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.lang.builder.CompareToBuilder;
+import org.apache.commons.collections4.map.HashedMap;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.builder.CompareToBuilder;
 import org.apache.wicket.Component;
 import org.apache.wicket.model.StringResourceModel;
 
@@ -58,6 +58,9 @@ public class GbGradebookData {
 
 	private static final String SAK_PROP_SHOW_SET_ZERO_SCORE = "gradebookng.showSetZeroScore";
 	private static final boolean SAK_PROP_SHOW_SET_ZERO_SCORE_DEFAULT = true;
+
+	private static final String SAK_PROP_SHOW_COURSE_GRADE_STUDENT = "gradebookng.showDisplayCourseGradeToStudent";
+	private static final Boolean SAK_PROP_SHOW_COURSE_GRADE_STUDENT_DEFAULT = true;
 
 	private final List<StudentDefinition> students;
 	private final List<ColumnDefinition> columns;
@@ -122,6 +125,7 @@ public class GbGradebookData {
 		private String categoryColor;
 		private String categoryWeight;
 		private boolean isCategoryExtraCredit;
+		private boolean isCategoryEqualWeight;
 
 		private boolean hidden;
 
@@ -163,6 +167,7 @@ public class GbGradebookData {
 		private String weight;
 		private Double totalPoints;
 		private boolean isExtraCredit;
+		private boolean isEqualWeight;
 		private String color;
 		private boolean hidden;
 		private List<String> dropInfo;
@@ -396,6 +401,7 @@ public class GbGradebookData {
 		result.put("isStudentNumberVisible", this.isStudentNumberVisible);
 		result.put("isSectionsVisible", this.isSectionsVisible && ServerConfigurationService.getBoolean("gradebookng.showSections", true));
 		result.put("isSetUngradedToZeroEnabled", ServerConfigurationService.getBoolean(SAK_PROP_SHOW_SET_ZERO_SCORE, SAK_PROP_SHOW_SET_ZERO_SCORE_DEFAULT));
+		result.put("isShowDisplayCourseGradeToStudentEnabled", ServerConfigurationService.getBoolean(SAK_PROP_SHOW_COURSE_GRADE_STUDENT, SAK_PROP_SHOW_COURSE_GRADE_STUDENT_DEFAULT));
 
 		return result;
 	};
@@ -546,6 +552,7 @@ public class GbGradebookData {
 					userSettings.getCategoryColor(a1.getCategoryName()),
 					nullable(categoryWeight),
 					a1.isCategoryExtraCredit(),
+					a1.isCategoryEqualWeight(),
 
 					!this.uiSettings.isAssignmentVisible(a1.getId())));
 
@@ -561,6 +568,7 @@ public class GbGradebookData {
 						nullable(categoryWeight),
 						getCategoryPoints(a1.getCategoryId()),
 						a1.isCategoryExtraCredit(),
+						a1.isCategoryEqualWeight(),
 						userSettings.getCategoryColor(a1.getCategoryName()),
 						!this.uiSettings.isCategoryScoreVisible(a1.getCategoryName()),
 						FormatHelper.formatCategoryDropInfo(this.categories.stream()
@@ -586,6 +594,7 @@ public class GbGradebookData {
 							nullable(categoryWeight),
 							category.getTotalPoints(),
 							category.getExtraCredit(),
+							category.getEqualWeight(),
 							userSettings.getCategoryColor(category.getName()),
 							!this.uiSettings.isCategoryScoreVisible(category.getName()),
 							FormatHelper.formatCategoryDropInfo(category)));

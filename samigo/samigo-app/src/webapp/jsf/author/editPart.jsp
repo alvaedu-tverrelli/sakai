@@ -35,8 +35,8 @@
       <head><%= request.getAttribute("html.head") %>
       <title><h:outputText value="#{authorMessages.create_modify_p}" /></title>
       <!-- AUTHORING -->
-      <script type="text/javascript" src="/samigo-app/js/authoring.js"></script>
-      <script type="text/javascript" src="/library/js/spinner.js"></script>
+      <script src="/samigo-app/js/authoring.js"></script>
+      <script src="/library/js/spinner.js"></script>
       </head>
       <body onload="<%= request.getAttribute("html.body.onload") %>">
 
@@ -47,7 +47,7 @@
 
 <h3><h:outputText value="#{authorMessages.create_modify_p} #{authorMessages.dash} #{sectionBean.assessmentTitle}" escape="false"/></h3>
 <h:form id="modifyPartForm"  onsubmit="return editorCheck();">
-    <h:messages styleClass="messageSamigo" rendered="#{! empty facesContext.maximumSeverity}" layout="table"/>
+    <h:messages styleClass="sak-banner-error" rendered="#{! empty facesContext.maximumSeverity}" layout="table"/>
     <h:inputHidden id="assessmentId" value="#{sectionBean.assessmentId}"/>
     <h:inputHidden id="sectionId" value="#{sectionBean.sectionId}"/>
 
@@ -104,7 +104,6 @@
                     <h:outputText rendered="#{sectionBean.type == '2'}" value="#{authorMessages.random_draw_questions_suffix}"/>
                     <h:selectOneMenu rendered="#{sectionBean.type == '2'}" disabled="#{sectionBean.type == '1' || !author.isEditPendingAssessmentFlow}"
                                      id="assignToPool" value="#{sectionBean.selectedPool}">
-                        <%--<f:selectItem itemValue="" itemLabel="#{authorMessages.select_a_pool_for_random_draw}(###)" />--%>
                         <f:selectItems value="#{sectionBean.poolsAvailable}" />
                     </h:selectOneMenu>
                 </t:div>

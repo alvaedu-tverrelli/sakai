@@ -39,7 +39,7 @@ should be included in file importing DeliveryMessages
 	<f:verbatim><br /></f:verbatim>
 </h:panelGroup>
 
-<h:outputText value="#{deliveryMessages.fin_invalid_characters_error} " escape="false" rendered="#{question.isInvalidFinInput}" styleClass="messageSamigo3"/>
+<h:outputText value="#{deliveryMessages.fin_invalid_characters_error} " escape="false" rendered="#{question.isInvalidFinInput}" styleClass="sak-banner-error"/>
 <f:verbatim><br /></f:verbatim>
 
 <div class="sr-only">
@@ -56,7 +56,7 @@ should be included in file importing DeliveryMessages
         rendered="#{delivery.feedback eq 'true' &&
                     delivery.feedbackComponent.showCorrectResponse &&
                     answer.isCorrect && answer.hasInput && !delivery.noFeedback=='true' && 
-                    !delivery.isAnyInvalidFinInput}" >
+                    !delivery.anyInvalidFinInput}" >
       </h:panelGroup>
       <h:panelGroup styleClass="icon-sakai--delete feedBackCross" id="ximage"
         rendered="#{delivery.feedback eq 'true' &&
@@ -65,7 +65,7 @@ should be included in file importing DeliveryMessages
       </h:panelGroup>
       <h:panelGroup rendered="#{answer.hasInput && delivery.actionString !='gradeAssessment' && delivery.actionString !='reviewAssessment'}">
         <h:outputLabel styleClass="sr-only" for="fin" value="#{deliveryMessages.fin_sr_answer_label_part1} #{question.answerCounter}. #{deliveryMessages.fin_sr_answer_label_part2}" />
-        <h:inputText size="20" value="#{answer.response}" onkeypress="return noenter()" id="fin" />
+        <h:inputText size="20" value="#{answer.response}" onkeypress="return noenter()" id="fin" styleClass="fillInNumericInput"/>
       </h:panelGroup>
       <h:outputText style="text-decoration: underline" rendered="#{delivery.actionString=='gradeAssessment' || delivery.actionString=='reviewAssessment'}"
          value="#{answer.response}"/>
@@ -80,7 +80,7 @@ should be included in file importing DeliveryMessages
              && delivery.navigation ne '1' && delivery.displayMardForReview }">
 <h:selectBooleanCheckbox value="#{question.review}" id="mark_for_review" />
 	<h:outputLabel for="mark_for_review" value="#{deliveryMessages.mark}" />
-	<h:outputLink title="#{assessmentSettingsMessages.whats_this_link}" value="#" onclick="javascript:window.open('../author/markForReviewPopUp.faces','MarkForReview','width=300,height=220,scrollbars=yes, resizable=yes');" >
+	<h:outputLink title="#{assessmentSettingsMessages.whats_this_link}" value="#" onclick="javascript:window.open('/samigo-app/jsf/author/markForReviewPopUp.faces','MarkForReview','width=350,height=280,scrollbars=yes, resizable=yes');event.preventDefault();" >
 		<h:outputText  value=" #{assessmentSettingsMessages.whats_this_link}"/>
 	</h:outputLink>
 </h:panelGroup>
@@ -130,26 +130,57 @@ should be included in file importing DeliveryMessages
   </h:panelGrid>
 </h:panelGroup>
 
-<f:verbatim>
 <script>
 //Setup qtips
-$('.hasTooltip').each(function() { // Notice the .each() loop, discussed below
-    $(this).qtip({
-        content: {
-            text: $(this).next('div') // Use the "div" element after this for the content
-        },
-        position: {
-          target: 'mouse', 
-          adjust: {
-            mouse: false
-          }
-       },
-       style: {
-         classes: 'qtip-tipped qtip-shadow qtipBodyContent',
-       },
-       show: 'click',
-       hide: 'unfocus click'
-      });
+window.onload = function() {
+	$('.hasTooltip').each(function() { // Notice the .each() loop, discussed below
+	    $(this).qtip({
+	        content: {
+	            text: $(this).next('div') // Use the "div" element after this for the content
+	        },
+	        position: {
+	          target: 'mouse', 
+	          adjust: {
+	            mouse: false
+	          }
+	       },
+	       style: {
+	         classes: 'qtip-tipped qtip-shadow qtipBodyContent',
+	       },
+	       show: 'click',
+	       hide: 'unfocus click'
+	      });
+	});
+};
+
+includeWebjarLibrary('mathjs');
+var finFormatError = '<h:outputText value="#{deliveryMessages.fin_invalid_characters_error}" escape="false"/>';
+
+$( document ).ready(function() {
+
+  $('.fillInNumericInput').each( function() {
+    $(this).attr('data-toggle', 'popover'); 
+    $(this).attr('data-content', finFormatError);
+  });
+
+  $('#takeAssessmentForm').submit(function() {
+    $('.fillInNumericInput').each(function() {
+      //If a part or an exam is submitted, validate all the FIN inputs and alert about the invalid ones to prevent a response loss.
+      validateFinInput(this);
+    });
+  });
+
+  $('.fillInNumericInput').focus( function() {
+    $(this).popover();
+  });
+
+  $('.fillInNumericInput').change( function() {
+    validateFinInput(this);
+  });
+
+  $('.fillInNumericInput').keyup( throttle(function(){
+    validateFinInput(this);
+  }));
+
 });
 </script>
-</f:verbatim>

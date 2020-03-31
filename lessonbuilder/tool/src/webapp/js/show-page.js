@@ -39,7 +39,7 @@ function msg(s) {
 
 function setupdialog(oe) {
 	oe.dialog("option", "width", modalDialogWidth());
-	$('.ui-dialog').zIndex(150000);
+	$('.ui-dialog').css('zIndex',150000);
 }
 
 function checksize(oe) {
@@ -69,32 +69,18 @@ function checkgroups(elt, groups) {
     }
 }
 
-// maxpoints is an Integer. Actually in GB it's float, but
-// our code in SimplePageBean parses the string as Integer, so make
-// sure it's OK. At least according to ecmascript, parseInt will do
-// weird things if the value is >= 2^31. It is impossible to catch
-// this with numerical functions, so I have to do string comparison
-// 2^31 is 2147483648. length is 10
 function safeParseInt(s) {
-    if (!/^[0-9]+$/.test(s))
-	return NaN;
-    if (s.length > 10) {
-	return Infinity;
-    }
-    if (s.length === 10) {
-	if (s >= "2147483648") {
-	    return Infinity;
-	}
-    }
+    if (s.length > 10) return Infinity;
+    if (!/^[0-9.]+$/.test(s)) return NaN;
+    if (parseInt(s) <= 0) return NaN;
     return parseInt(s);
 }
+
 // get the right error message. called when ifFinite(i) returns false
 // that happens if it is not a number or is too big
 function intError(i) {
-    if (isNaN(i))
-	return msg("simplepage.integer-expected");
-    else
-	return msg('simplepage.integer-too-big');
+    if (isNaN(i)) return msg("simplepage.integer-expected");
+    return msg('simplepage.integer-too-big');
 }
 
 var blankRubricTemplate, blankRubricRow;
@@ -2060,6 +2046,7 @@ $(document).ready(function() {
 			oldloc = $(".dropdown a");
 			closeDropdowns();
 			mm_test_reset();
+			$('#mm-name-section').addClass('fileTitles');
 			$("#mm-name-section").show();
 			$("#mm-name").val('');
 			$("#mm-prerequisite").prop('checked',false);

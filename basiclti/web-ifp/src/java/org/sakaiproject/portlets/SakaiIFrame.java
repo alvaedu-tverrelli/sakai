@@ -56,16 +56,16 @@ import org.sakaiproject.tool.cover.ToolManager;
 import javax.servlet.ServletRequest;
 import org.sakaiproject.thread_local.cover.ThreadLocalManager;
 
-// Velocity
+import org.apache.commons.lang.StringUtils;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.context.Context;
 import org.apache.velocity.app.VelocityEngine;
 
+import org.sakaiproject.authz.cover.SecurityService;
 import org.sakaiproject.component.cover.ComponentManager;
 
 // lti service
 import org.sakaiproject.lti.api.LTIService;
-
 
 /**
  * a simple SakaiIFrame Portlet
@@ -180,21 +180,21 @@ public class SakaiIFrame extends GenericPortlet {
 			// Retrieve the corresponding content item and tool to check the launch
 			Map<String, Object> content = null;
 			Map<String, Object> tool = null;
-			Long key = getContentIdFromSource(source);
-			if ( key == null ) {
+			Long contentId = getContentIdFromSource(source);
+			if ( contentId == null ) {
 				out.println(rb.getString("get.info.notconfig"));
 				log.warn("Cannot find content id placement={} source={}", placement.getId(), source);
 				return;
 			}
 			try {
-				content = m_ltiService.getContent(key, placement.getContext());
+				content = m_ltiService.getContent(contentId, placement.getContext());
 				// SAK-32665 - We get null when an LTI tool is added to a template
 				// like !user because the content item points at !user and not the
 				// current site.
 				if ( content == null ) {
-					content = patchContentItem(key, placement);
+					content = patchContentItem(contentId, placement);
 					source = placement.getPlacementConfig().getProperty(SOURCE);
-					key = getContentIdFromSource(source);
+					contentId = getContentIdFromSource(source);
 				}
 
 				// If content is still null after patching, let the NPE happen
@@ -230,6 +230,7 @@ public class SakaiIFrame extends GenericPortlet {
 				context.put("validator", validator);
 				context.put("source",source);
 				context.put("height",height);
+				context.put("browser-feature-allow", String.join(";", ServerConfigurationService.getStrings("browser.feature.allow")));
 				sendAlert(request,context);
 				context.put("popupdone", Boolean.valueOf(popupDone != null));
 				context.put("popup", Boolean.valueOf(popup));
@@ -249,10 +250,12 @@ public class SakaiIFrame extends GenericPortlet {
 	 * we either make a new content item from the tool or we empty the
 	 * source property.
 	 */
-	private Map<String, Object> patchContentItem(Long key, Placement placement)
+	private Map<String, Object> patchContentItem(Long contentId, Placement placement)
 	{
+		final boolean isSuperUser = SecurityService.isSuperUser();
+
 		// Look up the content item, bypassing authz checks
-		Map<String, Object> content = m_ltiService.getContentDao(key);
+		Map<String, Object> content = m_ltiService.getContentDao(contentId);
 		if ( content == null ) return null;
 		Long tool_id = getLongNull(content.get("tool_id"));
 
@@ -260,7 +263,37 @@ public class SakaiIFrame extends GenericPortlet {
 		// checking Authz to see is we can touch this tool
 		String siteId = placement.getContext();
 		Map<String, Object> tool = m_ltiService.getTool(tool_id, siteId);
-		if ( tool == null ) return null;
+
+		// If this is an admin action, create a new copy of the tool
+		if ( tool == null && isSuperUser ) {
+			tool = m_ltiService.getToolDao(tool_id, null, true);
+			if (tool != null) {
+				// Clean up the tool before attempting to duplicate it
+				tool.remove(LTIService.LTI_CREATED_AT);
+				tool.remove(LTIService.LTI_UPDATED_AT);
+				tool.put(LTIService.LTI_SITE_ID, siteId);
+
+				Object retval = m_ltiService.insertToolDao(tool, siteId, true, true);
+				if (retval instanceof String) {
+					log.error("Unable to create new tool id: {}, site: {}", tool_id, siteId);
+					return null;
+				}
+				else if (retval instanceof Long){
+					// Load the newly-duplicated lti_tool
+					tool_id = (long) retval;
+					tool = m_ltiService.getToolDao(tool_id, null, true);
+					log.info("Copied tool_id {} into site {}", tool_id, siteId);
+				}
+				else {
+					log.error("Attempted to copy tool, siteId: {}, retval: {}", siteId, retval);
+					return null;
+				}
+			}
+		}
+		// Don't think we are willing to copy a tool for a non-admin user
+		else if ( tool == null ) {
+			return null;
+		}
 
 		// Now make a content item from this tool inheriting from the other content item
 		Properties props = new Properties();
@@ -277,7 +310,7 @@ public class SakaiIFrame extends GenericPortlet {
 
 		// The current user may not be a maintainer in the current site, but we want to still be able to
 		// correct the source on the LTI tool
-		Object retval = m_ltiService.insertContentDao(props, siteId, m_ltiService.isAdmin(siteId), true);
+		Object retval = m_ltiService.insertContentDao(props, siteId, (isSuperUser || m_ltiService.isAdmin(siteId)), true);
 		if ( retval == null || retval instanceof String ) {
 			log.error("Unable to insert LTILinkItem tool={} placement={}",tool_id,placement.getId());
 			placement.getPlacementConfig().setProperty(SOURCE,"");
@@ -417,9 +450,9 @@ public class SakaiIFrame extends GenericPortlet {
 			String id = request.getParameter(LTIService.LTI_ID);
 			String toolId = request.getParameter(LTIService.LTI_TOOL_ID);
 			Properties reqProps = new Properties();
-			Enumeration names = request.getParameterNames();
+			Enumeration<String> names = request.getParameterNames();
 			while (names.hasMoreElements()) {
-				String name = (String) names.nextElement();
+				String name = names.nextElement();
 				reqProps.setProperty(name, request.getParameter(name));
 			}
 			Placement placement = ToolManager.getCurrentPlacement();
@@ -432,13 +465,16 @@ public class SakaiIFrame extends GenericPortlet {
 			// get the site toolConfiguration, if this is part of a site.
 			ToolConfiguration toolConfig = SiteService.findTool(placement.getId());
 
-			// Set the title for the page
-			toolConfig.getContainingPage().setTitle(reqProps.getProperty("title"));
+			String title = reqProps.getProperty("title");
+			if (StringUtils.isNotBlank(title)) {
+				// Set the title for the page
+				toolConfig.getContainingPage().setTitle(title);
 
-			try {
-				SiteService.save(SiteService.getSite(toolConfig.getSiteId()));
-			} catch(Exception e) {
-				log.error("Failed to save site", e);
+				try {
+					SiteService.save(SiteService.getSite(toolConfig.getSiteId()));
+				} catch (Exception e) {
+					log.error("Failed to save site", e);
+				}
 			}
 
 			placement.save();

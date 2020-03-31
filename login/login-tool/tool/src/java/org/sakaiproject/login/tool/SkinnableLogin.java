@@ -36,8 +36,8 @@ import javax.servlet.http.HttpServletResponse;
 
 import lombok.extern.slf4j.Slf4j;
 
-import org.apache.commons.lang.StringEscapeUtils;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.text.StringEscapeUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import org.sakaiproject.authz.api.AuthzGroupService;
 import org.sakaiproject.component.cover.ComponentManager;
@@ -58,6 +58,7 @@ import org.sakaiproject.tool.api.Tool;
 import org.sakaiproject.tool.cover.SessionManager;
 import org.sakaiproject.util.ResourceLoader;
 import org.sakaiproject.util.Web;
+import org.sakaiproject.util.RequestFilter;
 
 @Slf4j
 public class SkinnableLogin extends HttpServlet implements Login {
@@ -240,7 +241,7 @@ public class SkinnableLogin extends HttpServlet implements Login {
 				session.setAttribute(ATTR_RETURN_URL, Web.returnUrl(req, null));
 
 				String containerCheckPath = this.getServletConfig().getInitParameter("container");
-				String containerCheckUrl = Web.serverUrl(req) + containerCheckPath;
+				String containerCheckUrl = RequestFilter.serverUrl(req) + containerCheckPath;
 
 				// support query parms in url for container auth
 				String queryString = req.getQueryString();
@@ -477,8 +478,8 @@ public class SkinnableLogin extends HttpServlet implements Login {
 		rcontext.put("containerText", containerText);
 		rcontext.put("loginContainerUrl", loginContainerUrl);
 
-		String eid = StringEscapeUtils.escapeHtml(request.getParameter("eid"));
-		String pw = StringEscapeUtils.escapeHtml(request.getParameter("pw"));
+		String eid = StringEscapeUtils.escapeHtml4(request.getParameter("eid"));
+		String pw = StringEscapeUtils.escapeHtml4(request.getParameter("pw"));
 
 		if (eid == null)
 			eid = "";

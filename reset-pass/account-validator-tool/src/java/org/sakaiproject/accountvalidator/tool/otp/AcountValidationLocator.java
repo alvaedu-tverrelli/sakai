@@ -50,7 +50,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 @Slf4j
 public class AcountValidationLocator implements BeanLocator  {
@@ -340,7 +340,7 @@ public class AcountValidationLocator implements BeanLocator  {
 				userDirectoryService.commitEdit(u);
 				
 				//update the Validation object
-				item.setvalidationReceived(new Date());
+				item.setValidationReceived(new Date());
 				item.setStatus(ValidationAccount.STATUS_CONFIRMED);
 				log.debug("Saving now ...");
 				

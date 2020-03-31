@@ -4,17 +4,12 @@
   <parent>
     <artifactId>postem-base</artifactId>
     <groupId>org.sakaiproject</groupId>
-    <version>20-SNAPSHOT</version>
+    <version>21-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
   <name>Sakai Postem Tool</name>
   <groupId>org.sakaiproject</groupId>
   <artifactId>sakai-postem-tool</artifactId>
-  <organization>
-    <name>Sakai Project</name>
-    <url>http://sakaiproject.org/</url>
-  </organization>
-  <inceptionYear>2004</inceptionYear>
   <packaging>war</packaging>
 
     <!-- profiles added for WAS support -->
@@ -102,6 +97,14 @@
 	<dependency>
       <groupId>commons-fileupload</groupId>
       <artifactId>commons-fileupload</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-lang3</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-text</artifactId>
     </dependency>
     <dependency>
       <groupId>javax.servlet.jsp</groupId>

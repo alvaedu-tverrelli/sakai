@@ -30,7 +30,7 @@ should be included in file importing DeliveryMessages
   <%@ include file="/jsf/delivery/item/attachment.jsp" %>
 
   <t:dataList layout="orderedList" styleClass="noListStyle" value="#{question.answers}" var="answer">
-    <h:outputText value="#{answer}" escape="false" />
+    <h:outputText value="#{answer}" escape="false" styleClass="mcAnswerText" />
   </t:dataList>
 
   <h:dataTable value="#{question.matchingArray}" var="matching">
@@ -57,7 +57,7 @@ should be included in file importing DeliveryMessages
      </t:selectOneMenu>
    </h:column>
    <h:column>
-     <h:outputText value="#{matching.text}" escape="false"/>
+     <h:outputText value="#{matching.text}" escape="false" styleClass="mcAnswerText" />
      <h:panelGroup rendered="#{delivery.feedback eq 'true' &&
        delivery.feedbackComponent.showSelectionLevel && 
 	   matching.feedback ne '' && matching.feedback != 'null' && matching.feedback != null}" >
@@ -76,7 +76,7 @@ should be included in file importing DeliveryMessages
              && delivery.navigation ne '1' && delivery.displayMardForReview }">
 <h:selectBooleanCheckbox value="#{question.review}" id="mark_for_review" />
 	<h:outputLabel for="mark_for_review" value="#{deliveryMessages.mark}" />
-	<h:outputLink title="#{assessmentSettingsMessages.whats_this_link}" value="#" onclick="javascript:window.open('../author/markForReviewPopUp.faces','MarkForReview','width=300,height=220,scrollbars=yes, resizable=yes');" >
+	<h:outputLink title="#{assessmentSettingsMessages.whats_this_link}" value="#" onclick="javascript:window.open('/samigo-app/jsf/author/markForReviewPopUp.faces','MarkForReview','width=350,height=280,scrollbars=yes, resizable=yes');event.preventDefault();" >
 		<h:outputText  value=" #{assessmentSettingsMessages.whats_this_link}"/>
 	</h:outputLink>
 </h:panelGroup>

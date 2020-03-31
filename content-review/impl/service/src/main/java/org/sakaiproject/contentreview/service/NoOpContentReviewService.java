@@ -103,6 +103,11 @@ public class NoOpContentReviewService extends BaseContentReviewService {
 	}
 
 	@Override
+	public void syncRosters() {
+		log.debug("void syncRosters");
+	}
+
+	@Override
 	public List<ContentReviewItem> getReportList(String siteId, String taskId)
 			throws QueueException, SubmissionException, ReportException {
 		log.debug("{} getReportList {} {}", null, siteId, taskId);
@@ -285,4 +290,5 @@ public class NoOpContentReviewService extends BaseContentReviewService {
 		String ret = "There is no content review service configured, please see your administrator";
 		log.debug("{} webhookEvent", ret);
 	}
+
 }

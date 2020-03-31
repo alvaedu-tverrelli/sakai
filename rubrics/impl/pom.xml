@@ -4,7 +4,7 @@
     <parent>
         <artifactId>rubrics</artifactId>
         <groupId>org.sakaiproject.rubrics</groupId>
-        <version>20-SNAPSHOT</version>
+        <version>21-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -93,6 +93,10 @@
             <artifactId>commons-lang3</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-text</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.data</groupId>
             <artifactId>spring-data-jpa</artifactId>
         </dependency>
@@ -100,6 +104,7 @@
 
     <build>
         <sourceDirectory>src/main/java</sourceDirectory>
+        <!--
         <resources>
             <resource>
                 <directory>src/main/bundle</directory>
@@ -108,6 +113,7 @@
                 </includes>
             </resource>
         </resources>
+        -->
         <testSourceDirectory>src/test/java</testSourceDirectory>
         <testResources>
             <testResource>

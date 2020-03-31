@@ -36,7 +36,7 @@
                             </div>
                         </div>
                         
-                       	<div class="messageWarning"><wicket:message key="importExport.export.advancedOption.warning" /></div>
+                       	<div class="sak-banner-warn"><wicket:message key="importExport.export.advancedOption.warning" /></div>
                        	
                         <div class="row">
                             <div class="col-sm-6">
@@ -66,6 +66,12 @@
                                         </label>
                                     </div>
                                 </wicket:enclosure>
+                                <div class="checkbox">
+                                    <label>
+                                        <input type="checkbox" wicket:id="includeSectionMembership">
+                                        <wicket:message key="importExport.export.advancedOption.includeSectionMembership"/>
+                                    </label>
+                                </div>
                                 <wicket:enclosure child="includePoints">
                                     <div class="checkbox">
                                         <label>

@@ -22,33 +22,32 @@
 
         </script>
         ${sakaiHtmlHead}
-        <link rel="stylesheet" type="text/css" href="/library/webjars/jquery-ui/1.12.1/jquery-ui.min.css"></script>
-        <link href="/profile2-tool/css/profile2-profile-entity.css" type="text/css" rel="stylesheet" media="all" />
-        <link rel="stylesheet" type="text/css" href="/library/webjars/qtip2/3.0.3/jquery.qtip.min.css" media="all"/>
+        <link href="/profile2-tool/css/profile2-profile-entity.css${portalCDNQuery}" type="text/css" rel="stylesheet" media="all" />
     </head>
     <body>
 
-        <script src="/library/webjars/jquery/1.12.4/jquery.min.js"></script>
-        <script src="/library/webjars/jquery-ui/1.12.1/jquery-ui.min.js"></script>
-        <script src="/library/webjars/qtip2/3.0.3/jquery.qtip.min.js"></script>
-        <script src="/commons-tool/lib/handlebars.runtime-v4.0.5.js"></script>
-        <script src="/commons-tool/templates/templates.js"></script>
-        <script src="/commons-tool/lib/autosize.min.js"></script>
-        <script src="/commons-tool/js/commons_utils.js"></script>
-        <script src="/commons-tool/js/commons_permissions.js"></script>
-        <script src="/profile2-tool/javascript/profile2-eb.js"></script>
+        <script>includeLatestJQuery("commons");</script>
+        <script>includeWebjarLibrary("qtip2");</script>
+        <script>includeWebjarLibrary("handlebars");</script>
+        <script src="/commons-tool/templates/templates.js${portalCDNQuery}"></script>
+        <script src="/commons-tool/lib/autosize.min.js${portalCDNQuery}"></script>
+        <script src="/commons-tool/js/commons_utils.js${portalCDNQuery}"></script>
+        <script src="/commons-tool/js/commons_permissions.js${portalCDNQuery}"></script>
+        <script src="/profile2-tool/javascript/profile2-eb.js${portalCDNQuery}"></script>
 
         <div id="Mrphs-sakai-commons" class="portletBody commons-portletBody">
 
             <ul id="commons-toolbar" class="navIntraTool actionToolBar hidden" role="menu"></ul>
-
+            <div class="page-header">
+                <h1>Commons</h1>
+            </div>
             <div id="commons-main-container">
                 <div id="commons-content"></div>
             </div>
 
         </div> <!-- /portletBody-->
 
-        <script src="/commons-tool/js/commons.js"></script>
+        <script src="/commons-tool/js/commons.js${portalCDNQuery}"></script>
 
     </body>
 </html>

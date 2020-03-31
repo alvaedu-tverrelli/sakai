@@ -17,7 +17,7 @@
 
 package org.sakaiproject.commons.impl;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -143,14 +143,14 @@ public class CommonsSecurityManagerImpl implements CommonsSecurityManager {
             posts = posts.stream().filter(p -> p.getReleaseDate() <= now).collect(Collectors.toList());
             if (embedder.equals(CommonsConstants.SITE)) {
                 boolean readAny = securityService.unlock(CommonsFunctions.POST_READ_ANY, "/site/" + siteId);
-                return (readAny) ? posts : new ArrayList();
+                return (readAny) ? posts : new ArrayList<>();
             } else if (embedder.equals(CommonsConstants.ASSIGNMENT)) {
                 boolean readAny = securityService.unlock(AssignmentServiceConstants.SECURE_ADD_ASSIGNMENT_SUBMISSION, "/site/" + siteId);
-                return (readAny) ? posts : new ArrayList();
-            } else if (embedder.equals(CommonsConstants.SOCIAL)) {
+                return (readAny) ? posts : new ArrayList<>();
+            } else if (embedder.equals(CommonsConstants.SOCIAL) || embedder.equals(CommonsConstants.SEARCH)) {
                 return posts;
             } else {
-                return new ArrayList();
+                return new ArrayList<>();
             }
         } else {
             return posts;

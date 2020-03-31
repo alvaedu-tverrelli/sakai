@@ -37,14 +37,29 @@ package org.sakaiproject.roster.impl;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
-import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Observable;
+import java.util.Observer;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import lombok.Setter;
-import lombok.extern.slf4j.Slf4j;
-
 import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.time.StopWatch;
 import org.apache.http.client.ResponseHandler;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -52,8 +67,6 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.impl.client.BasicResponseHandler;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.apache.commons.lang.ArrayUtils;
-
 import org.sakaiproject.api.privacy.PrivacyManager;
 import org.sakaiproject.authz.api.AuthzGroup;
 import org.sakaiproject.authz.api.AuthzGroupService;
@@ -62,19 +75,23 @@ import org.sakaiproject.authz.api.GroupProvider;
 import org.sakaiproject.authz.api.Member;
 import org.sakaiproject.authz.api.Role;
 import org.sakaiproject.authz.api.SecurityService;
+import org.sakaiproject.api.common.edu.person.SakaiPerson;
+import org.sakaiproject.api.common.edu.person.SakaiPersonManager;
 import org.sakaiproject.component.api.ServerConfigurationService;
 import org.sakaiproject.coursemanagement.api.CourseManagementService;
 import org.sakaiproject.coursemanagement.api.Enrollment;
 import org.sakaiproject.coursemanagement.api.EnrollmentSet;
 import org.sakaiproject.coursemanagement.api.Section;
 import org.sakaiproject.coursemanagement.api.exception.IdNotFoundException;
+import org.sakaiproject.entity.api.Entity;
 import org.sakaiproject.entity.api.ResourceProperties;
-import org.sakaiproject.exception.IdUnusedException;
 import org.sakaiproject.event.api.Event;
 import org.sakaiproject.event.api.EventTrackingService;
+import org.sakaiproject.exception.IdUnusedException;
 import org.sakaiproject.memory.api.Cache;
 import org.sakaiproject.memory.api.MemoryService;
 import org.sakaiproject.memory.api.SimpleConfiguration;
+import org.sakaiproject.profile2.logic.ProfileLogic;
 import org.sakaiproject.profile2.logic.ProfileConnectionsLogic;
 import org.sakaiproject.profile2.util.ProfileConstants;
 import org.sakaiproject.roster.api.RosterEnrollment;
@@ -99,6 +116,9 @@ import org.sakaiproject.util.ResourceLoader;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * <code>SakaiProxy</code> acts as a proxy between Roster and Sakai components.
  * 
@@ -115,7 +135,9 @@ public class SakaiProxyImpl implements SakaiProxy, Observer {
 	private GroupProvider groupProvider;
 	private PrivacyManager privacyManager;
 	private MemoryService memoryService;
+	private ProfileLogic profileLogic;
 	private ProfileConnectionsLogic connectionsLogic;
+	private SakaiPersonManager sakaiPersonManager;
 	private SecurityService securityService;
 	private ServerConfigurationService serverConfigurationService;
 	private SessionManager sessionManager;
@@ -259,6 +281,16 @@ public class SakaiProxyImpl implements SakaiProxy, Observer {
 				.getString("roster.defaultSortColumn", DEFAULT_SORT_COLUMN);
 	}
 	
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
+	public String getDefaultOverviewMode() {
+
+		return serverConfigurationService
+				.getString("roster.defaultOverviewMode", DEFAULT_OVERVIEW_MODE);
+	}
+
 	/**
 	 * {@inheritDoc}
 	 */
@@ -512,6 +544,45 @@ public class SakaiProxyImpl implements SakaiProxy, Observer {
             } catch (URISyntaxException e) {
                 log.error("URI Syntax Error", e);
             }
+        } else {
+            for (User user : userMap.values()) {
+                final String userId = user.getId();
+                final String slash = Entity.SEPARATOR;
+                final StringBuilder path = new StringBuilder();
+                SakaiPerson sakaiPerson = sakaiPersonManager.getSakaiPerson(user.getId(), this.sakaiPersonManager.getUserMutableType());
+                String phoneticPronunciation = StringUtils.EMPTY;
+                if (sakaiPerson != null && StringUtils.isNotEmpty(sakaiPerson.getPhoneticPronunciation())) {
+                    //Append the phonetic pronunciation if it's not empty.
+                    phoneticPronunciation = sakaiPerson.getPhoneticPronunciation();
+                    path.append("<span>");
+                    path.append(phoneticPronunciation);
+                    path.append("</span>");
+                }
+                if (profileLogic.getUserNamePronunciation(user.getId()) != null) {
+                    path.append(String.format("<span data-user-id='%s' class='nameAudioPlayer' title='%s'>", userId, phoneticPronunciation));
+                    path.append("<span class='fa fa-volume-up fa-lg' aria-hidden='true'></span>");
+                    path.append("</span>");
+                    //Append the user recording if exists.
+                    path.append(" <audio ");
+                    path.append(String.format("id='audio-%s' ", user.getId()));
+                    path.append("class='hidden audioPlayer' ");
+                    path.append("controls ");
+                    path.append("controlsList='nodownload' ");
+                    path.append("src='");
+                    path.append(slash);
+                    path.append("direct");
+                    path.append(slash);
+                    path.append("profile");
+                    path.append(slash);
+                    path.append(user.getId());
+                    path.append(slash);
+                    path.append("pronunciation");
+                    path.append("?v=");
+                    path.append(RandomStringUtils.random(8, true, true));
+                    path.append("'/>");
+                }
+                pronunceMap.put(user.getId(), path.toString());
+            }
         }
         return pronunceMap;
     }
@@ -534,7 +605,10 @@ public class SakaiProxyImpl implements SakaiProxy, Observer {
 		Map<String, User> userMap = getUserMap(membership);
 
 		// Audio URL for how to pronunce each name
-		Map<String, String> pronunceMap = getPronunciationMap(userMap);
+		Map<String, String> pronunceMap = new HashMap<>();
+		if (this.getViewUserNamePronunciation()) {
+			pronunceMap = getPronunciationMap(userMap);
+		}
 
 		Collection<Group> groups = site.getGroups();
 		for (Member member : membership) {
@@ -601,7 +675,15 @@ public class SakaiProxyImpl implements SakaiProxy, Observer {
                 // Now strip out any unauthorised info
                 if (!isAllowed(currentUserId, RosterFunctions.ROSTER_FUNCTION_VIEWEMAIL, site.getReference())) {
                     m.setEmail(null);
-                }
+                } else {
+                    if (StringUtils.isEmpty(m.getEmail())) {
+                        try {
+                            m.setEmail(userDirectoryService.getUser(m.getUserId()).getEmail());
+                        } catch (UserNotDefinedException unde) {
+                            // This ain't gonna happen
+                        }
+                    }
+				}
 			}
 		}
 		
@@ -710,7 +792,12 @@ public class SakaiProxyImpl implements SakaiProxy, Observer {
 		rosterMember.setSortName(user.getSortName());
 
 		// See if there is a pronunciation available for the user
-		rosterMember.setPronunciation(pronunceMap.get(user.getEmail()));
+		String pronunciation = pronunceMap.get(user.getId());
+		//Try by email instead of Id
+		if(StringUtils.isEmpty(pronunciation)) {
+			pronunciation = pronunceMap.get(user.getEmail());
+		}
+		rosterMember.setPronunciation(pronunciation);
 
 		Map<String, String> userPropertiesMap = new HashMap<>();
 		ResourceProperties props = user.getProperties();
@@ -818,7 +905,10 @@ public class SakaiProxyImpl implements SakaiProxy, Observer {
             Map<String, User> userMap = getUserMap(membership);
 
             // Audio URL for how to pronunce each name
-            Map<String, String> pronunceMap = getPronunciationMap(userMap);
+            Map<String, String> pronunceMap = new HashMap<>();
+            if (this.getViewUserNamePronunciation()) {
+                pronunceMap = getPronunciationMap(userMap);
+            }
 
             siteMembers = new ArrayList<>();
 
@@ -868,9 +958,13 @@ public class SakaiProxyImpl implements SakaiProxy, Observer {
                     String gId = group.getId();
                     Collections.sort((List<RosterMember>) cache.get(siteId + "#" + gId), memberComparator);
                     for (Role role : roles) {
-                        Collections.sort((List<RosterMember>) cache.get(siteId + "#" + role.getId()), memberComparator);
                         Collections.sort((List<RosterMember>) cache.get(siteId + "#" + gId + "#" + role.getId()), memberComparator);
                     }
+                }
+
+                // Now sort the role lists for this site
+                for (Role role : roles) {
+                    Collections.sort((List<RosterMember>) cache.get(siteId + "#" + role.getId()), memberComparator);
                 }
 
                 // Sort the main site list
@@ -1260,42 +1354,89 @@ public class SakaiProxyImpl implements SakaiProxy, Observer {
         return serverConfigurationService.getBoolean("roster.showVisits", false);
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    public Boolean getViewUserNamePronunciation() {
+        return serverConfigurationService.getBoolean("roster.display.user.name.pronunciation", DEFAULT_VIEW_USER_NAME_PRONUNCIATION);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public String getProfileToolLink() {
+        try {
+            Site site = siteService.getSite(siteService.getUserSiteId(getCurrentUserId()));
+            return site.getUrl() + "/tool/" + site.getToolForCommonId("sakai.profile2").getId();
+        } catch(Exception e){
+            log.error("Error getting tool for profile on user workspace {}", e.getMessage());
+        }
+        return null;
+    }
+
     public void update(Observable o, Object arg) {
 
         if (arg instanceof Event) {
             Event event = (Event) arg;
             String eventName = event.getEvent();
+
+            //When a user changes the name pronunciation, the changes need to be reflected in roster
+            if(ProfileConstants.EVENT_PROFILE_NAME_PRONUN_UPDATE.equals(eventName)){
+                StopWatch watch = null;
+                if (log.isDebugEnabled()){
+                    watch = new StopWatch();
+                    watch.start();
+                }
+                String userId = StringUtils.remove(event.getResource(), "/profile/");
+                log.debug("The user {} has updated the name pronunciation in the profile, clearing the caches of the sites that the user belongs to.", userId);
+                List<Site> userSites = siteService.getUserSites();
+                if(userSites != null && !userSites.isEmpty()){
+                    for(Site site : userSites){
+                        log.debug("Attempting to cleaning up the roster cache of the site {}", site.getId());
+                        this.removeSiteRosterCache(site.getId());
+                    }
+                }
+                if (log.isDebugEnabled()){
+                    watch.stop();
+                    log.debug("The caches of the sites have been cleared, {} sites, total time spent {} ms", userSites.size(), TimeUnit.MILLISECONDS.toSeconds(watch.getTime()));
+                }
+                return;
+            }
+
             if (SiteService.SECURE_UPDATE_SITE_MEMBERSHIP.equals(eventName)
                     || SiteService.SECURE_UPDATE_GROUP_MEMBERSHIP.equals(eventName)
                     || AuthzGroupService.SECURE_REMOVE_AUTHZ_GROUP.equals(eventName)) {
                 log.debug("Site membership or groups updated. Clearing caches ...");
                 String siteId = event.getContext();
+                this.removeSiteRosterCache(siteId);
+            }
+        }
+    }
 
-                if (siteId == null) {
-                    log.debug("siteId was null, skipping");
-                    return;
-                }
+    private void removeSiteRosterCache(String siteId){
+        if (siteId == null) {
+            log.debug("siteId was null, skipping");
+            return;
+        }
 
-                Cache enrollmentsCache = getCache(ENROLLMENTS_CACHE);
-                enrollmentsCache.remove(siteId);
+        Cache enrollmentsCache = getCache(ENROLLMENTS_CACHE);
+        enrollmentsCache.remove(siteId);
 
-                Cache searchIndexCache = memoryService.getCache(SEARCH_INDEX_CACHE);
-                searchIndexCache.remove(siteId);
+        Cache searchIndexCache = memoryService.getCache(SEARCH_INDEX_CACHE);
+        searchIndexCache.remove(siteId);
 
-                Cache membershipsCache = getCache(MEMBERSHIPS_CACHE);
+        Cache membershipsCache = getCache(MEMBERSHIPS_CACHE);
 
-                synchronized(this) {
-                    membershipsCache.remove(siteId);
-                    Site site = getSite(siteId);
-                    if (site != null) {
-                        Set<Role> roles = site.getRoles();
-                        for (Group group : site.getGroups()) {
-                            String gId = group.getId();
-                            membershipsCache.remove(siteId + "#" + gId);
-                            for (Role role : roles) {
-                                membershipsCache.remove(siteId + "#" + gId + "#" + role.getId());
-                            }
-                        }
+        synchronized(this) {
+            membershipsCache.remove(siteId);
+            Site site = getSite(siteId);
+            if (site != null) {
+                Set<Role> roles = site.getRoles();
+                for (Group group : site.getGroups()) {
+                    String gId = group.getId();
+                    membershipsCache.remove(siteId + "#" + gId);
+                    for (Role role : roles) {
+                        membershipsCache.remove(siteId + "#" + gId + "#" + role.getId());
                     }
                 }
             }
