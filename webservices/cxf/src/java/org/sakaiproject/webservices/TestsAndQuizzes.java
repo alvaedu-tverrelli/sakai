@@ -33,7 +33,12 @@ import org.sakaiproject.tool.assessment.facade.QuestionPoolIteratorFacade;
 import org.sakaiproject.tool.assessment.facade.QuestionPoolFacade;
 import org.sakaiproject.tool.assessment.services.qti.QTIService;
 import org.sakaiproject.util.FormattedText;
+import org.sakaiproject.util.Xml;
+import org.w3c.dom.Attr;
 import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+
 import org.xml.sax.SAXException;
 
 import javax.jws.WebMethod;
@@ -63,9 +68,9 @@ import java.util.Map;
 @WebService
 @SOAPBinding(style = SOAPBinding.Style.RPC, use = SOAPBinding.Use.LITERAL)
 @Slf4j
-public class TestsAndQuizzes extends AbstractWebService {	
+public class TestsAndQuizzes extends AbstractWebService {
 
-	/** 
+	/**
 	 * createAssessmentFromText - WS Endpoint, exposing the SamLite createImportedAssessment()
 	 *
 	 * @param	String sessionid		the id of a valid admin session
@@ -77,7 +82,7 @@ public class TestsAndQuizzes extends AbstractWebService {
 	 *						*note templates must be created with admin user
 	 * @param	String textdata			the question data in the word2qti format
 	 * @return	boolean	       		 	returns true if assessment created successfully, false if assessment is null
-	 * 
+	 *
 	 * @throws	AxisFault			WS TestsAndQuizzes.createAssessmentFromText(): SamLiteService.parse() returned a null QuestionGroup
 	 *						WS TestsAndQuizzes.createAssessmentFromText(): SamLiteService.createDocument() returned a null QTI Document
 	 *
@@ -110,7 +115,7 @@ public class TestsAndQuizzes extends AbstractWebService {
 		return createAssessment(siteid, siteproperty, title, description, template, document);
 	}
 
-	/** 
+	/**
 	 * createAssessmentFromExport - WS Endpoint, exposing the SamLite createImportedAssessment()
 	 *
 	 * @param	String sessionid		the id of a valid admin session
@@ -118,7 +123,7 @@ public class TestsAndQuizzes extends AbstractWebService {
 	 * @param	String siteproperty		the property that holds the enterprise site id
 	 * @param	String xmlstring		the IMS QTI document containing the assessment
 	 * @return	boolean	       		 	returns true if assessment created successfully, false if assessment is null
-	 * 
+	 *
 	 * @throws	AxisFault			WS TestsAndQuizzes.createAssessmentFromXml(): returned a null QTI Document
 	 *						WS TestsAndQuizzes.createAssessmentFromXml(): " + e.getMessage
 	 *
@@ -163,11 +168,11 @@ public class TestsAndQuizzes extends AbstractWebService {
 		if (document == null) {
 			throw new RuntimeException("WS TestsAndQuizzes.createAssessmentFromXml(): returned a null QTI Document");
 		}
-		
+
 		return createAssessment(siteid, siteproperty, null, null, null, document);
 	}
 
-	/** 
+	/**
 	 * createAssessmentFromExportFile - WS Endpoint, exposing the SamLite createImportedAssessment()
 	 *
 	 * @param	String sessionid		the id of a valid admin session
@@ -175,11 +180,11 @@ public class TestsAndQuizzes extends AbstractWebService {
 	 * @param	String siteproperty		the property that holds the enterprise site id
 	 * @param	String xmlfile			path to the IMS QTI document containing the assessment
 	 * @return	boolean	       		 	returns true if assessment created successfully, false if assessment is null
-	 * 
+	 *
 	 * @throws	AxisFault			WS TestsAndQuizzes.createAssessmentFromXml(): XmlUtil.createDocument() returned a null QTI Document
-	 * 						WS TestsAndQuizzes.createAssessmentFromXml(): XmlUtil.createDocument() ParserConfigurationException: 
+	 * 						WS TestsAndQuizzes.createAssessmentFromXml(): XmlUtil.createDocument() ParserConfigurationException:
 	 *						WS TestsAndQuizzes.createAssessmentFromXml(): XmlUtil.createDocument() SaxException:
-	 *						WS TestsAndQuizzes.createAssessmentFromXml(): XmlUtil.createDocument() IOException: 
+	 *						WS TestsAndQuizzes.createAssessmentFromXml(): XmlUtil.createDocument() IOException:
 	 *
 	 */
 
@@ -210,11 +215,11 @@ public class TestsAndQuizzes extends AbstractWebService {
 		if (document == null) {
 			throw new RuntimeException("WS TestsAndQuizzes.createAssessmentFromExportFile(): XmlUtil.createDocument() returned a null QTI Document");
 		}
-		
+
 		return createAssessment(siteid, siteproperty, null, null, null, document);
 	}
 
-	/** 
+	/**
 	 * createAssessment - WS Endpoint, exposing the SamLite createImportedAssessment()
 	 *
 	 * @param	String siteid			the enterprise/sakai id of the site to be archived
@@ -225,14 +230,14 @@ public class TestsAndQuizzes extends AbstractWebService {
 	 *						*note templates must be created with admin user
 	 * @param	Document document		the assessment document to import
 	 * @return	boolean	       		 	returns true if assessment created successfully, false if assessment is null
-	 * 
+	 *
 	 * @throws	AxisFault			WS TestsAndQuizzes.createAssessment(): Site not found - "+ siteid
 	 *						WS TestsAndQuizzes.createAssessment(): Could not find template with name - " + template
 	 *
 	 */
-	
+
 	private boolean createAssessment(String siteid, String siteproperty, String title, String description, String template, Document document) {
-	
+
 		Site site = null;
 		String templateId = null;
 
@@ -264,7 +269,7 @@ public class TestsAndQuizzes extends AbstractWebService {
 		}
 
 		log.debug("WS TestsAndQuizzes.createAssessment(): creating assessment - " + title + " in site " + site.getId());
-		
+
 		QTIService qtiService = new QTIService();
 		AssessmentFacade assessment = qtiService.createImportedAssessment(document, QTIVersion.VERSION_1_2, null, templateId, site.getId());
 
@@ -274,13 +279,13 @@ public class TestsAndQuizzes extends AbstractWebService {
 		return true;
 	}
 
-	/** 
+	/**
 	 * findSite - find the sakai site that contains a unique propertyName=propertyValue
 	 *
 	 * @param	String propertyName		the sakai site property holding the enterprise site id
 	 * @param	String propertyValue		the enterprise site id
 	 * @return	Site		        	Site object or null if no site
-	 * 
+	 *
 	 * @throws	AxisFault			WS TestsAndQuizzes.findSite(): Too many sites found with property - propertyName=propertyValue
 	 *
 	 */
@@ -306,23 +311,23 @@ public class TestsAndQuizzes extends AbstractWebService {
 		return null;
 	}
 
-	/** 
+	/**
 	 * findAssessmentTemplateId - find the assessment template id
 	 *
 	 * @param	String title			the title of the template to look for
 	 * @return	String		        	the template id if one was found otherwise null
-	 * 
+	 *
 	 */
 
 	private String findAssessmentTemplateId(String title) {
 		log.debug("WS TestsAndQuizzes.findAssessmentTemplateId(): template title - " + title);
-		
+
 		AssessmentService aService = new AssessmentService();
 
 		if (aService != null) {
 			// will only look at templates created by the authenticated user
 			List templates = aService.getTitleOfAllActiveAssessmentTemplates();
-		
+
 			for (int i = 0; i < templates.size(); i++) {
 				AssessmentTemplateFacade facade = (AssessmentTemplateFacade) templates.get(i);
 				if (facade.getTitle().equals(title)) {
@@ -333,15 +338,15 @@ public class TestsAndQuizzes extends AbstractWebService {
 		return null;
 	}
 
-	/** 
+	/**
 	 * poolAttachmentReport - Makes a report of all attachments included in one specified question pool. Optionally, fix the broken attachments making a copy of them in a new context.
 	 *
 	 * @param	String sessionId			the id of a valid session for user owner of the pool (NOT admin user)
 	 * @param	String user					the user EID we want to look into their question pools
 	 * @param	Long poolId					poolId for searching only in a single pool. Null searches in all pools of the userId.
-	 * @param	String contextToReplace		a site ID where user has access to, so broken attachments will be copied there and replaced in pool  
-	 * @return	String	       		 		a report of the attachments at every pool of the current user and the actions done on them 
-	 * 
+	 * @param	String contextToReplace		a site ID where user has access to, so broken attachments will be copied there and replaced in pool
+	 * @return	String	       		 		a report of the attachments at every pool of the current user and the actions done on them
+	 *
 	 */
 	@WebMethod
 	@Path("/poolAttachmentReport")
@@ -357,9 +362,9 @@ public class TestsAndQuizzes extends AbstractWebService {
 
 		ArrayList<Long> poolIds = new ArrayList<Long>();
 		StringBuilder resultado = new StringBuilder();
-		
+
 		log.debug("WS TestsAndQuizzes.poolAttachmentReport(): user - " + user);
-		
+
 		String userId=null;
 		try
 		{
@@ -372,11 +377,11 @@ public class TestsAndQuizzes extends AbstractWebService {
 		}
 
 		if (contextToReplace.isEmpty()) contextToReplace=null;
-		
+
 		if (!poolId.isEmpty()) {
 			poolIds.add(new Long(poolId));
 		}
-		else 
+		else
 		{
 			List<?> qpif = questionPoolServiceImpl.getAllPools(userId);
 			for (int i=0;i<qpif.size();i++)
@@ -393,4 +398,79 @@ public class TestsAndQuizzes extends AbstractWebService {
 
 		return resultado.toString();
 	}
+
+    /**
+     * Lists all AssessMents for a site
+     * @param sessionid the session to use
+     * @param siteId    the siteId to use
+     * @return the string representation of the assessments within the site in XML
+     */
+    @WebMethod
+    @Path("/getAssessmentsInSite")
+    @Produces("text/plain")
+    @GET
+    public String getAssessmentsInSite(
+            @WebParam(name = "sessionid", partName = "sessionid") @QueryParam("sessionid") String sessionid,
+            @WebParam(name = "siteId", partName = "siteId") @QueryParam("siteId") String siteId) {
+        Session session = establishSession(sessionid);
+
+        try {
+            Site site = siteService.getSite(siteId);
+            if( site == null ) {
+                log.warn("WS getAssessmentsInSite(): Site not found.");
+                throw new RuntimeException("WS getAssessmentsInSite(): Site not found.");
+            }
+
+            // If not admin, check maintainer membership in the source site
+    		if (!securityService.isSuperUser(session.getUserId()) && !securityService.unlock(siteService.SECURE_UPDATE_SITE, site.getReference()))
+    		{
+                log.warn("WS getAssessmentsInSite(): Permission denied. Must be super user to getAssessmentsInSite as part of a site in which you are not a maintainer.");
+                throw new RuntimeException("WS getAssessmentsInSite(): Permission denied. Must be super user to getAssessmentsInSite as part of a site in which you are not a maintainer.");
+            }
+
+            AssessmentService aService = new AssessmentService();
+            List list = aService.getAllAssessments("title");
+
+            Document dom = Xml.createDocument();
+            Node assesslist = dom.createElement("assessmentlist");
+            dom.appendChild(assesslist);
+
+            int assessCnt = 0;
+            if( list != null ) {
+                assessCnt = list.size();
+                for (int i = 0; i < list.size(); i++)
+                {
+                    AssessmentFacade fac = (AssessmentFacade) list.get(i);
+                    String pubid = fac.getAssessmentId().toString();
+
+                    Element assessNode = dom.createElement("assessment");
+                    assesslist.appendChild(assessNode);
+
+                    Attr idAttr = dom.createAttribute("id");
+                    idAttr.setNodeValue(pubid);
+                    assessNode.setAttributeNode(idAttr);
+
+                    Node title = dom.createElement("title");
+                    title.appendChild(dom.createTextNode(fac.getTitle()));
+                    assessNode.appendChild(title);
+
+                    Node type = dom.createElement("type");
+                    type.appendChild(dom.createTextNode(fac.getTypeId().toString()));
+                    assessNode.appendChild(type);
+                }
+            }
+
+            //add total size node (nice attribute to save the end user doing an XSLT count every time)
+            Node assessTotal = dom.createElement("assessmentlistTotal");
+            assessTotal.appendChild(dom.createTextNode(Integer.toString(assessCnt)));
+            assesslist.appendChild(assessTotal);
+
+            return Xml.writeDocumentToString(dom);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?><errormsg>permission-failed canEditSite</errormsg>";
+    }
+
 }
